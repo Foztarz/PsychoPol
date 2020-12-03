@@ -1,9 +1,58 @@
-rm(list = ls())
+m(list = ls())
 graphics.off()
+#R versions <4.0.0 convert strings to factors, specify default behaviour
+formals(data.frame)$stringsAsFactors <- FALSE
+# Details ---------------------------------------------------------------
+#       AUTHOR:	James Foster              DATE: 2020 11 26
+#     MODIFIED:	James Foster              DATE: 2020 11 26
+#
+#  DESCRIPTION: Adapted from "Darkroom Lund 119Nov2016 Irradiance.R"
+#               Loads text files in µW/nm and calculates photon irradiance for
+#               across a predetermined interval.
+#               
+#      OUTPUTS: Absolute irradiance as plain text (txt).
+#
+#	   CHANGES: 
+#             
+#             
+#
+#   REFERENCES: Johnsen S. (2016) How to Measure Color Using Spectrometers and 
+#               Calibrated Photographs. Journal of Experimental Biology, 219(6)
+#               772–78. https://doi.org/10.1242/jeb.124008.
+#
+#               Stavenga, D.G., et al. (1993) Simple Exponential Functions
+#               Describing the Absorbance Bands of Visual Pigment Spectra. 
+#               Vision Research, 33(8), 1011–17.
+#               https://doi.org/10.1016/0042-6989(93)90237-Q.
+#
+#    EXAMPLES:  Skip to line 050 to identify which species and drugs were tested.
+#
+# 
+#TODO   ---------------------------------------------
+#TODO   
+#- Read in data
+#- Handle ignored names
+#- Calculate photon flux at 120 mm
+#- Estimate relative photon flux
 
 # Input Variables ----------------------------------------------------------
 
 #  .  User input -----------------------------------------------------------
+
+#Measurment name
+mnm <- "APol03 prototype 24 Oct 2020"
+
+#ignore files with this string
+ignore_st <- 'dark'
+#subsistute this string from filenames
+subst_st <- 'pc'
+#with this string
+repl_st <- '%'
+
+#plot params
+xlm <- c(300, 700)#Wavelength range of interest
+lw <- 4#Line width
+li <- 2.00
 
 #check the operating system and assign a logical flag (TRUE or FALSE)
 sys_win <- Sys.info()[['sysname']] == 'Windows'
@@ -32,62 +81,54 @@ if(sys_win){#choose.files is only available on Windows
   Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
   spc <- dirname(dirname(file.choose(new=F)))
 }
-# file_path <- dirname(Load_dir)
 print(spc)
-# print(file_path)
 
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
+#  .  Derive variables	----------------------------------------------
 
-# spc <- '/Dropbox/Spec/Apol01-IrradianceLund100mm/'#Folder containing measurements
+# setnm <- basename(spc)#'Apol01-IrradianceLund100mm'#folder containing measurements
+# num <- 1#5	#number of repeats for each measurement
 
-setnm <- basename(spc)#'Apol01-IrradianceLund100mm'#folder containing measurements
-num <- 1#5	#number of repeats for each measurement
-# I measured from closer to the light when it was very dim and used an inverse square law to accound for distance
-#	Measurements at 10mm											#
 #file names (minus ".txt")
-setnm <- c(	"Apol01-max", 
-            "Apol01-maxnotrace", 
-            "Apol01-6dp1d",
-            "Apol01-5dp2d",
-            "Apol01-4dp3d",
-            "Apol01-3dp4d",
-            "Apol01-2dp5d",
-            "Apol01-1dp6d",
-            "Apol01-minnotrace",
-            "Apol01-min")#,
+setnm <- list.dirs(spc, recursive = F)
+names(setnm) <- basename(setnm)
+  # c(	"Apol01-max", 
+  #           "Apol01-maxnotrace", 
+  #           "Apol01-6dp1d",
+  #           "Apol01-5dp2d",
+  #           "Apol01-4dp3d",
+  #           "Apol01-3dp4d",
+  #           "Apol01-2dp5d",
+  #           "Apol01-1dp6d",
+  #           "Apol01-minnotrace",
+  #           "Apol01-min")#,
 
-stm <- c(	"-tracediff7pol0diff-1000ms1stabox0-",
-          "-diff7pol0diff-1000ms1stabox0-",
-          "-diff6pol1diff-1000ms1stabox0-",
-          "-diff5pol2diff-1000ms1stabox0-",
-          "-diff4pol3diff-1000ms1stabox0-",			 
-          "-diff3pol4diff-1000ms1stabox0-",
-          "-diff2pol5diff-1000ms1stabox0-",
-          "-diff1pol6diff-1000ms1stabox0-",
-          "-diff0pol7diff-1000ms1stabox0-",
-          "-diff0pol7difftrace-1000ms1stabox0-")#,
+stm <- lapply(setnm, dir, pattern = '.txt')
+names(stm) <- names(setnm)
+  # c(	"-tracediff7pol0diff-1000ms1stabox0-",
+  #         "-diff7pol0diff-1000ms1stabox0-",
+  #         "-diff6pol1diff-1000ms1stabox0-",
+  #         "-diff5pol2diff-1000ms1stabox0-",
+  #         "-diff4pol3diff-1000ms1stabox0-",			 
+  #         "-diff3pol4diff-1000ms1stabox0-",
+  #         "-diff2pol5diff-1000ms1stabox0-",
+  #         "-diff1pol6diff-1000ms1stabox0-",
+  #         "-diff0pol7diff-1000ms1stabox0-",
+  #         "-diff0pol7difftrace-1000ms1stabox0-")#,
 #
-snm <- c(	'draft paper diff x 7 pol diff x 0',
-          'diff x 7 pol diff x 0',
-          'diff x 6 pol diff x 1',
-          'diff x 5 pol diff x 2',
-          'diff x 4 pol diff x 3',
-          'diff x 3 pol diff x 4',
-          'diff x 2 pol diff x 5',
-          'diff x 1 pol diff x 6',
-          'diff x 0 pol diff x 7',
-          'diff x 0 pol diff x 7 draft paper')#
+snm <-  sub(subst_st,  repl_st, basename(setnm))
+snm <- lapply(strsplit(snm, '-'), paste, collapse = ' ')
+names(snm) <- names(setnm)
+        # c(	'draft paper diff x 7 pol diff x 0',
+        #   'diff x 7 pol diff x 0',
+        #   'diff x 6 pol diff x 1',
+        #   'diff x 5 pol diff x 2',
+        #   'diff x 4 pol diff x 3',
+        #   'diff x 3 pol diff x 4',
+        #   'diff x 2 pol diff x 5',
+        #   'diff x 1 pol diff x 6',
+        #   'diff x 0 pol diff x 7',
+        #   'diff x 0 pol diff x 7 draft paper')#
 
-#plot params
-xlm <- c(300, 700)#Wavelength range of interest
-lw <- 4#Line width
-li <- 2.00
-
-mnm <- "Darkroom Lund 19Nov2016 revisited"
 
 
 # Useful Functions											 ---------------------------------------------
@@ -146,13 +187,14 @@ AItoFlux <- function(ai, nm){
 #Convert Absolute Irradiance spectrum into Photons/cm2/s across a wavelength band
 AItoNph <-  function(ai, nm, mi, mx){	
   #set maximum limits
-  if(missing(mi)){mi <- min(nm,na.rm=T)}
-  if(missing(mx)){mx <- max(nm,na.rm=T)}
+  rag <- range(nm)
+  if(missing(mi)){mi <- rag[1]}
+  if(missing(mx)){mx <- rag[2]}
   #Install integrate.xy if not already loaded
-  if(!any(rownames(installed.packages()) %in% 'sfsmisc', na.rm = T) ){
+  if(!( sum(rownames(installed.packages()) %in% 'sfsmisc', na.rm = T) )){
     mirrors <- getCRANmirrors()
     chooseCRANmirror(graphics=FALSE, 
-                     ind = which(mirrors$Country == 'Germany')[1])
+                     ind = which(mirrors$Country == 'Sweden'))
     install.packages('sfsmisc')
   }#if(!( sum(rownames(installed.packages()) %in% 'sfsmisc', na.rm=T) ))
   library('sfsmisc')
@@ -174,59 +216,80 @@ AItoNph <-  function(ai, nm, mi, mx){
   # (multiplied by 1000000µJ/J, divided by something?)
   #	=   photons/cm2/s/nm
   ph <- ai/(photonEnergy*1000000)#	photons/cm2/s/nm
-  return(	sfsmisc::integrate.xy(nm, ph, mi, mx)	)
+  return(	integrate.xy(nm, ph, mi, mx)	)
 }#AItoNph
 
 require('sfsmisc')
 
-
 # Read In Spectra													 --------------------------------------------
+file_path <- lapply(names(setnm), function(i){file.path(setnm[[i]], stm[[i]])})
+names(file_path) <- names(setnm)
+ai_files <- lapply(file_path, 
+                   function(s)
+                   {
+                     lapply(s,
+                            function(fl)
+                            {
+                               read.table(
+                                 file = fl, header = F, sep = '\t',
+                                 skip = grep(readLines(fl),pattern = '>>>>Begin')#,
+                                 # nrows = 1028
+                                 )
+                            }
+                           )
+                   }
+                  )
+# num <- 5
+# for(st in setnm){
+#   flb <- paste0('Apol01-irradiance', stm[which(setnm == st)]) #file label
+#   for(nn in 1:num){
+#     i <- which(setnm == st)
+#     filenm <- paste0(ltp, spc, st,'/', flb,'0',sprintf('%02d',nn),'.txt')
+#     assign( paste0(snm[i],'.',nn),
+#             read.table(filenm, header = F, sep  = '\t', 
+#                        skip = 17, nrows = 1028) )
+#   }#for(nn in 1:num)
+# }#for(st in setnm)
+RangeFUN <- function(x,v = 'V2'){subset(x, V1 >299 & V1 <701)[,v]}
 
-num <- 5
-for(st in setnm){
-  flb <- paste0('Apol01-irradiance', stm[which(setnm == st)]) #file label
-  for(nn in 1:num){
-    i <- which(setnm == st)
-    filenm <- paste0(ltp, spc, st,'/', flb,'0',sprintf('%02d',nn),'.txt')
-    assign( paste0(snm[i],'.',nn),
-            read.table(filenm, header = F, sep  = '\t', 
-                       skip = 17, nrows = 1028) )
-  }#for(nn in 1:num)
-}#for(st in setnm)
+wln <- RangeFUN(ai_files[[1]][[1]], 'V1')#get(paste0(snm[i],'.',nn))$V1
 
-wln <- get(paste0(snm[i],'.',nn))$V1
-rng <- wln >299 & wln < 701
-
-for(sn in snm){
-  for(nn in 1:num){
-    assign( paste0(sn,'.',nn),
-            get(paste0(sn,'.',nn))$V2[rng]	)
-  }#for(nn in 1:num)
-}#for(sn in snm)
-
-wln <- wln[rng]
+ai_files <- lapply(ai_files, 
+                   sapply,
+                   RangeFUN
+                  )
 #MOVED
-lunar.sky <- read.table(paste0(ltp, '/Dropbox/My Papers/DL in Orientation/', 'FullMoonIrradianceJohnsenetal2006C','.txt'), header = F, sep  = '\t')
-lun.sky.sp <- smooth.spline(lunar.sky$V1, lunar.sky$V2)
+solar.sky <- read.table(
+                file.path(ltp, '/Dropbox/Spec/', 'Sun11degIrradianceJohnsenetal2006C.txt'),
+                        header = F, sep  = '\t'
+              )
+sun.sky.sp <- with(solar.sky, smooth.spline(V1, V2))
 
 
 # Median of Each Measurement								 --------------------------------------
 
 
-#Collect measurements
+# #Collect measurements
 
-for(sn in snm){
-  assign( paste0('all.',sn), get(paste0(sn,'.',1))*1 )
-  for(nn in 2:num){
-    assign(paste0('all.',sn), cbind( get(paste0('all.',sn)), get(paste0(sn,'.',nn))*1 ))
-  }#for(nn in 2:num)
-}#for(sn in snm)
+# for(sn in snm){
+#   assign( paste0('all.',sn), get(paste0(sn,'.',1))*1 )
+#   for(nn in 2:num){
+#     assign(paste0('all.',sn), cbind( get(paste0('all.',sn)), get(paste0(sn,'.',nn))*1 ))
+#   }#for(nn in 2:num)
+# }#for(sn in snm)
 
 #Take median across repeats
-for(sn in snm){
-  assign( paste0(sn), apply(get(paste0('all.',sn)), 1, median) )
-}#for(sn in snm)
+ai_medians <- sapply(ai_files,
+                     apply,
+                     1,
+                     median
+                     )
 
+# for(sn in snm){
+#   assign( paste0(sn), apply(get(paste0('all.',sn)), 1, median) )
+# }#for(sn in snm)
+
+# WIP! I GOT THIS FAR -----------------------------------------------------
 
 
 #check that they look ok
