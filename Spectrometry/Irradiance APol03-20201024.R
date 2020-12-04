@@ -39,8 +39,12 @@ formals(data.frame)$stringsAsFactors <- FALSE
 
 #  .  User input -----------------------------------------------------------
 
-#Measurment name
+#Measurement name
 mnm <- "APol03 prototype 24 Oct 2020"
+#Measurement distance
+mds <- 110#mm
+#Lambda max of photoreceptor class of interest
+lmx <- 344
 
 #ignore files with this string
 ignore_st <- 'dark'
@@ -133,7 +137,29 @@ names(snm) <- names(setnm)
 
 # Useful Functions											 ---------------------------------------------
 
-# source(paste0(Sys.getenv('HOME'),'/Dropbox/R scripts/', 'TMUF.R') )
+#	Save current plot with dimensions displayed on screen and label accordingly
+PDFsave <- function(Directory = file.path(Sys.getenv('HOME'),'Documents'),
+                    Experiment = '_',
+                    Species = '_',
+                    PlotName = date(),
+                    Dim = par('din')
+                    )
+  {
+  #Copy to invisible device to save
+  suppressWarnings(
+    dev.copy(pdf,
+             file.path(Directory, 
+                            paste0(Experiment, Species,PlotName, '.pdf'
+                                   )
+                       ),
+             width = Dim[1], height = Dim[2],
+             useDingbats = F
+             )
+  )
+  #Save the image actual size
+  dev.off()#Doesn't save until invisible copy is closed
+  dev.set(dev.prev())
+}
 # this needed a lot of tidying up
 StavengaSpline <- function(spec.range = c(300, 700),
                            lambda.max,
@@ -288,91 +314,120 @@ ai_medians <- sapply(ai_files,
 # for(sn in snm){
 #   assign( paste0(sn), apply(get(paste0('all.',sn)), 1, median) )
 # }#for(sn in snm)
-
-# WIP! I GOT THIS FAR -----------------------------------------------------
+if(dim(ai_medians)[1]<length(wln))
+{
+  warning('measurement array shorter than number of wavelength bins\n',
+          'rotating array'
+          )
+  ai_medians <- t(ai_medians)
+}
+if(dim(ai_medians)[1] == length(wln))
+{ai_medians <- within(data.frame(ai_medians), {wavelength <- wln})}else
+{
+  stop('measurement array is not the same length as the wavelength vector',
+      'perhaps not all measurements were recorded with the same device?')
+}
+#column names cannot contain certain characters, replace these with '_' for readability
+names(ai_medians) <- sub('^X', '_', names(ai_medians))#starting with number, gets 'X'
+names(ai_medians) <- sub('.', '_', names(ai_medians))#'-' replaced with '.', use '_'
 
 
 #check that they look ok
 #	Pre-transform plot											#
 #colours	 for plotting each
-clz <- c(		
-  'gray30',
-  'gray20',
-  'purple4',
-  'magenta4',
-  'steelblue',
-  'darkblue',
-  'orange3',
-  'orange4',
-  'darkred',
-  'red3',
-  'cyan3',
-  'cyan4',
-  'pink3',
-  'salmon4',
-  'seagreen',
-  'darkgreen',
-  'gray50',
-  'gray70'
+clz <- sapply(
+  dim(ai_medians)[2]-1,
+  colorRampPalette(
+            c(		
+            'gray30',
+            'gray20',
+            'purple4',
+            'magenta4',
+            'steelblue',
+            'darkblue',
+            'orange3',
+            'orange4',
+            'darkred',
+            'red3',
+            'cyan3',
+            'cyan4',
+            'pink3',
+            'salmon4',
+            'seagreen',
+            'darkgreen',
+            'gray50',
+            'gray70'
+            )
+  )
 )
-upAI <- .025
-dev.new(width=7, height = 5)
+
+
+# Plot raw absolute irradiance --------------------------------------------
+
+
+upAI <- max(ai_medians[,1:length(snm)])
+# dev.new(width=7, height = 5)
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(NULL, xlim = c(300,700), ylim = c(0,upAI), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
   i <- which(snm == sn)
-  lines(wln, get(paste0(sn)), col = clz[i] )
+  lines(wln, ai_medians[,i], col = clz[i] )
 }#for(sn in snm)
 title(xlab = 'Wavelength (nm)')
 title(ylab = expression('Absolute Irradiance ('~mu*'Watts'*'cm'^{'-2'}*'nm'^{'-1'}*')'))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, upAI, rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-polygon(c(350, 400, 400, 350), c(0,0,upAI, upAI), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'AI uncorrected'))
+title(main = paste(mnm, 'as measured at', mds,'mm'))
+legend(450, upAI, rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
+# polygon(c(350, 400, 400, 350), c(0,0,upAI, upAI), col = rgb(1,0,1,0.1), border = NA)
+PDFsave(Directory = spc, PlotName = paste(mnm, 'AI uncorrected'))
 
 # Transform to Estimated True Counts per Meter Squared	 -------------------
 
+photon_medians <- apply(ai_medians[,-length(ai_medians)],2, AItoFlux, wln)
 
-for(sn in snm){
-  assign( paste0('photon.',sn), AItoFlux(get(paste0(sn)), wln) )
-}#for(sn in snm)
-assign( paste0('photon.','fullmoon'), predict(lun.sky.sp, x = wln)$y )
+photon.solarsky <-  predict(sun.sky.sp, x = wln)$y 
 
-#try smoothing below 350
-for(sn in snm){
-  tmphoton <- get(paste0('photon.',sn))
-  sptmp <- smooth.spline(wln, tmphoton)
-  tmphoton[wln<350] <- predict(sptmp, x = wln[wln<350])$y
-  assign( paste0('photon.',sn), tmphoton )
-}#for(sn in snm)
+    # #try smoothing below 350
+    # for(sn in snm){
+    #   tmphoton <- get(paste0('photon.',sn))
+    #   sptmp <- smooth.spline(wln, tmphoton)
+    #   tmphoton[wln<350] <- predict(sptmp, x = wln[wln<350])$y
+    #   assign( paste0('photon.',sn), tmphoton )
+    # }#for(sn in snm)
 
-#make a Scarab UV response curve
-spln.365 <- StavengaSpline(c(300, 700), 365) # an a1 opsin with a 365nm max absorption
-whole.365 <- predict(spln.365, x = wln)$y
-spln.520 <- StavengaSpline(c(300, 700), 520) # an a1 opsin with a 365nm max absorption
-whole.520 <- predict(spln.520, x = wln)$y
+#make a honeybee UV response curve (Menzel & Blakers, 1976)
+spln.lmx <- StavengaSpline(c(300, 700), lmx) # an a1 opsin with a 344nm max absorption
+whole.lmx <- predict(spln.lmx, x = wln)$y
 
 
-dev.new(width=7, height = 5)
+
+
+# Plot photon flux --------------------------------------------------------
+
+
+# dev.new(width=7, height = 5)
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(wln, whole.365, type = 'l', col = 'purple', lwd = 3, xlab = 'Wavelength (nm)', ylab = 'Relative Sensitivity', main = 'Stavenga Templates 365 nm & 520 peak')
-polygon(c(350, 400, 400, 350), c(0,0,1, 1), col = rgb(1,0,1,0.1), border = NA)
-lines(wln, predict(StavengaSpline(c(300, 700), 520), x = wln)$y, col = 'seagreen', lwd = 3)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste('Stavenga template lambda max 365 and 520'))
+plot(wln, whole.lmx, type = 'l', col = 'purple', lwd = 3,
+     xlab = 'Wavelength (nm)', ylab = 'Relative Sensitivity',
+     main = paste0('Stavenga Template', lmx,'nm peak')
+     )
+# polygon(c(350, 400, 400, 350), c(0,0,1, 1), col = rgb(1,0,1,0.1), border = NA)
+# lines(wln, predict(StavengaSpline(c(300, 700), 344), x = wln)$y, col = 'seagreen', lwd = 3)
+PDFsave(Directory = spc, PlotName = paste('Stavenga template lambda max 344'))
 
-#Weight by Scarab UV response curve
-for(sn in snm){
-  assign( paste0('rel.photon.',sn), get(paste0('photon.',sn))*whole.365 )
-}#for(sn in snm)
-assign( paste0('rel.photon.','fullmoon'), get(paste0('photon.','fullmoon'))*whole.365  )
+#Weight by Honeybee UV response curve
+rel.photon_medians <- apply(photon_medians,2, function(x){x*whole.lmx})
+
+rel.photon.solarsky <-  photon.solarsky*whole.lmx
+# WIP! I GOT THIS FAR -----------------------------------------------------
 #	Post-transform plot											#
-up.photon <- AItoFlux(upAI, wln[which(get(paste0(sn)) == max( get(paste0(sn)) )) ] )
-dev.new(width=7, height = 5)
+up.photon <- max(photon_medians)
+# dev.new(width=7, height = 5)
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(NULL, xlim = c(300,700), ylim = c(0, up.photon), ann = F, type = 'l', col = 'red4')
+plot(NULL, xlim = c(300,700), ylim = c(0, up.photon),
+     ann = F, type = 'l', col = 'red4')
 for(sn in snm){
   i <- which(snm == sn)
-  lines(wln, get(paste0('photon.',sn)), col = clz[i] )
+  lines(wln, photon_medians[,i], col = clz[i] )
 }#for(sn in snm)
 title(xlab = 'Wavelength (nm)')
 title(ylab = expression('Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
