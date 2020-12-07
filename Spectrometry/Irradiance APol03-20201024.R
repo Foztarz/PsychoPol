@@ -45,6 +45,8 @@ mnm <- "APol03 prototype 24 Oct 2020"
 mds <- 110#mm
 #Lambda max of photoreceptor class of interest
 lmx <- 344
+#Wavelengths to sum photons across range with high signal
+awl <- c(350,400)
 
 #ignore files with this string
 ignore_st <- 'dark'
@@ -95,6 +97,8 @@ print(spc)
 #file names (minus ".txt")
 setnm <- list.dirs(spc, recursive = F)
 names(setnm) <- basename(setnm)
+#basic sorting, works for 20201024 data
+setnm <- setnm[order(nchar(names(setnm)))]
   # c(	"Apol01-max", 
   #           "Apol01-maxnotrace", 
   #           "Apol01-6dp1d",
@@ -418,7 +422,6 @@ PDFsave(Directory = spc, PlotName = paste('Stavenga template lambda max 344'))
 rel.photon_medians <- apply(photon_medians,2, function(x){x*whole.lmx})
 
 rel.photon.solarsky <-  photon.solarsky*whole.lmx
-# WIP! I GOT THIS FAR -----------------------------------------------------
 #	Post-transform plot											#
 up.photon <- max(photon_medians)
 # dev.new(width=7, height = 5)
@@ -431,44 +434,66 @@ for(sn in snm){
 }#for(sn in snm)
 title(xlab = 'Wavelength (nm)')
 title(ylab = expression('Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, up.photon, rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-polygon(c(350, 400, 400, 350), c(0,0, up.photon, up.photon), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'Photon Illumination', '4Lana'))
+title(main = paste(mnm, 'as measured at ', mds,' mm'))
+legend(500, up.photon, rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
+# polygon(c(350, 400, 400, 350), c(0,0, up.photon, up.photon), col = rgb(1,0,1,0.1), border = NA)
+PDFsave(Directory = spc, PlotName = paste(mnm, 'Photon Illumination'))
 
-dev.new(width=7, height = 5)
+# dev.new(width=7, height = 5)
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(NULL, xlim = c(300,700), ylim = c(8, log10(up.photon)), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
   i <- which(snm == sn)
-  lines(wln, log10( get(paste0('photon.',sn)) ), col = clz[i] )
+  lines(wln, log10( photon_medians[,i] ), col = clz[i] )
 }#for(sn in snm)
 title(xlab = 'Wavelength (nm)')
 title(ylab = expression('log'[10]~'Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, log10(up.photon), rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'log10 Photon Illumination', '4Lana', 'scaled'))
-lines(wln, log10(photon.fullmoon), col = 'darkgreen', lwd = 5)
-legend(600, 9.5, 'Full Moon \nfrom Johnsen et al. 2008', col = 'darkgreen', lty = 1, lwd = 5, bty = 'n')
-polygon(c(350, 400, 400, 350), c(0,0, log10(up.photon), log10(up.photon)), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'Full moon and', 'log10 Photon Illumination', '4Lana', 'scaled'))
+title(main = paste(mnm, 'as measured at ',mds,' mm'))
+# PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'log10 Photon Illumination', '4Lana', 'scaled'))
+lines(wln, log10(photon.solarsky), col = 'skyblue', lwd = 3)
+legend(550, log10(up.photon), rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
+legend(550, 9.5, 'Sunlit sky \nfrom Johnsen et al. 2008', col = 'skyblue', lty = 1, lwd = 5, bty = 'n')
+# polygon(c(350, 400, 400, 350), c(0,0, log10(up.photon), log10(up.photon)), col = rgb(1,0,1,0.1), border = NA)
+PDFsave(Directory = spc, PlotName = paste(mnm, 'Sunlit sky and', 'log10 Photon Illumination', 'scaled'))
 
-dev.new(width=7, height = 5)
+# dev.new(width=7, height = 5)
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(NULL, xlim = c(300,700), ylim = c(6, log10(up.photon)), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
   i <- which(snm == sn)
-  lines(wln, log10( get(paste0('rel.photon.',sn)) ), col = clz[i] )
+  lines(wln, log10( rel.photon_medians[,i] ), col = clz[i] )
 }#for(sn in snm)
 title(xlab = 'Wavelength (nm)')
 title(ylab = expression('log'[10]~'UV photopigment relative absorbance'~'•'~'Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, log10(up.photon), rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'log10 Relative Photon Illumination', '4Lana', 'scaled'))
-lines(wln, log10(rel.photon.fullmoon), col = 'darkgreen', lwd = 5)
-legend(600, 8.5, 'Full Moon \nfrom Johnsen et al. 2008', col = 'darkgreen', lty = 1, lwd = 5, bty = 'n')
-polygon(c(350, 400, 400, 350), c(0,0, log10(up.photon), log10(up.photon)), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'relative Full moon and ', 'log10 Photon Illumination', '4Lana', 'scaled'))
+title(main = paste(mnm, 'as measured at ',mds,' mm'))
+# PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'log10 Relative Photon Illumination', '4Lana', 'scaled'))
+lines(wln, log10(rel.photon.solarsky), col = 'skyblue', lwd = 3)
+legend(550, log10(up.photon), rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
+legend(550, 8.0, 'Sunlit sky \nfrom Johnsen et al. 2008', col = 'skyblue', lty = 1, lwd = 5, bty = 'n')
+# polygon(c(350, 400, 400, 350), c(0,0, log10(up.photon), log10(up.photon)), col = rgb(1,0,1,0.1), border = NA)
+PDFsave(Directory = spc, PlotName = paste(mnm, 'relative sunlit sky and ', 'log10 Photon Illumination', '4Lana', 'scaled'))
+
+
+
+# # MEASUREMENT SPECIFIC edge distance
+# 
+# # dev.new(width=7, height = 5)
+# par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
+# plot(NULL, xlim = c(300,450), ylim = c(10, log10(up.photon)), ann = F, type = 'l', col = 'red4')
+# for(sn in snm[length(snm) - 0:2]){
+#   i <- which(snm == sn)
+#   lines(wln, log10( photon_medians[,i] ), col = clz[i] )
+# }#for(sn in snm)
+# title(xlab = 'Wavelength (nm)')
+# title(ylab = expression('log'[10]~'Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
+# title(main = paste(mnm, 'as measured at',mds,'mm'))
+# legend(400, log10(up.photon),
+#        rev(snm[length(snm) - 0:2]), 
+#        col = rev(clz[length(snm) - 0:2]), 
+#        lty = 1, lwd = 2
+#        )
+
+#nothing I can do here, no dropoff measured!
 
 
 # Summed Photon Flux										 --------------------------------------------
@@ -477,49 +502,131 @@ PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'relative Full moon a
 #integrate under the spectral irradiance curve across the least noisy range (i.e. not the UV and far red where measured irradiance is probably noise).
 #this gives total number of photons, regardless of wavelength
 #needs integrate.xy() from 'sfsmisc' package, which performs a spline interpolated integration
-awl <- c(350,400)#c(340,400)#;c(350,400)#Let's use the spline and guess values 325--400#too messy try from 340nm#now smoothed, try again
+#c(340,400)#;c(350,400)#Let's use the spline and guess values 325--400#too messy try from 340nm#now smoothed, try again
 
 #Take integral in preferred range
-for(sn in snm){
-  assign( paste0('sm.photon.',sn), integrate.xy(wln, get( paste0('photon.',sn)), a= min(awl), b = max(awl) ) )
-}#for(sn in snm)
-assign(paste0('sm.photon.','fullmoon'), integrate.xy(wln, get(paste0('photon.','fullmoon')), a= min(awl), b = max(awl) ) ) 
-
-#Take integral in preferred range
-for(sn in snm){
-  assign( paste0('sm.rel.photon','.',sn), integrate.xy(wln, get( paste0('rel.photon.',sn)), a= min(awl), b = max(awl) ) )
-}#for(sn in snm)
-assign(paste0('sm.rel.photon.','fullmoon'), integrate.xy(wln, get(paste0('rel.photon.','fullmoon')), a= min(awl), b = max(awl) ) ) 
+sm.photon_medians <- apply(photon_medians,
+                           2,
+                            function(p)
+                              {
+                              integrate.xy(x = wln,
+                                           fx = p,
+                                           a = min(awl),
+                                           b = max(awl)
+                                           )
+                              }
+                            )
+sm.photon.solarsky <- integrate.xy(x = wln,
+                                   fx = photon.solarsky,
+                                   a = min(awl),
+                                   b = max(awl)
+                                  )
+sm.rel.photon_medians <- apply(rel.photon_medians,
+                               2,
+                               function(p)
+                               {
+                                 integrate.xy(x = wln,
+                                              fx = p,
+                                              a = min(awl),
+                                              b = max(awl)
+                                 )
+                               }
+                            )
+sm.rel.photon.solarsky <- integrate.xy(x = wln,
+                                   fx = rel.photon.solarsky,
+                                   a = min(awl),
+                                   b = max(awl)
+                                   )
 
 
 #not as close as I would like
-moonflux <- round( log10( get(paste0('sm.photon.', 'fullmoon' )) ), 2)
-unpolflux <- round( log10(apply(cbind(paste0('sm.photon.', snm )), 1, get)), 2)[1:4]
-polflux <- round( log10(apply(cbind(paste0('sm.photon.', snm )), 1, get)), 2)[-1:-4]
+polflux <-  sapply(sm.photon_medians,
+                  function(p)
+                  {
+                    round( log10(p), 2)
+                  }
+                  )
+round( log10(apply(cbind(paste0('sm.photon.', snm )), 1, get)), 2)[-1:-4]
+solarflux <- round( log10(sm.photon.solarsky), 2)
 
 estimates <- matrix( c(wln,
-                       rev(c(apply(cbind(paste0('photon.', snm )), 1, get),    
-                             `photon.fullmoon`        )) ), ncol = length(snm)+1 +1, dimnames = list(c(wln), c('wavelength_nm', 'spline Full Moon Johnsen 2008', rev(snm)) ) ) 
+                       photon.solarsky,
+                       photon_medians    
+                       ),
+                     ncol = length(snm)+1 +1,
+                     dimnames = list(c(wln), 
+                                     c('wavelength_nm', 'spline Sunlit Sky Johnsen 2008', snm) 
+                                     )
+                     ) 
 
 rel.estimates <- matrix( c(wln,
-                           rev(c(apply(cbind(paste0('rel.photon.', snm )), 1, get),    
-                                 `rel.photon.fullmoon`        )) ), ncol = length(snm)+1 +1, dimnames = list(c(wln), c('wavelength_nm', 'spline Full Moon Johnsen 2008', rev(snm)) ) ) 
-fluxes <- matrix( rev(c(apply(cbind(paste0('sm.photon.', snm )), 1, get),    
-                        `sm.photon.fullmoon`        )), ncol = 1, dimnames = list(c('spline Full Moon Johnsen 2008', rev(c(snm))), paste('photons per cm squared per second', 'from', paste0(awl[1],'-', awl[2]) ) ) )
+                           rel.photon.solarsky,   
+                           rel.photon_medians
+                           ), 
+                         ncol = length(snm)+1 +1, 
+                         dimnames = list(c(wln), 
+                                         c('wavelength_nm', 'spline Sunlit Sky Johnsen 2008', snm) 
+                                         ) 
+                         ) 
+fluxes <- matrix( c(sm.photon.solarsky,
+                    sm.photon_medians    
+                    ),
+                  nrow = 1,
+                  dimnames = list(NULL,
+                                  c('spline Sunlit Sky Johnsen 2008',
+                                     paste(snm,'photons per cm squared per second', 'from', paste0(awl[1],'-', awl[2]) ) 
+                                    )
+                                  )
+                  )
 
-#what was the measurement for full moon?
-print(signif(`sm.photon.fullmoon`, 3))
-print(signif(fluxes, 3))
 
-rel.fluxes <- matrix( rev(c(apply(cbind(paste0('sm.rel.photon.', snm )), 1, get),    
-                            `sm.rel.photon.fullmoon`        )), ncol = 1, dimnames = list(c('spline Full Moon Johnsen 2008', rev(c(snm))), paste('relative photon absorption rates per cm squared per second', 'from', paste0(awl[1],'-', awl[2]) ) ) )
+rel.fluxes <- matrix( c(sm.rel.photon.solarsky,
+                           sm.rel.photon_medians    
+                        ),
+                      nrow = 1,
+                      dimnames = list(NULL,
+                                      c('spline Sunlit Sky Johnsen 2008',
+                                        paste(snm,'photons per cm squared per second', 'from', paste0(awl[1],'-', awl[2]) ) 
+                                      )
+                      )
+                    )
 
-print(signif(rel.fluxes, 3))
+barplot(log10(fluxes), col = c('skyblue',clz),
+        beside = T,
+        xlab = 'condition',
+        ylab = expression('log'[10]~'Photons cm'^{'-2'}*'s'^{'-1'}),
+        main = '',#paste0(awl[1],'-', awl[2],'nm'),
+        ylim = c(0, log10(up.photon)+2),
+        cex.names = 0.33,
+        axisnames = F
+        )
+axis(1,
+     at = 1:(length(snm)+1)*2-0.5,
+     labels = c('solar sky', snm),
+     col.axis = 'white',
+     line = -12,
+     las = 2,
+     tick = F, lty = 0
+     )
 
-dev.new(width=14, height = 5)
-barplot(log10(t(fluxes)), col = c(rev(clz)), beside = T, xlab = 'condition', ylab = expression('log'[10]~'Photons cm'^{'-2'}*'s'^{'-1'}), main = paste0(awl[1],'-', awl[2],'nm'), ylim = c(0, 14), cex.names = .33, las = 2)
-abline(h = log10(`sm.photon.fullmoon`), col = 'blue')		
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste('log10 Photon Sum', mnm, '4Lana'))
+abline(h = log10(sm.photon.solarsky), col = 'skyblue')		
+PDFsave(Directory = spc, PlotName = paste('log10 Photon Sum', mnm))
+
+# WIP! I GOT THIS FAR -----------------------------------------------------
+
+# MEASUREMENT SPECIFIC jog-wheel setting ----------------------------------
+
+plot(c(0,0.33, 0.50, 1.0),
+     log10(sm.photon_medians[1:4]),
+     pch = 3
+     )
+lm.1 <- lm(
+          qlogis(
+            (sm.photon_medians[1:4] - 0.9*min(sm.photon_medians))/
+              max(sm.photon_medians)
+            )~ 
+            c(0,0.33, 0.50, 1.0)
+          )
 
 dev.new(width=14, height = 5)
 barplot(log10(t(rel.fluxes)), col = c(rev(clz)), beside = T, xlab = 'condition', ylab = expression('log'[10]~'Relative Photons cm'^{'-2'}*'s'^{'-1'}), main = paste0(awl[1],'-', awl[2],'nm'), ylim = c(0, 14), cex.names = .33, las = 2)
