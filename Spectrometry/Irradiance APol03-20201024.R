@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2020 11 26
+#     MODIFIED:	James Foster              DATE: 2020 12 08
 #
 #  DESCRIPTION: Adapted from "Darkroom Lund 119Nov2016 Irradiance.R"
 #               Loads text files in µW/nm and calculates photon irradiance for
@@ -546,7 +546,6 @@ polflux <-  sapply(sm.photon_medians,
                     round( log10(p), 2)
                   }
                   )
-round( log10(apply(cbind(paste0('sm.photon.', snm )), 1, get)), 2)[-1:-4]
 solarflux <- round( log10(sm.photon.solarsky), 2)
 
 estimates <- matrix( c(wln,
@@ -612,21 +611,68 @@ axis(1,
 abline(h = log10(sm.photon.solarsky), col = 'skyblue')		
 PDFsave(Directory = spc, PlotName = paste('log10 Photon Sum', mnm))
 
-# WIP! I GOT THIS FAR -----------------------------------------------------
 
 # MEASUREMENT SPECIFIC jog-wheel setting ----------------------------------
-
+#logistic fit
+lm.1 <- lm( y~x,
+            data = data.frame(x = c(0,0.33, 0.50, 1.0),
+                              y = qlogis(
+                                  (sm.photon_medians[1:4] -
+                                     0.99*min(sm.photon_medians[1:4]))/
+                                    (1.01*max(sm.photon_medians[1:4]))
+                                )
+                              )
+          )
+#spline fit
+sp.1 <- smooth.spline(x = c(0,0.33, 0.50, 1.0),
+                      y = sm.photon_medians[1:4]
+                      )
+#gamma fit a+b*(x)^g
+#ideally "a" should be 0 here
+#so just b*(x)^g
+scale.x <- scale(sm.photon_medians[1:4], center = F)
+gammaFUN <- function(x, p)
+              {
+                p[1]*x^p[2]
+              }
+gammaSS <- function(p, x = c(0,0.33, 0.50, 1.0), y = scale.x)
+              {
+               sum(
+                 ( y - gammaFUN(x, p) )^2
+               ) 
+              }
+ga.1 <- lapply(1:10,
+               function(i)
+               {
+                optim(sample(1:10,2,T), gammaSS,
+                      # method = 'L-BFGS-B',
+                      # lower = 0,
+                      # control = list(trace = T)
+                      )
+               }
+              )
+ga.val <- sapply(ga.1, function(x){x$value})
+ga.fit <- ga.1[[which.min(ga.val)]]
+xx <- seq(0,1,length.out = 1e3)
+lm.fit <- 1.01*max(sm.photon_medians[1:4])*
+            plogis(
+              predict(lm.1, newdata = data.frame(x = xx)) 
+              )+
+            0.99*min(sm.photon_medians[1:4])
+sp.fit <- predict(sp.1, x = xx)
 plot(c(0,0.33, 0.50, 1.0),
      log10(sm.photon_medians[1:4]),
      pch = 3
      )
-lm.1 <- lm(
-          qlogis(
-            (sm.photon_medians[1:4] - 0.9*min(sm.photon_medians))/
-              max(sm.photon_medians)
-            )~ 
-            c(0,0.33, 0.50, 1.0)
-          )
+# lines(xx, log10(lm.fit), col = 'darkblue', lwd = 3)
+lines(sp.fit$x, log10(sp.fit$y), col = 'darkgreen', lwd = 3)
+lines(xx,
+      log10((ga.fit$par[1]*xx^ga.fit$par[2])*attr(scale.x, 'scaled:scale')),
+      col = 'purple', lwd = 3
+      )
+
+
+# WIP! I GOT THIS FAR -----------------------------------------------------
 
 dev.new(width=14, height = 5)
 barplot(log10(t(rel.fluxes)), col = c(rev(clz)), beside = T, xlab = 'condition', ylab = expression('log'[10]~'Relative Photons cm'^{'-2'}*'s'^{'-1'}), main = paste0(awl[1],'-', awl[2],'nm'), ylim = c(0, 14), cex.names = .33, las = 2)
