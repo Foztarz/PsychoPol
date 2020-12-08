@@ -1,4 +1,4 @@
-m(list = ls())
+rm(list = ls())
 graphics.off()
 #R versions <4.0.0 convert strings to factors, specify default behaviour
 formals(data.frame)$stringsAsFactors <- FALSE
@@ -30,10 +30,9 @@ formals(data.frame)$stringsAsFactors <- FALSE
 # 
 #TODO   ---------------------------------------------
 #TODO   
-#- Read in data
-#- Handle ignored names
-#- Calculate photon flux at 120 mm
-#- Estimate relative photon flux
+#- Read in data +
+#- Handle ignored names +
+#- Estimate relative photon flux  +
 
 # Input Variables ----------------------------------------------------------
 
@@ -90,53 +89,23 @@ if(sys_win){#choose.files is only available on Windows
 print(spc)
 
 #  .  Derive variables	----------------------------------------------
+#wavelength range label
+wlr <- paste0(awl[1],'–',awl[2])
 
-# setnm <- basename(spc)#'Apol01-IrradianceLund100mm'#folder containing measurements
-# num <- 1#5	#number of repeats for each measurement
-
-#file names (minus ".txt")
+#folders containing measurements
 setnm <- list.dirs(spc, recursive = F)
 names(setnm) <- basename(setnm)
 #basic sorting, works for 20201024 data
 setnm <- setnm[order(nchar(names(setnm)))]
-  # c(	"Apol01-max", 
-  #           "Apol01-maxnotrace", 
-  #           "Apol01-6dp1d",
-  #           "Apol01-5dp2d",
-  #           "Apol01-4dp3d",
-  #           "Apol01-3dp4d",
-  #           "Apol01-2dp5d",
-  #           "Apol01-1dp6d",
-  #           "Apol01-minnotrace",
-  #           "Apol01-min")#,
 
+#file names (minus ".txt")
 stm <- lapply(setnm, dir, pattern = '.txt')
 names(stm) <- names(setnm)
-  # c(	"-tracediff7pol0diff-1000ms1stabox0-",
-  #         "-diff7pol0diff-1000ms1stabox0-",
-  #         "-diff6pol1diff-1000ms1stabox0-",
-  #         "-diff5pol2diff-1000ms1stabox0-",
-  #         "-diff4pol3diff-1000ms1stabox0-",			 
-  #         "-diff3pol4diff-1000ms1stabox0-",
-  #         "-diff2pol5diff-1000ms1stabox0-",
-  #         "-diff1pol6diff-1000ms1stabox0-",
-  #         "-diff0pol7diff-1000ms1stabox0-",
-  #         "-diff0pol7difftrace-1000ms1stabox0-")#,
-#
+#replace undesirable characters in names
 snm <-  sub(subst_st,  repl_st, basename(setnm))
+#repalce minus with a space
 snm <- lapply(strsplit(snm, '-'), paste, collapse = ' ')
 names(snm) <- names(setnm)
-        # c(	'draft paper diff x 7 pol diff x 0',
-        #   'diff x 7 pol diff x 0',
-        #   'diff x 6 pol diff x 1',
-        #   'diff x 5 pol diff x 2',
-        #   'diff x 4 pol diff x 3',
-        #   'diff x 3 pol diff x 4',
-        #   'diff x 2 pol diff x 5',
-        #   'diff x 1 pol diff x 6',
-        #   'diff x 0 pol diff x 7',
-        #   'diff x 0 pol diff x 7 draft paper')#
-
 
 
 # Useful Functions											 ---------------------------------------------
@@ -164,7 +133,8 @@ PDFsave <- function(Directory = file.path(Sys.getenv('HOME'),'Documents'),
   dev.off()#Doesn't save until invisible copy is closed
   dev.set(dev.prev())
 }
-# this needed a lot of tidying up
+
+# Make a spline template for a visual pigment
 StavengaSpline <- function(spec.range = c(300, 700),
                            lambda.max,
                            a.type = 'a1'){
@@ -224,7 +194,7 @@ AItoNph <-  function(ai, nm, mi, mx){
   if(!( sum(rownames(installed.packages()) %in% 'sfsmisc', na.rm = T) )){
     mirrors <- getCRANmirrors()
     chooseCRANmirror(graphics=FALSE, 
-                     ind = which(mirrors$Country == 'Sweden'))
+                     ind = which(mirrors$Country == 'Germany'))
     install.packages('sfsmisc')
   }#if(!( sum(rownames(installed.packages()) %in% 'sfsmisc', na.rm=T) ))
   library('sfsmisc')
@@ -249,11 +219,15 @@ AItoNph <-  function(ai, nm, mi, mx){
   return(	integrate.xy(nm, ph, mi, mx)	)
 }#AItoNph
 
+#load the package with integrate.xy
 require('sfsmisc')
 
 # Read In Spectra													 --------------------------------------------
+#construct paths to each file
 file_path <- lapply(names(setnm), function(i){file.path(setnm[[i]], stm[[i]])})
+#label them with the correct measurement names
 names(file_path) <- names(setnm)
+#Load each file starting at Ocean Optics' ">>>Begin" flag
 ai_files <- lapply(file_path, 
                    function(s)
                    {
@@ -290,7 +264,9 @@ ai_files <- lapply(ai_files,
                   )
 #MOVED
 solar.sky <- read.table(
-                file.path(ltp, '/Dropbox/Spec/', 'Sun11degIrradianceJohnsenetal2006C.txt'),
+                file.path(ltp, '/Dropbox/Spec/',
+                          'Sun11degIrradianceJohnsenetal2006C.txt'
+                          ),
                         header = F, sep  = '\t'
               )
 sun.sky.sp <- with(solar.sky, smooth.spline(V1, V2))
@@ -326,7 +302,8 @@ if(dim(ai_medians)[1]<length(wln))
   ai_medians <- t(ai_medians)
 }
 if(dim(ai_medians)[1] == length(wln))
-{ai_medians <- within(data.frame(ai_medians), {wavelength <- wln})}else
+# {ai_medians <- within(data.frame(ai_medians), {wavelength <- wln})}else
+{}else
 {
   stop('measurement array is not the same length as the wavelength vector',
       'perhaps not all measurements were recorded with the same device?')
@@ -340,7 +317,7 @@ names(ai_medians) <- sub('.', '_', names(ai_medians))#'-' replaced with '.', use
 #	Pre-transform plot											#
 #colours	 for plotting each
 clz <- sapply(
-  dim(ai_medians)[2]-1,
+  dim(ai_medians)[2],
   colorRampPalette(
             c(		
             'gray30',
@@ -370,7 +347,6 @@ clz <- sapply(
 
 
 upAI <- max(ai_medians[,1:length(snm)])
-# dev.new(width=7, height = 5)
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(NULL, xlim = c(300,700), ylim = c(0,upAI), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
@@ -403,12 +379,10 @@ spln.lmx <- StavengaSpline(c(300, 700), lmx) # an a1 opsin with a 344nm max abso
 whole.lmx <- predict(spln.lmx, x = wln)$y
 
 
-
-
 # Plot photon flux --------------------------------------------------------
 
 
-# dev.new(width=7, height = 5)
+dev.new()
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(wln, whole.lmx, type = 'l', col = 'purple', lwd = 3,
      xlab = 'Wavelength (nm)', ylab = 'Relative Sensitivity',
@@ -424,7 +398,7 @@ rel.photon_medians <- apply(photon_medians,2, function(x){x*whole.lmx})
 rel.photon.solarsky <-  photon.solarsky*whole.lmx
 #	Post-transform plot											#
 up.photon <- max(photon_medians)
-# dev.new(width=7, height = 5)
+dev.new()
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(NULL, xlim = c(300,700), ylim = c(0, up.photon),
      ann = F, type = 'l', col = 'red4')
@@ -439,7 +413,7 @@ legend(500, up.photon, rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2
 # polygon(c(350, 400, 400, 350), c(0,0, up.photon, up.photon), col = rgb(1,0,1,0.1), border = NA)
 PDFsave(Directory = spc, PlotName = paste(mnm, 'Photon Illumination'))
 
-# dev.new(width=7, height = 5)
+dev.new()
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(NULL, xlim = c(300,700), ylim = c(8, log10(up.photon)), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
@@ -456,7 +430,7 @@ legend(550, 9.5, 'Sunlit sky \nfrom Johnsen et al. 2008', col = 'skyblue', lty =
 # polygon(c(350, 400, 400, 350), c(0,0, log10(up.photon), log10(up.photon)), col = rgb(1,0,1,0.1), border = NA)
 PDFsave(Directory = spc, PlotName = paste(mnm, 'Sunlit sky and', 'log10 Photon Illumination', 'scaled'))
 
-# dev.new(width=7, height = 5)
+dev.new()
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
 plot(NULL, xlim = c(300,700), ylim = c(6, log10(up.photon)), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
@@ -641,13 +615,10 @@ gammaSS <- function(p, x = c(0,0.33, 0.50, 1.0), y = scale.x)
                  ( y - gammaFUN(x, p) )^2
                ) 
               }
-ga.1 <- lapply(1:10,
+ga.1 <- lapply(1:10,#in 10 chains
                function(i)
-               {
+               {#start with random coefficients drawn from integers 1 to 10
                 optim(sample(1:10,2,T), gammaSS,
-                      # method = 'L-BFGS-B',
-                      # lower = 0,
-                      # control = list(trace = T)
                       )
                }
               )
@@ -670,16 +641,25 @@ lines(xx,
       log10((ga.fit$par[1]*xx^ga.fit$par[2])*attr(scale.x, 'scaled:scale')),
       col = 'purple', lwd = 3
       )
+#Gamma fit looks good (though for this data a linear fit would probably also be fine)
+
+# Save everything ---------------------------------------------------------
+fnm <- file.path(spc, mnm)
+
+summed <- data.frame(total.flux = sm.photon_medians,
+                     rel.flux = sm.rel.photon_medians
+                       )
+write.csv(x = cbind(wavelength = wln, ai_medians),
+          file = paste0(fnm, '-rawAI','.csv'),
+          )
+write.csv(x = cbind(wavelength = wln, photon_medians),
+          file = paste0(fnm, '-photon.flux','.csv'),
+          )
+write.csv(x = cbind(wavelength = wln, rel.photon_medians),
+          file = paste0(fnm, '-rel.photon.flux','.csv'),
+          )
+write.csv(x = summed,
+          file = paste0(fnm, '-summed.photon.flux_',awl[1],'-', awl[2],'nm','.csv'),
+          )
 
 
-# WIP! I GOT THIS FAR -----------------------------------------------------
-
-dev.new(width=14, height = 5)
-barplot(log10(t(rel.fluxes)), col = c(rev(clz)), beside = T, xlab = 'condition', ylab = expression('log'[10]~'Relative Photons cm'^{'-2'}*'s'^{'-1'}), main = paste0(awl[1],'-', awl[2],'nm'), ylim = c(0, 14), cex.names = .33, las = 2)
-abline(h = log10(`sm.rel.photon.fullmoon`), col = 'blue')		
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste('log10 Relative Photon Sum', mnm, '4Lana'))
-
-write.csv(estimates, file = paste0(ltp,spc,paste('measured spectra--',mnm, '4Lana'), '.csv'))
-write.csv(fluxes, file = paste0(ltp,spc,paste('summed photons',mnm, '4Lana'), '.xlsx'))
-write.csv(rel.estimates, file = paste0(ltp,spc,paste('rel measured spectra--',mnm, '4Lana'), '.xlsx'))
-write.csv(rel.fluxes, file = paste0(ltp,spc,paste('rel summed photons',mnm, '4Lana'), '.xlsx'))
