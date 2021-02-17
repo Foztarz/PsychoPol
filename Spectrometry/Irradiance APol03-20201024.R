@@ -25,7 +25,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #               Vision Research, 33(8), 1011–17.
 #               https://doi.org/10.1016/0042-6989(93)90237-Q.
 #
-#    EXAMPLES:  Skip to line 050 to identify which species and drugs were tested.
+#    EXAMPLES: 
 #
 # 
 #TODO   ---------------------------------------------
