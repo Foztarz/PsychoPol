@@ -1,9 +1,51 @@
 rm(list = ls())
 graphics.off()
+#R versions <4.0.0 convert strings to factors, specify default behaviour
+formals(data.frame)$stringsAsFactors <- FALSE
+# Details ---------------------------------------------------------------
+#       AUTHOR:	James Foster              DATE: 2020 11 26
+#     MODIFIED:	James Foster              DATE: 2021 02 17
+#
+#  DESCRIPTION: Adapted from "???.R"
+#               Loads text files in counts/nm and calculates polarization
+#               parameters across the UV visible spectrum.
+#               
+#       INPUTS: Path to a master folder. Each subfolder should contain a set of 
+#               measurements of the same stimulus through a polarizer at 
+#               different angles. Each subfolder may also contain a set of dark 
+#               measurements, which will be averaged and subtracted.
+#               
+#      OUTPUTS: Plots of spectral polarization (.pdf).
+#
+#	   CHANGES: 
+#             
+#             
+#
+#   REFERENCES: Johnsen, S., (2012) The Optics of Life: A Biologist’s Guide to
+#               Light in Nature (Princeton University Press)
+#               http://books.google.com/books?id=Q8zWqiKA7JMC&pgis=1.
+#
+#               Stavenga, D.G., et al. (1993) Simple Exponential Functions
+#               Describing the Absorbance Bands of Visual Pigment Spectra. 
+#               Vision Research, 33(8), 1011–17.
+#               https://doi.org/10.1016/0042-6989(93)90237-Q.
+#
+#    EXAMPLES:  
+#
+# 
+#TODO   ---------------------------------------------
+#TODO   
+#- Read in data +
+#- Neaten up    +
+#- Save plots    
+#- Summary calculations   
 
 # Input Variables ----------------------------------------------------------
 
 #  .  User input -----------------------------------------------------------
+
+num <- 1#5	#number of repeats for each measurement
+mang <- 4#  number of measurement angles
 
 #check the operating system and assign a logical flag (TRUE or FALSE)
 sys_win <- Sys.info()[['sysname']] == 'Windows'
@@ -17,8 +59,6 @@ if(sys_win){
 
 #  .  Select files ---------------------------------------------------------
 
-#	directories														#
-ltp <- Sys.getenv('HOME') #Base level in environment
 # set path to files
 if(sys_win){#choose.files is only available on Windows
   message('\n\nPlease select the master folder\n\n')
@@ -32,383 +72,282 @@ if(sys_win){#choose.files is only available on Windows
   Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
   spc <- dirname(dirname(file.choose(new=F)))
 }
-# file_path <- dirname(Load_dir)
-print(spc)
-# print(file_path)
+#  .  Derive variables	----------------------------------------------
+#wavelength range
+awl <- c(320,400)
 
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
-# WIP! I GOT THIS FAR -----------------------------------------------------
-
-# spc <- '/Dropbox/Spec/Apol01-IrradianceLund100mm/'#Folder containing measurements
-
-setnm <- basename(spc)#'Apol01-IrradianceLund100mm'#folder containing measurements
-num <- 1#5	#number of repeats for each measurement
-# I measured from closer to the light when it was very dim and used an inverse square law to accound for distance
-#	Measurements at 10mm											#
+#folders containing measurements
+setnm <- list.dirs(spc, recursive = F)
+names(setnm) <- basename(setnm)
+#basic sorting, works for 20201024 data
+setnm <- setnm[order(nchar(names(setnm)))]
+#Ignore extra stuff
+setnm <- setnm[-which(names(setnm) %in% c('zExtra'))]
 #file names (minus ".txt")
-setnm <- c(	"Apol01-max", 
-            "Apol01-maxnotrace", 
-            "Apol01-6dp1d",
-            "Apol01-5dp2d",
-            "Apol01-4dp3d",
-            "Apol01-3dp4d",
-            "Apol01-2dp5d",
-            "Apol01-1dp6d",
-            "Apol01-minnotrace",
-            "Apol01-min")#,
+stm <- lapply(setnm, dir, pattern = '.txt')
+names(stm) <- names(setnm)
+    # #replace undesirable characters in names
+    # snm <-  sub(subst_st,  repl_st, basename(setnm))
+snm <- basename(setnm)
+#repalce minus with a space
+snm <- lapply(strsplit(snm, '-'), paste, collapse = ' ')
+names(snm) <- names(setnm)
 
-stm <- c(	"-tracediff7pol0diff-1000ms1stabox0-",
-          "-diff7pol0diff-1000ms1stabox0-",
-          "-diff6pol1diff-1000ms1stabox0-",
-          "-diff5pol2diff-1000ms1stabox0-",
-          "-diff4pol3diff-1000ms1stabox0-",			 
-          "-diff3pol4diff-1000ms1stabox0-",
-          "-diff2pol5diff-1000ms1stabox0-",
-          "-diff1pol6diff-1000ms1stabox0-",
-          "-diff0pol7diff-1000ms1stabox0-",
-          "-diff0pol7difftrace-1000ms1stabox0-")#,
-#
-snm <- c(	'draft paper diff x 7 pol diff x 0',
-          'diff x 7 pol diff x 0',
-          'diff x 6 pol diff x 1',
-          'diff x 5 pol diff x 2',
-          'diff x 4 pol diff x 3',
-          'diff x 3 pol diff x 4',
-          'diff x 2 pol diff x 5',
-          'diff x 1 pol diff x 6',
-          'diff x 0 pol diff x 7',
-          'diff x 0 pol diff x 7 draft paper')#
+# Separate dark measurements ----------------------------------------------
 
-#plot params
-xlm <- c(300, 700)#Wavelength range of interest
-lw <- 4#Line width
-li <- 2.00
-
-mnm <- "Darkroom Lund 19Nov2016 revisited"
-
-
-# Useful Functions											 ---------------------------------------------
-
-# source(paste0(Sys.getenv('HOME'),'/Dropbox/R scripts/', 'TMUF.R') )
-# this needed a lot of tidying up
-StavengaSpline <- function(spec.range = c(300, 700),
-                           lambda.max,
-                           a.type = 'a1'){
-  wlns <- seq(min(spec.range),max(spec.range), length.out = 1e3) #
-  #Stavenga, D. G. (2010). On visual pigment templates and the spectral shape of invertebrate rhodopsins and metarhodopsins. Journal of Comparative Physiology A: Neuroethology, Sensory, Neural, and Behavioral Physiology, 196(11), 869–878. doi:10.1007/s00359-010-0568-7
-  # modified lognormal
-  m.lognorm <- function(wl,l.max, a0, a1)
-  {
-    x = log10(wl/l.max)
-    return(exp(-a0*x^2 * (1+a1*x+3*a1^2*x^2)))
-  }
-  if(a.type == 'a1')
-  {
-    #alpha band
-    a.band <- m.lognorm(wlns,lambda.max, 380, 6.09)
-    #beta band
-    b.band <- 0.29*m.lognorm(wlns, 340, 247, 3.59)
-    #gamma band
-    g.band <- 1.99*m.lognorm(wlns, 276, 647, 23.4)
-  }else
-  {stop('a2 and a3 pigments not yet implemented')}
-  # N.B. Stavenga normalises to max(a.band), I normalise to function max
-  r.stav <- (a.band + b.band + g.band)/max(a.band + b.band + g.band)
-  return(	smooth.spline(wlns, r.stav)	)
-}#StavengaSpline <- function(spec.range, lambda.max){
-
-#Convert Absolute Irradiance measurements into Photons/cm2/s/nm
-AItoFlux <- function(ai, nm){
-  # Absolute Irradiance is measured in microWatts/cm2/nm
-  # 1microWatt = 10^-3 Joules / s
-  # to convert from Joules/cm2/s/nm to Photons/cm2/s/nm we must calculate
-  # how many Joules/Photon = hc/lambda; all in the same units.
-  #	Planck's constant	#
-  planck <- 6.62606957*10^-34	#		Joules x seconds
-  #	speed of light	#
-  lightSpeed <- 299792458#			meters / second
-  #	Photon energy per wavelength	#
-  hc = planck * lightSpeed#			Joule x meters (/ meter wavelength)
-  #	wavelength factor in photon energy	#
-  wavelengthM <- nm*10^-9#	       	wavelength in meters
-  photonEnergy <- hc/(wavelengthM)#	Joules / photon
-  #	ai should be absolute irradiance in  micro Joules/cm2/s/nm
-  #	divided by photon energy in micro Joules 
-  # (multiplied by 1000000µJ/J, divided by something?)
-  #	=   photons/cm2/s/nm
-  ph <- ai/(photonEnergy*1000000)#	photons/cm2/s/nm
-  return(ph)
-}#AItoFlux
-
-#Convert Absolute Irradiance spectrum into Photons/cm2/s across a wavelength band
-AItoNph <-  function(ai, nm, mi, mx){	
-  #set maximum limits
-  if(missing(mi)){mi <- min(nm,na.rm=T)}
-  if(missing(mx)){mx <- max(nm,na.rm=T)}
-  #Install integrate.xy if not already loaded
-  if(!any(rownames(installed.packages()) %in% 'sfsmisc', na.rm = T) ){
-    mirrors <- getCRANmirrors()
-    chooseCRANmirror(graphics=FALSE, 
-                     ind = which(mirrors$Country == 'Germany')[1])
-    install.packages('sfsmisc')
-  }#if(!( sum(rownames(installed.packages()) %in% 'sfsmisc', na.rm=T) ))
-  library('sfsmisc')
-  # Absolute Irradiance is measured in microWatts/cm2/nm
-  # 1microWatt = 10^-3 Joules / s
-  # to convert from Joules/cm2/s/nm to Photons/cm2/s/nm we must calculate
-  # how many Joules/Photon = hc/lambda; all in the same units.
-  #	Planck's constant	#
-  planck <- 6.62606957*10^-34	#		Joules x seconds
-  #	speed of light	#
-  lightSpeed <- 299792458#			meters / second
-  #	Photon energy per wavelength	#
-  hc = planck * lightSpeed#			Joule x meters (/ meter wavelength)
-  #	wavelength factor in photon energy	#
-  wavelengthM <- nm*10^-9#	       	wavelength in meters
-  photonEnergy <- hc/(wavelengthM)#	Joules / photon
-  #	ai should be absolute irradiance in  micro Joules/cm2/s/nm
-  #	divided by photon energy in micro Joules 
-  # (multiplied by 1000000µJ/J, divided by something?)
-  #	=   photons/cm2/s/nm
-  ph <- ai/(photonEnergy*1000000)#	photons/cm2/s/nm
-  return(	sfsmisc::integrate.xy(nm, ph, mi, mx)	)
-}#AItoNph
-
-require('sfsmisc')
-
-
-# Read In Spectra													 --------------------------------------------
-
-num <- 5
-for(st in setnm){
-  flb <- paste0('Apol01-irradiance', stm[which(setnm == st)]) #file label
-  for(nn in 1:num){
-    i <- which(setnm == st)
-    filenm <- paste0(ltp, spc, st,'/', flb,'0',sprintf('%02d',nn),'.txt')
-    assign( paste0(snm[i],'.',nn),
-            read.table(filenm, header = F, sep  = '\t', 
-                       skip = 17, nrows = 1028) )
-  }#for(nn in 1:num)
-}#for(st in setnm)
-
-wln <- get(paste0(snm[i],'.',nn))$V1
-rng <- wln >299 & wln < 701
-
-for(sn in snm){
-  for(nn in 1:num){
-    assign( paste0(sn,'.',nn),
-            get(paste0(sn,'.',nn))$V2[rng]	)
-  }#for(nn in 1:num)
-}#for(sn in snm)
-
-wln <- wln[rng]
-#MOVED
-lunar.sky <- read.table(paste0(ltp, '/Dropbox/My Papers/DL in Orientation/', 'FullMoonIrradianceJohnsenetal2006C','.txt'), header = F, sep  = '\t')
-lun.sky.sp <- smooth.spline(lunar.sky$V1, lunar.sky$V2)
-
-
-# Median of Each Measurement								 --------------------------------------
-
-
-#Collect measurements
-
-for(sn in snm){
-  assign( paste0('all.',sn), get(paste0(sn,'.',1))*1 )
-  for(nn in 2:num){
-    assign(paste0('all.',sn), cbind( get(paste0('all.',sn)), get(paste0(sn,'.',nn))*1 ))
-  }#for(nn in 2:num)
-}#for(sn in snm)
-
-#Take median across repeats
-for(sn in snm){
-  assign( paste0(sn), apply(get(paste0('all.',sn)), 1, median) )
-}#for(sn in snm)
-
-
-
-#check that they look ok
-#	Pre-transform plot											#
-#colours	 for plotting each
-clz <- c(		
-  'gray30',
-  'gray20',
-  'purple4',
-  'magenta4',
-  'steelblue',
-  'darkblue',
-  'orange3',
-  'orange4',
-  'darkred',
-  'red3',
-  'cyan3',
-  'cyan4',
-  'pink3',
-  'salmon4',
-  'seagreen',
-  'darkgreen',
-  'gray50',
-  'gray70'
+# . Find dark measurements ------------------------------------------------
+#check for dark measurement in folder
+darkFUN <- function(x){grepl('dark',x)}
+#label dark measurements
+dark_label <- lapply(stm, 
+                    sapply,
+                    darkFUN
 )
-upAI <- .025
-dev.new(width=7, height = 5)
-par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(NULL, xlim = c(300,700), ylim = c(0,upAI), ann = F, type = 'l', col = 'red4')
-for(sn in snm){
-  i <- which(snm == sn)
-  lines(wln, get(paste0(sn)), col = clz[i] )
-}#for(sn in snm)
-title(xlab = 'Wavelength (nm)')
-title(ylab = expression('Absolute Irradiance ('~mu*'Watts'*'cm'^{'-2'}*'nm'^{'-1'}*')'))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, upAI, rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-polygon(c(350, 400, 400, 350), c(0,0,upAI, upAI), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'AI uncorrected'))
+#collect names of dark measurements
+dark_stm <- lapply(names(stm), 
+                   function(i)
+                     { stm[[i]][ dark_label[[i]] ] }
+                  )
+#retain folder names
+names(dark_stm) <- names(stm)
 
-# Transform to Estimated True Counts per Meter Squared	 -------------------
+#remove dark from main set
+stm <- lapply(names(stm), 
+                   function(i){ stm[[i]][ !dark_label[[i]] ] }
+                  )
+#retain folder names
+names(stm) <- names(dark_stm)
+
+# Read in spectra ---------------------------------------------------------
+
+# . construct paths to each file ------------------------------------------
+file_path <- lapply(names(setnm), function(i){file.path(setnm[[i]], stm[[i]])})
+dark_path <- lapply(names(setnm), function(i){file.path(setnm[[i]], dark_stm[[i]])})
+#label them with the correct folder names
+names(file_path) <- names(setnm)
+names(dark_path) <- names(setnm)
+
+# . Load each file --------------------------------------------------------
+#Load each file starting at Ocean Optics' ">>>Begin" flag
+oo_begin <- '>>>>Begin'
+#light files
+raw_files <- lapply(file_path, 
+                    function(s)
+                    {
+                      lapply(s,
+                             function(fl)
+                             {
+                               read.table(
+                                 file = fl, header = F, sep = '\t',
+                                 skip = grep(readLines(fl),pattern = oo_begin)#,
+                               )
+                             }
+                      )
+                    }
+)
+#dark files
+dark_files <- lapply(dark_path, 
+                    function(s)
+                    {
+                      lapply(s,
+                             function(fl)
+                             {
+                               read.table(
+                                 file = fl, header = F, sep = '\t',
+                                 skip = grep(readLines(fl),pattern = oo_begin)#,
+                               )
+                             }
+                      )
+                    }
+)
+
+# Crop to UV-Vis range ----------------------------------------------------
+RangeFUN <- function(x,v = 'V2'){subset(x, V1 >299 & V1 <701)[,v]}
+
+#Make a wavelength vector
+    # wln <- RangeFUN(raw_files[[1]][[1]], 'V1')#get(paste0(snm[i],'.',nn))$V1
+#These could come from different spectrometers (e.g. 20210215)
+#Make a separate wavelength vector for each measurement set
+wln <- lapply(raw_files,
+              function(xx)
+              {RangeFUN(xx[[1]], 'V1')}
+              )
+names(wln) <- names(raw_files)
+
+#crop measurements and discard wavelength vectors
+raw_files <- lapply(raw_files, 
+                    sapply,
+                    RangeFUN
+)
+dark_files <- lapply(dark_files, 
+                    sapply,
+                    RangeFUN
+)
+
+# Process spectra ---------------------------------------------------------
+#Polarization calculations
+#Angle of polarization
+apolFUN <- function(x, nang)
+  {if(nang == 4)
+    {atan2(x[2]-x[4], x[1]-x[3])*180/pi}else
+    {warning('sorry, angle of polarization not implimented for ',nang, ' angles')}
+}
+#Degree of polarization
+dpolFUN <- function(x, nang)
+  {if(nang == 4)
+    {sqrt((x[2]-x[4])^2 + (x[1]-x[3])^2)/(sum(x)/2)}else
+    {warning('sorry, degree of polarization not implimented for ',nang, ' angles')}
+  }
+#Unpolarized intensity
+i0FUN <-  function(x)
+  {if(length(x)==4){sum(x)/2}else
+   {warning('sorry, I0 not implimented for ',length(x), ' angles')}
+ }
+#Take median across dark repeats
+dark_medians <- sapply(dark_files,
+                     apply,
+                     1,
+                     median
+)
+#Subtract dark
+light_files <- lapply(names(raw_files), 
+                      function(i){raw_files[[i]] - dark_medians[[i]]}
+                      )
+#retain folder name
+names(light_files) <- names(raw_files)
+#Calculate unpolarized intensity 
+light_I0s <- sapply(light_files,
+                       apply,
+                       1,
+                      i0FUN
+                    )
+#Calculate angle of polarization
+aops <- sapply(light_files,
+                     apply,
+                     1,
+               apolFUN,
+               mang
+)
+#Calculate degree of polarization
+dops <- sapply(light_files,
+               apply,
+               1,
+               dpolFUN,
+               mang
+)
 
 
-for(sn in snm){
-  assign( paste0('photon.',sn), AItoFlux(get(paste0(sn)), wln) )
-}#for(sn in snm)
-assign( paste0('photon.','fullmoon'), predict(lun.sky.sp, x = wln)$y )
-
-#try smoothing below 350
-for(sn in snm){
-  tmphoton <- get(paste0('photon.',sn))
-  sptmp <- smooth.spline(wln, tmphoton)
-  tmphoton[wln<350] <- predict(sptmp, x = wln[wln<350])$y
-  assign( paste0('photon.',sn), tmphoton )
-}#for(sn in snm)
-
-#make a Scarab UV response curve
-spln.365 <- StavengaSpline(c(300, 700), 365) # an a1 opsin with a 365nm max absorption
-whole.365 <- predict(spln.365, x = wln)$y
-spln.520 <- StavengaSpline(c(300, 700), 520) # an a1 opsin with a 365nm max absorption
-whole.520 <- predict(spln.520, x = wln)$y
+# Plot spectra ------------------------------------------------------------
+#Set up plot colours
+clz <- sapply(
+  length(light_files),
+  colorRampPalette(
+    c('red','blue','cyan4','magenta4')#on Rstudio these are distinct
+  )
+)
+clz <- sample(clz)#Randomise order?
 
 
-dev.new(width=7, height = 5)
-par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(wln, whole.365, type = 'l', col = 'purple', lwd = 3, xlab = 'Wavelength (nm)', ylab = 'Relative Sensitivity', main = 'Stavenga Templates 365 nm & 520 peak')
-polygon(c(350, 400, 400, 350), c(0,0,1, 1), col = rgb(1,0,1,0.1), border = NA)
-lines(wln, predict(StavengaSpline(c(300, 700), 520), x = wln)$y, col = 'seagreen', lwd = 3)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste('Stavenga template lambda max 365 and 520'))
+# . Unpolarized intensity -------------------------------------------------
+#Set up plot area
+par(mar = c(4,4,0,0.5))
+plot(NULL,
+     # xlim = range(wln),
+     xlim = awl + c(0,100),
+     ylim = range(unlist(light_I0s)),
+     xlab = 'Wavelength (nm)',
+     ylab = 'Intensity (counts)')
+#Plot each measurement in a different colour
+lapply(names(light_I0s),
+       function(i)
+       {
+         lines(wln[[i]],
+                light_I0s[[i]],
+                col = clz[which(names(light_I0s) %in% i)],
+               lwd = 2
+         )
+         }
+       )
+#Label the lines
+legend('topright',
+       names(light_I0s),
+       col = clz,
+       lty = 1,
+       lwd = 2,
+       cex = 0.5
+       )
 
-#Weight by Scarab UV response curve
-for(sn in snm){
-  assign( paste0('rel.photon.',sn), get(paste0('photon.',sn))*whole.365 )
-}#for(sn in snm)
-assign( paste0('rel.photon.','fullmoon'), get(paste0('photon.','fullmoon'))*whole.365  )
-#	Post-transform plot											#
-up.photon <- AItoFlux(upAI, wln[which(get(paste0(sn)) == max( get(paste0(sn)) )) ] )
-dev.new(width=7, height = 5)
-par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(NULL, xlim = c(300,700), ylim = c(0, up.photon), ann = F, type = 'l', col = 'red4')
-for(sn in snm){
-  i <- which(snm == sn)
-  lines(wln, get(paste0('photon.',sn)), col = clz[i] )
-}#for(sn in snm)
-title(xlab = 'Wavelength (nm)')
-title(ylab = expression('Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, up.photon, rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-polygon(c(350, 400, 400, 350), c(0,0, up.photon, up.photon), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'Photon Illumination', '4Lana'))
+# . Angle of polarization -------------------------------------------------
+#Set up plot area
+par(mar = c(4,4,0,0.5))
+plot(NULL,
+     # xlim = range(wln),
+     xlim = awl+c(-20,100),
+     ylim = c(-180,180),
+     xlab = 'Wavelength (nm)',
+     ylab = 'Angle of Polarization (°)', 
+     axes = F)
+axis(1, pretty(range(wln)))
+axis(2,
+     at = seq(-180, 180, 90),
+     labels = paste0(seq(-180, 180, 90),'°'),
+     cex.axis = 0.7
+     )
+#Plot each measurement as dots of different colours
+lapply(names(aops),
+       function(i)
+       {
+         points(wln[[i]],
+               aops[[i]],
+               col = clz[which(names(light_I0s) %in% i)],
+               cex = 0.5,
+               pch = 19
+         )
+       }
+)
+#Add limits
+abline(h = c(-1,0,1)*180)
+#label each measurement
+legend('topright',
+       names(aops),
+       col = clz,
+       pch = 19,
+       cex = 0.5
+)
 
-dev.new(width=7, height = 5)
-par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(NULL, xlim = c(300,700), ylim = c(8, log10(up.photon)), ann = F, type = 'l', col = 'red4')
-for(sn in snm){
-  i <- which(snm == sn)
-  lines(wln, log10( get(paste0('photon.',sn)) ), col = clz[i] )
-}#for(sn in snm)
-title(xlab = 'Wavelength (nm)')
-title(ylab = expression('log'[10]~'Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, log10(up.photon), rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'log10 Photon Illumination', '4Lana', 'scaled'))
-lines(wln, log10(photon.fullmoon), col = 'darkgreen', lwd = 5)
-legend(600, 9.5, 'Full Moon \nfrom Johnsen et al. 2008', col = 'darkgreen', lty = 1, lwd = 5, bty = 'n')
-polygon(c(350, 400, 400, 350), c(0,0, log10(up.photon), log10(up.photon)), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'Full moon and', 'log10 Photon Illumination', '4Lana', 'scaled'))
-
-dev.new(width=7, height = 5)
-par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(NULL, xlim = c(300,700), ylim = c(6, log10(up.photon)), ann = F, type = 'l', col = 'red4')
-for(sn in snm){
-  i <- which(snm == sn)
-  lines(wln, log10( get(paste0('rel.photon.',sn)) ), col = clz[i] )
-}#for(sn in snm)
-title(xlab = 'Wavelength (nm)')
-title(ylab = expression('log'[10]~'UV photopigment relative absorbance'~'•'~'Photons cm'^{'-2'}*'s'^{'-1'}*'nm'^{'-1'}))
-title(main = paste(mnm, 'as measured at 100 mm'))
-legend(600, log10(up.photon), rev(snm), col = rev(clz[1:length(snm)]), lty = 1, lwd = 2)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'log10 Relative Photon Illumination', '4Lana', 'scaled'))
-lines(wln, log10(rel.photon.fullmoon), col = 'darkgreen', lwd = 5)
-legend(600, 8.5, 'Full Moon \nfrom Johnsen et al. 2008', col = 'darkgreen', lty = 1, lwd = 5, bty = 'n')
-polygon(c(350, 400, 400, 350), c(0,0, log10(up.photon), log10(up.photon)), col = rgb(1,0,1,0.1), border = NA)
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste(mnm, 'relative Full moon and ', 'log10 Photon Illumination', '4Lana', 'scaled'))
-
-
-# Summed Photon Flux										 --------------------------------------------
-
-
-#integrate under the spectral irradiance curve across the least noisy range (i.e. not the UV and far red where measured irradiance is probably noise).
-#this gives total number of photons, regardless of wavelength
-#needs integrate.xy() from 'sfsmisc' package, which performs a spline interpolated integration
-awl <- c(350,400)#c(340,400)#;c(350,400)#Let's use the spline and guess values 325--400#too messy try from 340nm#now smoothed, try again
-
-#Take integral in preferred range
-for(sn in snm){
-  assign( paste0('sm.photon.',sn), integrate.xy(wln, get( paste0('photon.',sn)), a= min(awl), b = max(awl) ) )
-}#for(sn in snm)
-assign(paste0('sm.photon.','fullmoon'), integrate.xy(wln, get(paste0('photon.','fullmoon')), a= min(awl), b = max(awl) ) ) 
-
-#Take integral in preferred range
-for(sn in snm){
-  assign( paste0('sm.rel.photon','.',sn), integrate.xy(wln, get( paste0('rel.photon.',sn)), a= min(awl), b = max(awl) ) )
-}#for(sn in snm)
-assign(paste0('sm.rel.photon.','fullmoon'), integrate.xy(wln, get(paste0('rel.photon.','fullmoon')), a= min(awl), b = max(awl) ) ) 
+# . Degree of polarization ------------------------------------------------
+par(mar = c(4,4,0,0.5))
+plot(NULL,
+     # xlim = range(wln),
+     xlim = awl,
+     # ylim = c(0,1),
+     ylim = c(0,0.2),
+     xlab = 'Wavelength (nm)',
+     # ylab = 'Degree of Linear Polarization')
+     ylab = 'False DoP' # 20210215 measurements were *false* DoP from spectrometer PS
+     )
+#Plot measurements as different coloured lines
+lapply(names(dops),
+       function(i)
+       {
+         lines(wln[[i]],
+               dops[[i]],
+               col = clz[which(names(dops) %in% i)],
+               lwd = 2
+         )
+       }
+)
+#Add limits
+abline(h = c(0,1))
+#Label each measurement
+legend('topright',
+       names(dops),
+       col = clz,
+       lty = 1,
+       lwd = 2,
+       cex = 0.5
+)
 
 
-#not as close as I would like
-moonflux <- round( log10( get(paste0('sm.photon.', 'fullmoon' )) ), 2)
-unpolflux <- round( log10(apply(cbind(paste0('sm.photon.', snm )), 1, get)), 2)[1:4]
-polflux <- round( log10(apply(cbind(paste0('sm.photon.', snm )), 1, get)), 2)[-1:-4]
+# WIP! I GOT THIS FAR -----------------------------------------------------
 
-estimates <- matrix( c(wln,
-                       rev(c(apply(cbind(paste0('photon.', snm )), 1, get),    
-                             `photon.fullmoon`        )) ), ncol = length(snm)+1 +1, dimnames = list(c(wln), c('wavelength_nm', 'spline Full Moon Johnsen 2008', rev(snm)) ) ) 
-
-rel.estimates <- matrix( c(wln,
-                           rev(c(apply(cbind(paste0('rel.photon.', snm )), 1, get),    
-                                 `rel.photon.fullmoon`        )) ), ncol = length(snm)+1 +1, dimnames = list(c(wln), c('wavelength_nm', 'spline Full Moon Johnsen 2008', rev(snm)) ) ) 
-fluxes <- matrix( rev(c(apply(cbind(paste0('sm.photon.', snm )), 1, get),    
-                        `sm.photon.fullmoon`        )), ncol = 1, dimnames = list(c('spline Full Moon Johnsen 2008', rev(c(snm))), paste('photons per cm squared per second', 'from', paste0(awl[1],'-', awl[2]) ) ) )
-
-#what was the measurement for full moon?
-print(signif(`sm.photon.fullmoon`, 3))
-print(signif(fluxes, 3))
-
-rel.fluxes <- matrix( rev(c(apply(cbind(paste0('sm.rel.photon.', snm )), 1, get),    
-                            `sm.rel.photon.fullmoon`        )), ncol = 1, dimnames = list(c('spline Full Moon Johnsen 2008', rev(c(snm))), paste('relative photon absorption rates per cm squared per second', 'from', paste0(awl[1],'-', awl[2]) ) ) )
-
-print(signif(rel.fluxes, 3))
-
-dev.new(width=14, height = 5)
-barplot(log10(t(fluxes)), col = c(rev(clz)), beside = T, xlab = 'condition', ylab = expression('log'[10]~'Photons cm'^{'-2'}*'s'^{'-1'}), main = paste0(awl[1],'-', awl[2],'nm'), ylim = c(0, 14), cex.names = .33, las = 2)
-abline(h = log10(`sm.photon.fullmoon`), col = 'blue')		
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste('log10 Photon Sum', mnm, '4Lana'))
-
-dev.new(width=14, height = 5)
-barplot(log10(t(rel.fluxes)), col = c(rev(clz)), beside = T, xlab = 'condition', ylab = expression('log'[10]~'Relative Photons cm'^{'-2'}*'s'^{'-1'}), main = paste0(awl[1],'-', awl[2],'nm'), ylim = c(0, 14), cex.names = .33, las = 2)
-abline(h = log10(`sm.rel.photon.fullmoon`), col = 'blue')		
-PDFsave(Directory = paste0(ltp,spc), PlotName = paste('log10 Relative Photon Sum', mnm, '4Lana'))
-
-write.csv(estimates, file = paste0(ltp,spc,paste('measured spectra--',mnm, '4Lana'), '.csv'))
-write.csv(fluxes, file = paste0(ltp,spc,paste('summed photons',mnm, '4Lana'), '.xlsx'))
-write.csv(rel.estimates, file = paste0(ltp,spc,paste('rel measured spectra--',mnm, '4Lana'), '.xlsx'))
-write.csv(rel.fluxes, file = paste0(ltp,spc,paste('rel summed photons',mnm, '4Lana'), '.xlsx'))
