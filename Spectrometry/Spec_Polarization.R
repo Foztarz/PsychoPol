@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 02 17
+#     MODIFIED:	James Foster              DATE: 2021 02 26
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
@@ -82,7 +82,7 @@ names(setnm) <- basename(setnm)
 #basic sorting, works for 20201024 data
 setnm <- setnm[order(nchar(names(setnm)))]
 #Ignore extra stuff
-setnm <- setnm[-which(names(setnm) %in% c('zExtra'))]
+setnm <- setnm[!(names(setnm) %in% c('zExtra'))]
 #file names (minus ".txt")
 stm <- lapply(setnm, dir, pattern = '.txt')
 names(stm) <- names(setnm)
@@ -184,6 +184,29 @@ dark_files <- lapply(dark_files,
                     RangeFUN
 )
 
+#Label with original file names
+raw_files <- lapply(1:length(raw_files),
+                    function(i)
+                    {
+                      xx <- raw_files[[i]]
+                      colnames(xx) <- sub('.txt','', stm[[i]])
+                      return(xx)
+                    }
+                    )
+dark_files <- lapply(1:length(dark_files),
+                    function(i)
+                    {
+                      if(length(dark_files[[i]]))#could be empty
+                      {
+                      xx <- dark_files[[i]]
+                      colnames(xx) <- sub('.txt','', dark_stm[[i]])
+                      return(xx)
+                      }
+                    }
+                    )
+
+# WIP! I GOT THIS FAR -----------------------------------------------------
+
 # Process spectra ---------------------------------------------------------
 #Polarization calculations
 #Angle of polarization
@@ -204,11 +227,17 @@ i0FUN <-  function(x)
    {warning('sorry, I0 not implimented for ',length(x), ' angles')}
  }
 #Take median across dark repeats
-dark_medians <- sapply(dark_files,
-                     apply,
-                     1,
-                     median
-)
+if(any(sapply(dark_files, length)))
+{
+  dark_medians <- sapply(dark_files,
+                       apply,
+                       1,
+                       median
+  )
+}else{
+  dark_medians <- sapply(dark_files, function(x){0})
+  warning('No dark files found, raw traces used.')
+}
 #Subtract dark
 light_files <- lapply(names(raw_files), 
                       function(i){raw_files[[i]] - dark_medians[[i]]}
@@ -349,5 +378,5 @@ legend('topright',
 )
 
 
-# WIP! I GOT THIS FAR -----------------------------------------------------
+
 
