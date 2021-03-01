@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 02 26
+#     MODIFIED:	James Foster              DATE: 2021 03 01
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
@@ -17,9 +17,9 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #               
 #      OUTPUTS: Plots of spectral polarization (.pdf).
 #
-#	   CHANGES: 
-#             
-#             
+#	   CHANGES:   - Plot saving 
+#               - Spectrasuite compatibility
+#               
 #
 #   REFERENCES: Johnsen, S., (2012) The Optics of Life: A Biologist’s Guide to
 #               Light in Nature (Princeton University Press)
@@ -37,15 +37,18 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #TODO   
 #- Read in data +
 #- Neaten up    +
-#- Save plots    
+#- Save plots   + 
 #- Summary calculations   
+#- Generalise calculations   
 
 # Input Variables ----------------------------------------------------------
 
 #  .  User input -----------------------------------------------------------
 
-num <- 1#5	#number of repeats for each measurement
 mang <- 4#  number of measurement angles
+labchar <- 3#0#  number of characters used in angle label: 0 if not used
+awl <- c(300,450)#wavelength range
+AvFUN <- median#select an averaging function
 
 #check the operating system and assign a logical flag (TRUE or FALSE)
 sys_win <- Sys.info()[['sysname']] == 'Windows'
@@ -56,6 +59,18 @@ if(sys_win){
 }else{#Root directory should be the "HOME" directory on a Mac (or Linux?)
   ltp <- Sys.getenv('HOME')#Life was easier on Mac
 }
+# Useful functions --------------------------------------------------------
+
+#Open file with default program on any OS
+# https://stackoverflow.com/a/35044209/3745353
+shell.exec.OS  <- function(x){
+  # replacement for shell.exec (doesn't exist on MAC)
+  if (exists("shell.exec",where = "package:base"))
+  {return(base::shell.exec(x))}else
+  {comm <- paste0('open "',x,'"')
+  return(system(comm))}
+}
+
 
 #  .  Select files ---------------------------------------------------------
 
@@ -73,8 +88,6 @@ if(sys_win){#choose.files is only available on Windows
   spc <- dirname(dirname(file.choose(new=F)))
 }
 #  .  Derive variables	----------------------------------------------
-#wavelength range
-awl <- c(320,400)
 
 #folders containing measurements
 setnm <- list.dirs(spc, recursive = F)
@@ -130,19 +143,30 @@ names(dark_path) <- names(setnm)
 # . Load each file --------------------------------------------------------
 #Load each file starting at Ocean Optics' ">>>Begin" flag
 oo_begin <- '>>>>Begin'
+oo_endold <- '>>>>End'#older versions end with this
+#Set up a file reading function for batch reading
+#N.B. oo_begin and oo_end are loaded from global environment (.GlobalEnv) within lapply() 
+OOread <- function(fl)
+            {
+              read.table(
+                file = fl,#current file
+                header = F,#exclude header
+                sep = '\t',#tab separated
+                skip = grep(oo_begin,readLines(fl)),#begins at '>>>Begin'
+                nrows = ifelse( any(grepl(oo_endold,readLines(fl))), #if '>>>End' exists
+                                grep(oo_endold,readLines(fl)) -
+                                  grep(oo_begin,readLines(fl)) - 1, #read only lines between 'Begin' and 'End'
+                                -1#Otherwise read all except header
+                              )
+              )
+            }
 #light files
 raw_files <- lapply(file_path, 
                     function(s)
                     {
                       lapply(s,
-                             function(fl)
-                             {
-                               read.table(
-                                 file = fl, header = F, sep = '\t',
-                                 skip = grep(readLines(fl),pattern = oo_begin)#,
-                               )
-                             }
-                      )
+                             OOread
+                            )
                     }
 )
 #dark files
@@ -150,14 +174,8 @@ dark_files <- lapply(dark_path,
                     function(s)
                     {
                       lapply(s,
-                             function(fl)
-                             {
-                               read.table(
-                                 file = fl, header = F, sep = '\t',
-                                 skip = grep(readLines(fl),pattern = oo_begin)#,
-                               )
-                             }
-                      )
+                             OOread
+                            )
                     }
 )
 
@@ -170,7 +188,7 @@ RangeFUN <- function(x,v = 'V2'){subset(x, V1 >299 & V1 <701)[,v]}
 #Make a separate wavelength vector for each measurement set
 wln <- lapply(raw_files,
               function(xx)
-              {RangeFUN(xx[[1]], 'V1')}
+              {RangeFUN(xx[[1]], 'V1')}#assume first file in folder has same wavelength binning
               )
 names(wln) <- names(raw_files)
 
@@ -184,12 +202,13 @@ dark_files <- lapply(dark_files,
                     RangeFUN
 )
 
-#Label with original file names
+
+# . Label with original file names ----------------------------------------
 raw_files <- lapply(1:length(raw_files),
                     function(i)
                     {
                       xx <- raw_files[[i]]
-                      colnames(xx) <- sub('.txt','', stm[[i]])
+                      colnames(xx) <- sub('.txt','', stm[[i]])#remove '.txt'
                       return(xx)
                     }
                     )
@@ -199,16 +218,28 @@ dark_files <- lapply(1:length(dark_files),
                       if(length(dark_files[[i]]))#could be empty
                       {
                       xx <- dark_files[[i]]
-                      colnames(xx) <- sub('.txt','', dark_stm[[i]])
+                      colnames(xx) <- sub('.txt','', dark_stm[[i]])#remove '.txt'
                       return(xx)
                       }
                     }
                     )
+names(raw_files) <- names(setnm)
+names(dark_files) <- names(setnm)
 
-# WIP! I GOT THIS FAR -----------------------------------------------------
+
+# . Get angle labels ------------------------------------------------------
+#If number of labelled characters is unspecified, try to guess it
+if(is.null(labchar)|is.na(labchar))
+{#if the filename starts with '000-' or contains '-000' it is in 3 character format
+  if(any(sapply(sapply(stm, grepl, pattern = '^000-|-000'), any)))
+  {labchar <- 3}else
+  {labchar <- 0}#otherwise there is no angle label, assume they were recorded in order
+}
+
 
 # Process spectra ---------------------------------------------------------
-#Polarization calculations
+
+# . Set up polarization calculations --------------------------------------
 #Angle of polarization
 apolFUN <- function(x, nang)
   {if(nang == 4)
@@ -218,7 +249,10 @@ apolFUN <- function(x, nang)
 #Degree of polarization
 dpolFUN <- function(x, nang)
   {if(nang == 4)
-    {sqrt((x[2]-x[4])^2 + (x[1]-x[3])^2)/(sum(x)/2)}else
+    {
+    xx <- sqrt((x[2]-x[4])^2 + (x[1]-x[3])^2)/(sum(x)/2)
+    xx <- ifelse(xx<1,ifelse(xx>0,xx,0),1) 
+    }else
     {warning('sorry, degree of polarization not implimented for ',nang, ' angles')}
   }
 #Unpolarized intensity
@@ -226,39 +260,97 @@ i0FUN <-  function(x)
   {if(length(x)==4){sum(x)/2}else
    {warning('sorry, I0 not implimented for ',length(x), ' angles')}
  }
+
+# . Average across repeats ------------------------------------------------
+
+# . . Dark repeats --------------------------------------------------------
 #Take median across dark repeats
-if(any(sapply(dark_files, length)))
+dark_found <- !sapply(dark_files, is.null)
+#prepare vector
+dark_averages <- list()
+if(any(dark_found))
 {
-  dark_medians <- sapply(dark_files,
-                       apply,
-                       1,
-                       median
-  )
+  dark_averages[!dark_found] <- 0
+  dark_averages[dark_found] <- lapply(dark_files[dark_found],
+                                     apply,
+                                     1,
+                                     AvFUN
+                                    )
 }else{
-  dark_medians <- sapply(dark_files, function(x){0})
+  dark_averages <- sapply(dark_files, function(x){0})
   warning('No dark files found, raw traces used.')
 }
+names(dark_averages) <- names(dark_files)
 #Subtract dark
 light_files <- lapply(names(raw_files), 
-                      function(i){raw_files[[i]] - dark_medians[[i]]}
+                      function(i)
+                        {
+                        xx <- raw_files[[i]] - dark_averages[[i]]
+                        colnames(xx) <- sub('.txt','', stm[[i]])
+                        return(xx)
+                        }
                       )
 #retain folder name
 names(light_files) <- names(raw_files)
+
+
+# . . Light recordings ----------------------------------------------------
+#set up labels
+anglab <- sapply(1:mang, function(i){sprintf('%03g',(i-1)*180/mang)})
+
+light_averages <- lapply(light_files, 
+                        function(xx)#for each subfolder
+                        {
+                          if(labchar)#if polarizer angles are labelled
+                          {
+                            cn <- colnames(xx)#extract the column names
+                            sapply(anglab,#loop through angle labels
+                                  function(i){#average across columns with these labels
+                                     apply(xx[,grepl(paste0('^',i,'-|-',i),cn)],
+                                           1,
+                                           AvFUN #should be no NAs, could still set na.rm=T
+                                           )
+                                  }
+                            )
+                          }else#if polarizer angles are not labelled
+                          {
+                            sapply(anglab,#loop through appropriate labels
+                                   function(i){
+                                     mang_modulus <- 1:(dim(xx)[2])%%mang #derive column labels from modulus
+                                     ind <- ifelse(mang_modulus,mang_modulus,mang)#replace mod = 0 with the number of angles
+                                     if(sum(ind %in% match(i, anglab))>1)
+                                     {
+                                       apply(xx[, ind %in% match(i,anglab)],#average across columns for each angle
+                                             1,
+                                             AvFUN
+                                             )
+                                     }else#if there is only one, no averaging is necessary
+                                     {xx[, ind %in% match(i,anglab)]}
+                                   }
+                                  )
+                          }
+                        }
+                      )
+
+
+# . Stokes parameter calculations -----------------------------------------
+
+
 #Calculate unpolarized intensity 
-light_I0s <- sapply(light_files,
+light_I0s <- lapply(light_averages,
                        apply,
                        1,
                       i0FUN
                     )
 #Calculate angle of polarization
-aops <- sapply(light_files,
+aops <- lapply(light_averages,
                      apply,
                      1,
                apolFUN,
                mang
 )
 #Calculate degree of polarization
-dops <- sapply(light_files,
+dops <- lapply(light_averages,
                apply,
                1,
                dpolFUN,
@@ -277,15 +369,36 @@ clz <- sapply(
 clz <- sample(clz)#Randomise order?
 
 
+
+# . Set up plot area ------------------------------------------------------
+plot_file <- file.path(spc, 'PolarizationPlot.pdf')
+if(file.exists(plot_file))
+{
+  message('A polarization plot already exists in this folder.')
+  nnm <- readline(prompt = 'New plot name: '
+          )
+  plot_file <-  file.path(spc,paste0(ifelse(nchar(nnm),nnm,'PolarizationPlot'),'.pdf'))
+}
+pdf(file = plot_file,
+    paper = 'a4',
+    height = 10,
+    bg = 'white',
+    useDingbats = F
+    )
+par(mar = c(5,5,1,0.5),
+    mfrow = c(3,1)
+    )
 # . Unpolarized intensity -------------------------------------------------
 #Set up plot area
-par(mar = c(4,4,0,0.5))
+# par(mar = c(4,4,0,0.5))
 plot(NULL,
      # xlim = range(wln),
-     xlim = awl + c(0,100),
+     xlim = awl,
      ylim = range(unlist(light_I0s)),
      xlab = 'Wavelength (nm)',
      ylab = 'Intensity (counts)')
+#Add limits
+abline(h = 0, lwd = 0.25, col = 'gray')
 #Plot each measurement in a different colour
 lapply(names(light_I0s),
        function(i)
@@ -303,25 +416,27 @@ legend('topright',
        col = clz,
        lty = 1,
        lwd = 2,
-       cex = 0.5
+       cex = 1
        )
 
 # . Angle of polarization -------------------------------------------------
 #Set up plot area
-par(mar = c(4,4,0,0.5))
+# par(mar = c(4,4,0,0.5))
 plot(NULL,
      # xlim = range(wln),
-     xlim = awl+c(-20,100),
+     xlim = awl,
      ylim = c(-180,180),
      xlab = 'Wavelength (nm)',
      ylab = 'Angle of Polarization (°)', 
      axes = F)
-axis(1, pretty(range(wln)))
+axis(1)
 axis(2,
      at = seq(-180, 180, 90),
      labels = paste0(seq(-180, 180, 90),'°'),
      cex.axis = 0.7
      )
+#Add limits
+abline(h = seq(-180, 180, 90), lwd = 0.25, col = 'gray')
 #Plot each measurement as dots of different colours
 lapply(names(aops),
        function(i)
@@ -334,26 +449,22 @@ lapply(names(aops),
          )
        }
 )
-#Add limits
-abline(h = c(-1,0,1)*180)
 #label each measurement
 legend('topright',
        names(aops),
        col = clz,
        pch = 19,
-       cex = 0.5
+       cex = 1
 )
 
 # . Degree of polarization ------------------------------------------------
-par(mar = c(4,4,0,0.5))
+# par(mar = c(4,4,0,0.5))
 plot(NULL,
      # xlim = range(wln),
      xlim = awl,
-     # ylim = c(0,1),
-     ylim = c(0,0.2),
+     ylim = c(0,1),
      xlab = 'Wavelength (nm)',
-     # ylab = 'Degree of Linear Polarization')
-     ylab = 'False DoP' # 20210215 measurements were *false* DoP from spectrometer PS
+     ylab = 'Degree of Linear Polarization'
      )
 #Plot measurements as different coloured lines
 lapply(names(dops),
@@ -374,9 +485,14 @@ legend('topright',
        col = clz,
        lty = 1,
        lwd = 2,
-       cex = 0.5
+       cex = 1
 )
 
+# . Save plot -------------------------------------------------------------
+dev.off()
+shell.exec.OS(plot_file)
 
 
 
+
+# WIP! I GOT THIS FAR -----------------------------------------------------
