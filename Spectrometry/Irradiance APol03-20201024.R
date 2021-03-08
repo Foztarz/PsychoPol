@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2020 12 08
+#     MODIFIED:	James Foster              DATE: 2021 03 08
 #
 #  DESCRIPTION: Adapted from "Darkroom Lund 119Nov2016 Irradiance.R"
 #               Loads text files in µW/nm and calculates photon irradiance for
@@ -12,7 +12,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #               
 #      OUTPUTS: Absolute irradiance as plain text (txt).
 #
-#	   CHANGES: 
+#	     CHANGES: - Works on JMU Würzburg computers 
 #             
 #             
 #
@@ -72,7 +72,7 @@ if(sys_win){
 #  .  Select files ---------------------------------------------------------
 
 #	directories														#
-ltp <- Sys.getenv('HOME') #Base level in environment
+# ltp <- Sys.getenv('HOME') #Base level in environment
 # set path to files
 if(sys_win){#choose.files is only available on Windows
   message('\n\nPlease select the master folder\n\n')
