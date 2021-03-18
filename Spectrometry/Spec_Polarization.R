@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 03 01
+#     MODIFIED:	James Foster              DATE: 2021 03 18
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
@@ -19,6 +19,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #
 #	   CHANGES:   - Plot saving 
 #               - Spectrasuite compatibility
+#               - Attempted SpectrILight compatibility (file format unclear)
 #               
 #
 #   REFERENCES: Johnsen, S., (2012) The Optics of Life: A Biologist’s Guide to
@@ -98,6 +99,7 @@ setnm <- setnm[order(nchar(names(setnm)))]
 setnm <- setnm[!(names(setnm) %in% c('zExtra'))]
 #file names (minus ".txt")
 stm <- lapply(setnm, dir, pattern = '.txt')
+# stm <- lapply(setnm, dir, pattern = '.txt|.ilt')#quickfix for International Light spectrometers
 names(stm) <- names(setnm)
     # #replace undesirable characters in names
     # snm <-  sub(subst_st,  repl_st, basename(setnm))
