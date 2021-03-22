@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 03 01
+#     MODIFIED:	James Foster              DATE: 2021 03 22
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
@@ -19,6 +19,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #
 #	   CHANGES:   - Plot saving 
 #               - Spectrasuite compatibility
+#               - International Light compatibility
 #               
 #
 #   REFERENCES: Johnsen, S., (2012) The Optics of Life: A Biologist’s Guide to
@@ -46,9 +47,10 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #  .  User input -----------------------------------------------------------
 
 mang <- 4#  number of measurement angles
-labchar <- 3#0#  number of characters used in angle label: 0 if not used
+labchar <- 3# 0# number of characters used in angle label: 0 if not used
 awl <- c(300,450)#wavelength range
 AvFUN <- median#select an averaging function
+specType <- 'OO' #'IL'#  Are measurements from an Ocean Optics or International Light spectrometer 
 
 #check the operating system and assign a logical flag (TRUE or FALSE)
 sys_win <- Sys.info()[['sysname']] == 'Windows'
@@ -160,12 +162,29 @@ OOread <- function(fl)
                               )
               )
             }
+#Load each file starting at International Lights' "SN	" flag
+il_begin <- 'SN	'
+#Set up a file reading function for batch reading
+#N.B. il_begin is loaded from global environment (.GlobalEnv) within lapply() 
+ILread <- function(fl)
+            {
+              read.table(
+                file = fl,#current file
+                header = F,#exclude header
+                sep = '\t',#tab separated
+                skip = grep(il_begin,readLines(fl)),#begins at '>>>Begin'
+                nrows = -1 #read everything except the start flag
+              )
+            }
 #light files
 raw_files <- lapply(file_path, 
                     function(s)
                     {
                       lapply(s,
-                             OOread
+                             switch(specType,
+                                    OO = OOread,
+                                    IL = ILread
+                                    )
                             )
                     }
 )
@@ -174,7 +193,10 @@ dark_files <- lapply(dark_path,
                     function(s)
                     {
                       lapply(s,
-                             OOread
+                             switch(specType,
+                                    OO = OOread,
+                                    IL = ILread
+                             )
                             )
                     }
 )
