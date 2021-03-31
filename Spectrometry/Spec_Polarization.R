@@ -23,11 +23,8 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #
 #	   CHANGES:   - Plot saving 
 #               - Spectrasuite compatibility
-<<<<<<< HEAD
 #               - International Light compatibility
-=======
 #               - Attempted SpectrILight compatibility (file format unclear)
->>>>>>> 74c6ebb7a6d921ee30bc6dcd6eb8ac705d97a0bf
 #               
 #
 #   REFERENCES: Johnsen, S., (2012) The Optics of Life: A Biologist’s Guide to

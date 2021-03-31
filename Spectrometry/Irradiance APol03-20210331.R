@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 03 08
+#     MODIFIED:	James Foster              DATE: 2021 03 31
 #
 #  DESCRIPTION: Adapted from "Darkroom Lund 119Nov2016 Irradiance.R"
 #               Loads text files in µW/nm and calculates photon irradiance for
@@ -33,15 +33,16 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #- Read in data +
 #- Handle ignored names +
 #- Estimate relative photon flux  +
+#- General-use version  
 
 # Input Variables ----------------------------------------------------------
 
 #  .  User input -----------------------------------------------------------
 
 #Measurement name
-mnm <- "APol03 prototype 24 Oct 2020"
+mnm <- "APol03 top layer 31 Mar 2021"
 #Measurement distance
-mds <- 110#mm
+mds <- 50#mm
 #Lambda max of photoreceptor class of interest
 lmx <- 344
 #Wavelengths to sum photons across range with high signal
@@ -97,6 +98,8 @@ setnm <- list.dirs(spc, recursive = F)
 names(setnm) <- basename(setnm)
 #basic sorting, works for 20201024 data
 setnm <- setnm[order(nchar(names(setnm)))]
+#Ignore extra stuff
+setnm <- setnm[!(names(setnm) %in% c('zExtra'))]
 
 #file names (minus ".txt")
 stm <- lapply(setnm, dir, pattern = '.txt')
@@ -415,7 +418,7 @@ PDFsave(Directory = spc, PlotName = paste(mnm, 'Photon Illumination'))
 
 dev.new()
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(NULL, xlim = c(300,700), ylim = c(8, log10(up.photon)), ann = F, type = 'l', col = 'red4')
+plot(NULL, xlim = c(300,700), ylim = c(10, log10(up.photon)), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
   i <- which(snm == sn)
   lines(wln, log10( photon_medians[,i] ), col = clz[i] )
@@ -432,7 +435,7 @@ PDFsave(Directory = spc, PlotName = paste(mnm, 'Sunlit sky and', 'log10 Photon I
 
 dev.new()
 par(mai = c(0.5,0.5,0.5,0.2), cex = 0.55)
-plot(NULL, xlim = c(300,700), ylim = c(6, log10(up.photon)), ann = F, type = 'l', col = 'red4')
+plot(NULL, xlim = c(300,700), ylim = c(10, log10(up.photon)), ann = F, type = 'l', col = 'red4')
 for(sn in snm){
   i <- which(snm == sn)
   lines(wln, log10( rel.photon_medians[,i] ), col = clz[i] )
@@ -566,10 +569,11 @@ rel.fluxes <- matrix( c(sm.rel.photon.solarsky,
 
 barplot(log10(fluxes), col = c('skyblue',clz),
         beside = T,
-        xlab = 'condition',
+        xlab = '',
         ylab = expression('log'[10]~'Photons cm'^{'-2'}*'s'^{'-1'}),
-        main = '',#paste0(awl[1],'-', awl[2],'nm'),
-        ylim = c(0, log10(up.photon)+2),
+        main = 'condition',
+        # main = '',#paste0(awl[1],'-', awl[2],'nm'),
+        ylim = c(10, log10(up.photon)+2),
         cex.names = 0.33,
         axisnames = F
         )
@@ -589,59 +593,59 @@ PDFsave(Directory = spc, PlotName = paste('log10 Photon Sum', mnm))
 # MEASUREMENT SPECIFIC jog-wheel setting ----------------------------------
 #logistic fit
 lm.1 <- lm( y~x,
-            data = data.frame(x = c(0,0.33, 0.50, 1.0),
+            data = data.frame(x = c(50, 50, 50, 50, 50, 100, 100),
                               y = qlogis(
-                                  (sm.photon_medians[1:4] -
-                                     0.99*min(sm.photon_medians[1:4]))/
-                                    (1.01*max(sm.photon_medians[1:4]))
+                                  (sm.photon_medians -
+                                     0.99*min(sm.photon_medians))/
+                                    (1.01*max(sm.photon_medians))
                                 )
                               )
           )
 #spline fit
-sp.1 <- smooth.spline(x = c(0,0.33, 0.50, 1.0),
-                      y = sm.photon_medians[1:4]
-                      )
-#gamma fit a+b*(x)^g
-#ideally "a" should be 0 here
-#so just b*(x)^g
-scale.x <- scale(sm.photon_medians[1:4], center = F)
-gammaFUN <- function(x, p)
-              {
-                p[1]*x^p[2]
-              }
-gammaSS <- function(p, x = c(0,0.33, 0.50, 1.0), y = scale.x)
-              {
-               sum(
-                 ( y - gammaFUN(x, p) )^2
-               ) 
-              }
-ga.1 <- lapply(1:10,#in 10 chains
-               function(i)
-               {#start with random coefficients drawn from integers 1 to 10
-                optim(sample(1:10,2,T), gammaSS,
-                      )
-               }
-              )
-ga.val <- sapply(ga.1, function(x){x$value})
-ga.fit <- ga.1[[which.min(ga.val)]]
-xx <- seq(0,1,length.out = 1e3)
-lm.fit <- 1.01*max(sm.photon_medians[1:4])*
-            plogis(
-              predict(lm.1, newdata = data.frame(x = xx)) 
-              )+
-            0.99*min(sm.photon_medians[1:4])
-sp.fit <- predict(sp.1, x = xx)
-plot(c(0,0.33, 0.50, 1.0),
-     log10(sm.photon_medians[1:4]),
-     pch = 3
-     )
-# lines(xx, log10(lm.fit), col = 'darkblue', lwd = 3)
-lines(sp.fit$x, log10(sp.fit$y), col = 'darkgreen', lwd = 3)
-lines(xx,
-      log10((ga.fit$par[1]*xx^ga.fit$par[2])*attr(scale.x, 'scaled:scale')),
-      col = 'purple', lwd = 3
-      )
-#Gamma fit looks good (though for this data a linear fit would probably also be fine)
+  # sp.1 <- smooth.spline(x = c(50, 50, 50, 50, 50, 100, 100),
+  #                       y = sm.photon_medians
+  #                       )
+  # #gamma fit a+b*(x)^g
+  # #ideally "a" should be 0 here
+  # #so just b*(x)^g
+  # scale.x <- scale(sm.photon_medians, center = F)
+  # gammaFUN <- function(x, p)
+  #               {
+  #                 p[1]*x^p[2]
+  #               }
+  # gammaSS <- function(p, x = c(0,0.33, 0.50, 1.0), y = scale.x)
+  #               {
+  #                sum(
+  #                  ( y - gammaFUN(x, p) )^2
+  #                ) 
+  #               }
+  # ga.1 <- lapply(1:10,#in 10 chains
+  #                function(i)
+  #                {#start with random coefficients drawn from integers 1 to 10
+  #                 optim(sample(1:10,2,T), gammaSS,
+  #                       )
+  #                }
+  #               )
+  # ga.val <- sapply(ga.1, function(x){x$value})
+  # ga.fit <- ga.1[[which.min(ga.val)]]
+  # xx <- seq(0,1,length.out = 1e3)
+  # lm.fit <- 1.01*max(sm.photon_medians[1:4])*
+  #             plogis(
+  #               predict(lm.1, newdata = data.frame(x = xx)) 
+  #               )+
+  #             0.99*min(sm.photon_medians[1:4])
+  # sp.fit <- predict(sp.1, x = xx)
+  # plot(c(0,0.33, 0.50, 1.0),
+  #      log10(sm.photon_medians[1:4]),
+  #      pch = 3
+  #      )
+  # # lines(xx, log10(lm.fit), col = 'darkblue', lwd = 3)
+  # lines(sp.fit$x, log10(sp.fit$y), col = 'darkgreen', lwd = 3)
+  # lines(xx,
+  #       log10((ga.fit$par[1]*xx^ga.fit$par[2])*attr(scale.x, 'scaled:scale')),
+  #       col = 'purple', lwd = 3
+  #       )
+  # #Gamma fit looks good (though for this data a linear fit would probably also be fine)
 
 # Save everything ---------------------------------------------------------
 fnm <- file.path(spc, mnm)
