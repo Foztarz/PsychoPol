@@ -41,6 +41,7 @@ Created on Tue Mar 30 11:15:13 2021
 # conda install git
 
 # pip install git+https://github.com/elerac/polanalyser
+# pip install numba
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -99,3 +100,9 @@ cv2.imwrite(os.path.dirname(imfile)+'/Int_'+fln+".png",img_intensity.astype(np.f
 cv2.imwrite(os.path.dirname(imfile)+'/DoLP_'+fln+".png",img_DoLP_col_inv.astype(np.float64)*255)
 cv2.imwrite(os.path.dirname(imfile)+'/AoLP_'+fln+".png",img_AoLP_col_inv.astype(np.float64)*255)
 cv2.imwrite(os.path.dirname(imfile)+'/PolBright_'+fln+".png",img_AoLP_cmapped)
+
+
+img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/255, saturation = img_DoLP)
+plt.imshow(img_AoLP_colesque)
+img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.COLOR_RGB2BGR)
+cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque_inv)
