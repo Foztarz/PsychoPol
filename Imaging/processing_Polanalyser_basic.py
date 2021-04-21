@@ -105,4 +105,8 @@ cv2.imwrite(os.path.dirname(imfile)+'/PolBright_'+fln+".png",img_AoLP_cmapped)
 img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/255, saturation = img_DoLP)
 plt.imshow(img_AoLP_colesque)
 img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.COLOR_RGB2BGR)
-cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque_inv)
+#seems to work differently on Windows?
+if os.name == 'nt' :
+    cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque)
+else :
+    cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque_inv)
