@@ -4,11 +4,8 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-<<<<<<< HEAD
 #     MODIFIED:	James Foster              DATE: 2021 03 22
-=======
 #     MODIFIED:	James Foster              DATE: 2021 03 18
->>>>>>> 74c6ebb7a6d921ee30bc6dcd6eb8ac705d97a0bf
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
