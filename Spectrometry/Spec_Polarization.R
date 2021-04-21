@@ -49,7 +49,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #  .  User input -----------------------------------------------------------
 
 mang <- 4#  number of measurement angles
-labchar <- 3# 0# number of characters used in angle label: 0 if not used
+labchar <-  0# 3#number of characters used in angle label: 0 if not used
 awl <- c(300,450)#wavelength range
 AvFUN <- median#select an averaging function
 specType <- 'OO' #'IL'#  Are measurements from an Ocean Optics or International Light spectrometer 
