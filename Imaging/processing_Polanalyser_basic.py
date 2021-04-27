@@ -110,3 +110,12 @@ if os.name == 'nt' :
     cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque)
 else :
     cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque_inv)
+
+img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/255, saturation = img_DoLP*2)
+plt.imshow(img_AoLP_Supercolesque)
+img_AoLP_Supercolesque_inv = cv2.cvtColor(img_AoLP_Supercolesque.astype(np.float32), cv2.COLOR_RGB2BGR)
+#seems to work differently on Windows?
+if os.name == 'nt' :
+    cv2.imwrite(os.path.dirname(imfile)+'/PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque)
+else :
+    cv2.imwrite(os.path.dirname(imfile)+'/PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque_inv)
