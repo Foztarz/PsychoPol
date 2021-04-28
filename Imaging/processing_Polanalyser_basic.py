@@ -3,7 +3,7 @@
 Created on Tue Mar 30 11:15:13 2021
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster        DATE: 2021 03 30
-#     MODIFIED:	James Foster        DATE: 2021 03 30
+#     MODIFIED:	James Foster        DATE: 2021 04 27
 #
 #  DESCRIPTION: Loads image capture exported from Lucid's Arena SDK. Splits the 
 #               image into different polarization channels based on Bayer mask
@@ -14,7 +14,7 @@ Created on Tue Mar 30 11:15:13 2021
 #               
 #      OUTPUTS: Images as bitmap (png).
 #
-#	   CHANGES: -
+#	   CHANGES: -double saturated versions
 #
 #   REFERENCES: Foster J.J., Temple S.E., How M.J., Daly I.M., Sharkey C.R.,
 #               Wilby D., Roberts N.W., (2018)
