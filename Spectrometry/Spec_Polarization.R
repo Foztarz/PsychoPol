@@ -41,6 +41,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #- Read in data +
 #- Neaten up    +
 #- Save plots   + 
+#- Counts/s   
 #- Summary calculations   
 #- Generalise calculations   
 
@@ -203,6 +204,25 @@ dark_files <- lapply(dark_path,
                             )
                     }
 )
+#WIP!
+int_time <- lapply(file_path, 
+                  function(s){
+                    lapply(s, 
+                     function(fl)
+                       {
+                       tb <- read.table(
+                                 file = fl,#current file
+                                 header = F,#exclude header
+                                 # sep = '\t',#tab separated 
+                                 skip = grep('Integration' ,readLines(fl))-1, 
+                                 nrows = 1
+                                 )
+                       return( tb[,length(tb[1,])] )
+                        }
+                    )
+                    }
+)
+names(int_time) <- names(raw_files)
 
 # Crop to UV-Vis range ----------------------------------------------------
 RangeFUN <- function(x,v = 'V2'){subset(x, V1 >299 & V1 <701)[,v]}
