@@ -77,7 +77,7 @@ img_DoLP      = pa.cvtStokesToDoLP(img_stokes)
 img_AoLP      = pa.cvtStokesToAoLP(img_stokes)
 
 plt.imshow(img_intensity)
-plt.imshow(img_DoLP, cmap = 'jet')
+plt.imshow(img_DoLP, cmap = 'jet',vmin=0, vmax=1)
 plt.imshow(img_AoLP, cmap = 'hsv')
 
 img_AoLP_cmapped = pa.applyColorToAoLP(img_AoLP, value=img_DoLP)
