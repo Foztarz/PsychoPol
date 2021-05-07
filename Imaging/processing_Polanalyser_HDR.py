@@ -59,16 +59,100 @@ import polanalyser as pa
 
 from tkinter.filedialog import askopenfilename
 import os
-import re
+# import re
+import warnings
+"""
+## Input params
+"""
+fileformat = '.tiff'
+expos_type = 'name'#exposure is '--######us'
+edge_lim = 10#% bottom and top 10% replaced
+gamma_corr = 1.0#gamma correction for final image
+max_val = 0.95#top quantile to divide final image by
 
+"""
+## Find files
+"""
+#ask user for a file
 imfile = askopenfilename()
+#find all files in that folder
 imdir = os.listdir(os.path.dirname(imfile))
-tiffs = np.take(imdir, np.where( [ff.endswith('.tiff') for ff in imdir] ) )
+#find just the tiffs
+tiffs = np.take(imdir, np.where( [ff.endswith(fileformat) for ff in imdir] ) )
 #WIP, this indexing was a nightmare!
 
-img_raw  = cv2.imread(imfile,0)#0 means greyscale
+"""
+## Find exposure values
+"""
+def Extract_exposures(label):
+    extrExp = {
+        'name': [np.float64(ff.split('--')[1].split('us')[0])/1000 for ff in tiffs[0]],
+        'exif': warnings.warn('not implemented')
+        }
+    return(extrExp.get(label, 'Exposure type not implemented'))
+exposures = Extract_exposures(expos_type)
 
-img_demosaiced = pa.demosaicing(img_raw)
+"""
+## Read in files as list
+"""
+
+imgs_raw  = [cv2.imread(os.path.dirname(imfile)+'/'+imfl,0) for imfl in tiffs[0]]#0 means greyscale
+
+"""
+## Check for over/underexposed pixels in middle exposure
+"""
+img_mid = imgs_raw[np.where(exposures == np.median(exposures))[0][0]]
+hist_mid = plt.hist(img_mid.ravel(), 256, [0,256])
+img_mid_over = np.where(img_mid > np.round(256*(1-edge_lim/100))-1)
+img_mid_under = np.where(img_mid < np.round(256*(edge_lim/100))-1)
+# over_r, over_c = np.where(img_mid > np.round(256*(1-edge_lim/100))-1)
+# under_r, under_c = np.where(img_mid > np.round(256*(edge_lim/100))-1)
+#use these indices later to replace 
+        # img_temp = img_mid
+        # img_temp[img_mid_under] = 255
+        # img_temp[img_mid_over] = 0
+        # plt.imshow(img_temp)
+        # img_temp[img_mid_under] = imgs_raw[1][img_mid_under]
+        # img_temp[img_mid_over] = imgs_raw[1][img_mid_under]
+        # plt.imshow(img_temp)
+
+"""
+## Convert to units of pixel-byte-value/second
+"""
+imgs_bytes_s = imgs_raw
+for ii in range(len(imgs_raw)):
+    imgs_bytes_s[ii] = np.float64(imgs_raw[ii]) / exposures[ii]
+    
+"""
+## Construct single HDR image
+"""
+ind_mid = np.where(exposures == np.median(exposures))[0][0]
+ind_max = np.where(exposures == np.max(exposures))[0][0]
+ind_min = np.where(exposures == np.min(exposures))[0][0]
+img_HDR = imgs_bytes_s[ind_mid]
+plt.imshow(img_HDR)
+
+img_HDR[(img_mid_over[0],img_mid_over[1])] = imgs_bytes_s[ind_min][(img_mid_over[0],img_mid_over[1])]
+plt.imshow(img_HDR)
+
+img_HDR[(img_mid_under[0],img_mid_under[1])] = imgs_bytes_s[ind_max][(img_mid_under[0],img_mid_under[1])]
+plt.imshow(img_HDR)
+        # hist_HDR = plt.hist(img_HDR.ravel(), 256)
+        # hist_HDR = plt.hist(np.log10(img_HDR.ravel()+1))
+        # plt.imshow(img_HDR)
+        # plt.imshow(np.log10(img_HDR+1))
+        # plt.imshow(np.log10(np.float64(img_mid)+1))
+hist_HDR = plt.hist(np.log10(img_HDR.ravel()+1),1000)
+plt.title('HDR image')
+plt.xlabel("log10 pixel byte values / s")
+plt.ylabel("Frequency")
+plt.savefig( os.path.dirname(imfile)+ '/HDR_histogram.png')
+plt.close()
+"""
+## Process for polarization
+"""
+
+img_demosaiced = pa.demosaicing(img_HDR)
 
 img_000, img_045, img_090, img_135 = cv2.split(img_demosaiced)
 
@@ -89,7 +173,7 @@ img_DoLP      = pa.cvtStokesToDoLP(img_stokes)
 img_AoLP      = pa.cvtStokesToAoLP(img_stokes)
 
 plt.imshow(img_intensity)
-plt.imshow(img_DoLP, cmap = 'jet')
+plt.imshow(img_DoLP, cmap = 'jet', vmin=0, vmax=1)
 plt.imshow(img_AoLP, cmap = 'hsv')
 
 img_AoLP_cmapped = pa.applyColorToAoLP(img_AoLP, value=img_DoLP)
@@ -103,31 +187,32 @@ img_AoLP_col = cm.hsv(img_AoLP/np.pi)
 plt.imshow(img_AoLP_col.astype(np.float64))
 
 img_DoLP_col_inv = cv2.cvtColor(img_DoLP_col.astype(np.float32), cv2.COLOR_RGB2BGR)
-# plt.imshow(img_DoLP_col_inv.astype(np.float64))
+# plt.imshow(imgs_DoLP_col_inv.astype(np.float64))
 img_AoLP_col_inv = cv2.cvtColor(img_AoLP_col.astype(np.float32), cv2.COLOR_RGB2BGR)
-# plt.imshow(img_AoLP_col_inv.astype(np.float64))
+# plt.imshow(imgs_AoLP_col_inv.astype(np.float64))
 
-fln = os.path.basename(imfile)[:-5]#crop the file type
-cv2.imwrite(os.path.dirname(imfile)+'/Int_'+fln+".png",img_intensity.astype(np.float64))#np.uint8))
-cv2.imwrite(os.path.dirname(imfile)+'/DoLP_'+fln+".png",img_DoLP_col_inv.astype(np.float64)*255)
-cv2.imwrite(os.path.dirname(imfile)+'/AoLP_'+fln+".png",img_AoLP_col_inv.astype(np.float64)*255)
-cv2.imwrite(os.path.dirname(imfile)+'/PolBright_'+fln+".png",img_AoLP_cmapped)
+fln = os.path.basename(os.path.dirname(imfile))#crop the file type
+cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.max(img_intensity))#np.uint8))
+cv2.imwrite(os.path.dirname(imfile)+'/HDR_DoLP_'+fln+".png",img_DoLP_col_inv.astype(np.float64)*255)
+cv2.imwrite(os.path.dirname(imfile)+'/HDR_AoLP_'+fln+".png",img_AoLP_col_inv.astype(np.float64)*255)
+# cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolBright_'+fln+".png",img_AoLP_cmapped)
 
 
-img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/255, saturation = img_DoLP)
+img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.max(img_intensity), saturation = img_DoLP)
 plt.imshow(img_AoLP_colesque)
 img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.COLOR_RGB2BGR)
 #seems to work differently on Windows?
-if os.name == 'nt' :
-    cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque)
-else :
-    cv2.imwrite(os.path.dirname(imfile)+'/PolColesque_'+fln+".png",img_AoLP_colesque_inv)
+# if os.name == 'nt' :
+#     cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolColesque_'+fln+".png",img_AoLP_colesque)
+# else :
+#     cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolColesque_'+fln+".png",img_AoLP_colesque_inv)
 
-img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/255, saturation = img_DoLP*2)
+img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= (img_intensity**gamma_corr)/np.quantile(img_intensity,max_val), saturation = img_DoLP*2)
 plt.imshow(img_AoLP_Supercolesque)
 img_AoLP_Supercolesque_inv = cv2.cvtColor(img_AoLP_Supercolesque.astype(np.float32), cv2.COLOR_RGB2BGR)
 #seems to work differently on Windows?
 if os.name == 'nt' :
-    cv2.imwrite(os.path.dirname(imfile)+'/PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque)
+    cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque)
 else :
-    cv2.imwrite(os.path.dirname(imfile)+'/PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque_inv)
+    cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque_inv)
+
