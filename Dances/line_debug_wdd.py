@@ -24,23 +24,24 @@ from wdd.export import WaggleExporter
 
 # def main(capture_type, video_device, height, width, fps, bee_length, binarization_threshold, max_frame_distance, 
          # min_num_detections, output_path, cam_identifier, background_path, debug, debug_frames):
-cd '/Users/jamesfoster/Documents'
+dcmt = os.getenv('USERPROFILE') + '/Documents'
+os.chdir(dcmt)
 
 # FIXME: should be proportional to fps (how fast can a bee move in one frame while dancing)
 capture_type = 'OpenCV'
-video_device = 'DanceResults/WDD2019_sample.mp4'
+video_device = 'DanceResults/justbees.mp4'#'DanceResults/WDD2019_sample.mp4'
 height=180
 width=342
 fps=60
 bee_length=7
 binarization_threshold=6
-max_frame_distance=0.2
+max_frame_distance=0.5#0.2
 min_num_detections=0.1
 output_path= 'DanceResults'
 cam_identifier=1
 background_path='DanceResults'
 debug=True
-debug_frames=11
+debug_frames=60#11
 
 max_distance = bee_length
 binarization_threshold = np.expm1(binarization_threshold)
@@ -159,6 +160,7 @@ for ret, frame, frame_orig, background in frame_generator:
         sys.stdout.flush()
 
     frame_idx = (frame_idx + 1)
+    # if frame_idx >1800: break
 
 # aa = ParallelGenerator(frame_generator, max_lookahead=fps)
 # for ret, frame, frame_orig, background in gen:
