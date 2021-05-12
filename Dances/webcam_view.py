@@ -6,7 +6,7 @@ https://stackoverflow.com/a/11449901/660921
 """
 import cv2
 cv2.namedWindow("preview")
-vc = cv2.VideoCapture(0)
+vc = cv2.VideoCapture(1)#0)
 
 if vc.isOpened(): # try to get the first frame
     rval, frame = vc.read()
