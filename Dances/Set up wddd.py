@@ -28,5 +28,6 @@ pip install click
 pip install imageio
 #conda install distutils # not found
 #pip install pyflycapture2
+conda install git
 # downloaded https://github.com/GreenSlime96/PyCapture2_NumPy
 pip install git+https://github.com/Foztarz/bb_wdd2.git@WIP
