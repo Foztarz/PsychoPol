@@ -4,8 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 03 22
-#     MODIFIED:	James Foster              DATE: 2021 03 18
+#     MODIFIED:	James Foster              DATE: 2021 05 19
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
@@ -22,6 +21,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #               - Spectrasuite compatibility
 #               - International Light compatibility
 #               - Attempted SpectrILight compatibility (file format unclear)
+#               - Conversion to counts/second by reading header integration time
 #               
 #
 #   REFERENCES: Johnsen, S., (2012) The Optics of Life: A Biologist’s Guide to
@@ -51,6 +51,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 
 mang <- 4#  number of measurement angles
 labchar <-  0# 3#number of characters used in angle label: 0 if not used
+lmx <- 344#nm Lambda max of photoreceptor class of interest
 awl <- c(300,450)#wavelength range
 AvFUN <- median#select an averaging function
 specType <- 'OO' #'IL'#  Are measurements from an Ocean Optics or International Light spectrometer 
@@ -76,6 +77,8 @@ shell.exec.OS  <- function(x){
   return(system(comm))}
 }
 
+#For curve integral
+require(sfsmisc)
 
 #  .  Select files ---------------------------------------------------------
 
@@ -204,25 +207,7 @@ dark_files <- lapply(dark_path,
                             )
                     }
 )
-#WIP!
-int_time <- lapply(file_path, 
-                  function(s){
-                    lapply(s, 
-                     function(fl)
-                       {
-                       tb <- read.table(
-                                 file = fl,#current file
-                                 header = F,#exclude header
-                                 # sep = '\t',#tab separated 
-                                 skip = grep('Integration' ,readLines(fl))-1, 
-                                 nrows = 1
-                                 )
-                       return( tb[,length(tb[1,])] )
-                        }
-                    )
-                    }
-)
-names(int_time) <- names(raw_files)
+
 
 # Crop to UV-Vis range ----------------------------------------------------
 RangeFUN <- function(x,v = 'V2'){subset(x, V1 >299 & V1 <701)[,v]}
@@ -238,11 +223,11 @@ wln <- lapply(raw_files,
 names(wln) <- names(raw_files)
 
 #crop measurements and discard wavelength vectors
-raw_files <- lapply(raw_files, 
+raw_files <- lapply(raw_files,
                     sapply,
                     RangeFUN
 )
-dark_files <- lapply(dark_files, 
+dark_files <- lapply(dark_files,
                     sapply,
                     RangeFUN
 )
@@ -305,39 +290,124 @@ i0FUN <-  function(x)
   {if(length(x)==4){sum(x)/2}else
    {warning('sorry, I0 not implimented for ',length(x), ' angles')}
  }
+# . Convert to counts/second ------------------------------------------------
+
+
+#Fetch integration time in seconds WIP!
+raw_time <- lapply(file_path, 
+                   function(s){
+                     lapply(s, 
+                            function(fl)
+                            {
+                              tb <- read.table(
+                                file = fl,#current file
+                                header = F,#exclude header
+                                # sep = '\t',#tab separated 
+                                skip = grep('Integration' ,readLines(fl))-1, 
+                                nrows = 1
+                              )
+                              return( tb[,length(tb[1,])] )
+                            }
+                     )
+                   }
+)
+names(raw_time) <- names(raw_files)
+raw_time <- lapply(names(raw_time), 
+                   function(ii)
+                   {xx <- do.call(cbind,raw_time[[ii]])
+                   colnames(xx) <- colnames(raw_files[[ii]])
+                   return(xx)
+                   }
+)
+names(raw_time) <- names(raw_files)
+
+#Fetch integration time in seconds for dark files WIP!
+dark_time <- lapply(dark_path, 
+                    function(s){
+                      lapply(s, 
+                             function(fl)
+                             {
+                               tb <- read.table(
+                                 file = fl,#current file
+                                 header = F,#exclude header
+                                 # sep = '\t',#tab separated 
+                                 skip = grep('Integration' ,readLines(fl))-1, 
+                                 nrows = 1
+                               )
+                               return( tb[,length(tb[1,])] )
+                             }
+                      )
+                    }
+)
+names(dark_time) <- names(dark_files)
+dark_time <- lapply(names(dark_time), 
+                    function(ii)
+                    {xx <- do.call(cbind,dark_time[[ii]])
+                    colnames(xx) <- colnames(dark_files[[ii]])
+                    return(xx)
+                    }
+)
+names(dark_time) <- names(dark_files)
+
+#Count/second conversion
+raw_cps <- lapply(names(raw_files),
+                  function(ii)
+                  {sapply(colnames(raw_files[[ii]]),
+                          function(jj)
+                          { raw_files[[ii]][,jj]/raw_time[[ii]][,jj] }
+                  )
+                  }
+)
+dark_cps <- lapply(names(dark_files),
+                   function(ii)
+                   {sapply(colnames(dark_files[[ii]]),
+                           function(jj)
+                           { dark_files[[ii]][,jj]/dark_time[[ii]][,jj] }
+                   )
+                   }
+)
+names(raw_cps) <- names(raw_files)
+names(dark_cps) <- names(dark_files)
+
 
 # . Average across repeats ------------------------------------------------
 
 # . . Dark repeats --------------------------------------------------------
 #Take median across dark repeats
-dark_found <- !sapply(dark_files, is.null)
+# dark_found <- !sapply(dark_files, is.null)
+dark_found <- !sapply(dark_cps, is.null)
 #prepare vector
 dark_averages <- list()
 if(any(dark_found))
 {
   dark_averages[!dark_found] <- 0
-  dark_averages[dark_found] <- lapply(dark_files[dark_found],
+  # dark_averages[dark_found] <- lapply(dark_files[dark_found],
+  dark_averages[dark_found] <- lapply(dark_cps[dark_found],
                                      apply,
                                      1,
                                      AvFUN
                                     )
 }else{
-  dark_averages <- sapply(dark_files, function(x){0})
+  # dark_averages <- sapply(dark_files, function(x){0})
+  dark_averages <- sapply(dark_cps, function(x){0})
   warning('No dark files found, raw traces used.')
 }
-names(dark_averages) <- names(dark_files)
+# names(dark_averages) <- names(dark_files)
+names(dark_averages) <- names(dark_cps)
 #Subtract dark
-light_files <- lapply(names(raw_files), 
+# light_files <- lapply(names(raw_files), 
+light_files <- lapply(names(raw_cps), 
                       function(i)
                         {
-                        xx <- raw_files[[i]] - dark_averages[[i]]
+                        # xx <- raw_files[[i]] - dark_averages[[i]]
+                        xx <- raw_cps[[i]] - dark_averages[[i]]
                         colnames(xx) <- sub('.txt','', stm[[i]])
                         return(xx)
                         }
                       )
 #retain folder name
-names(light_files) <- names(raw_files)
-
+# names(light_files) <- names(raw_files)
+names(light_files) <- names(raw_cps)
 
 # . . Light recordings ----------------------------------------------------
 #set up labels
@@ -408,7 +478,7 @@ dops <- lapply(light_averages,
 clz <- sapply(
   length(light_files),
   colorRampPalette(
-    c('red','blue','cyan4','magenta4')#on Rstudio these are distinct
+    c('red','blue','cyan4','magenta4','orange')#on Rstudio these are distinct
   )
 )
 clz <- sample(clz)#Randomise order?
@@ -441,7 +511,8 @@ plot(NULL,
      xlim = awl,
      ylim = range(unlist(light_I0s)),
      xlab = 'Wavelength (nm)',
-     ylab = 'Intensity (counts)')
+     # ylab = 'Intensity (counts)')
+     ylab = 'Intensity (counts/second)')
 #Add limits
 abline(h = 0, lwd = 0.25, col = 'gray')
 #Plot each measurement in a different colour
