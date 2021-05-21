@@ -77,6 +77,34 @@ shell.exec.OS  <- function(x){
   return(system(comm))}
 }
 
+# Make a spline template for a visual pigment
+StavengaSpline <- function(spec.range = c(300, 700),
+                           lambda.max,
+                           a.type = 'a1'){
+  wlns <- seq(min(spec.range),max(spec.range), length.out = 1e3) #
+  #Stavenga, D. G. (2010). On visual pigment templates and the spectral shape of invertebrate rhodopsins and metarhodopsins. Journal of Comparative Physiology A: Neuroethology, Sensory, Neural, and Behavioral Physiology, 196(11), 869–878. doi:10.1007/s00359-010-0568-7
+  # modified lognormal
+  m.lognorm <- function(wl,l.max, a0, a1)
+  {
+    x = log10(wl/l.max)
+    return(exp(-a0*x^2 * (1+a1*x+3*a1^2*x^2)))
+  }
+  if(a.type == 'a1')
+  {
+    #alpha band
+    a.band <- m.lognorm(wlns,lambda.max, 380, 6.09)
+    #beta band
+    b.band <- 0.29*m.lognorm(wlns, 340, 247, 3.59)
+    #gamma band
+    g.band <- 1.99*m.lognorm(wlns, 276, 647, 23.4)
+  }else
+  {stop('a2 and a3 pigments not yet implemented')}
+  # N.B. Stavenga normalises to max(a.band), I normalise to function max
+  r.stav <- (a.band + b.band + g.band)/max(a.band + b.band + g.band)
+  return(	smooth.spline(wlns, r.stav)	)
+}#StavengaSpline <- function(spec.range, lambda.max){
+
+
 #For curve integral
 require(sfsmisc)
 
@@ -611,4 +639,161 @@ shell.exec.OS(plot_file)
 
 
 
+
+#  Correct to effective sensitivity ---------------------------------------
+
+#make a honeybee UV response curve (Menzel & Blakers, 1976)
+spln.lmx <- StavengaSpline(c(300, 700), lmx) # an a1 opsin with a 344nm max absorption
+wln.lmx <- lapply(wln,
+                  function(nm)
+                  {predict(spln.lmx, x = nm)$y}
+                  )
+
+# . Conversion to relative photon counts ----------------------------------
+effective_averages <- lapply(names(light_averages),
+                             function(ii)
+                               { light_averages[[ii]]*wln.lmx[[ii]] }
+                             )
+names(effective_averages) <- names(light_averages)
+
+sm.effective_averages <- t(
+                            sapply(names(effective_averages),
+                             function(ii)
+                             {
+                               apply(effective_averages[[ii]],
+                                     2,
+                                     function(xx)
+                                       {
+                                       sfsmisc::integrate.xy(
+                                                              x = wln[[ii]],
+                                                              fx = xx,
+                                                              a = min(awl),
+                                                              b = max(awl)
+                                                             )
+                                       }
+                                     )
+                             }
+                            )
+                          )
+
+
+# . Process effective counts ----------------------------------------------
+
+#Calculate unpolarized intensity 
+effective_I0s <- apply(sm.effective_averages,
+                        1,
+                        i0FUN
+                      )
+
+#Calculate angle of polarization
+effective_aops <- apply(sm.effective_averages,
+                         1,
+                         apolFUN,
+                         mang
+                        )
+
+#Calculate degree of polarization
+effective_dops <- apply(sm.effective_averages,
+                         1,
+                         dpolFUN,
+                         mang
+                        )
+
+# Plot effective polarization ---------------------------------------------
+# . Set up plot area ------------------------------------------------------
+eff_plot_file <- file.path(spc, 'EffPolarizationPlot.pdf')
+if(file.exists(eff_plot_file))
+{
+  message('An effective polarization plot already exists in this folder.')
+  nnm <- readline(prompt = 'New plot name: '
+  )
+  eff_plot_file <-  file.path(spc,paste0(ifelse(nchar(nnm),nnm,'EffPolarizationPlot'),'.pdf'))
+}
+pdf(file = eff_plot_file,
+    paper = 'a4',
+    height = 10,
+    bg = 'white',
+    useDingbats = F
+)
+par(mar = c(5,5,1,0.5),
+    mfrow = c(3,1)
+)
+
+#  . Unpolarized intensity ------------------------------------------------
+
+plot(NULL,
+     xlim = c(1,length(effective_I0s))+c(-1,3)*1.5,
+     ylim = c(0, log10(max(effective_I0s))),
+     xlab = '',
+     ylab = expression('log'[10]~'counts s'^{'-1'}),
+     axes = F
+     )
+abline(h = seq(0, log10(max(effective_I0s)), 1), lwd = 0.25, col = 'gray')
+barplot(log10(effective_I0s),
+        col = clz,
+        add = T
+        )
+
+
+# . Angle of Polarization -------------------------------------------------
+
+
+plot(NULL,
+     xlim = c(1,length(effective_aops))+c(-1,3)*1,
+     ylim = c(-180, 180),
+     xlab = '',
+     ylab = 'Angle of Polarization',
+     axes = F
+     )
+axis(1,
+     at = 1:length(effective_aops),
+     labels = names(effective_aops),
+     )
+axis(2,
+     at = seq(-180, 180, 90),
+     labels = paste0(seq(-180, 180, 90),'°'),
+     cex.axis = 0.7
+)
+#Add limits
+abline(h = seq(-180, 180, 90), lwd = 0.25, col = 'gray')
+stripchart(data = data.frame(measurement = names(effective_aops),
+                             AoP = effective_aops
+                             ),
+           x = AoP~measurement,
+           add = T,
+           vertical  = T,
+           pch = 3,
+           lwd = 3,
+           col = clz,
+           ylim = c(-180,180)
+           )
+
+#  . Degree of polarization -----------------------------------------------
+plot(NULL,
+     xlim = c(1,length(effective_dops))+c(-1,3)*1.5,
+     ylim = c(0, 1),
+     xlab = '',
+     ylab = 'Degree of Linear Polarization',
+     axes = F
+)
+#Add limits
+abline(h = seq(0, 1, 0.10), lwd = 0.25, col = 'gray')
+barplot(effective_dops,
+        col = clz,
+        add = T
+)
+#Add limits
+abline(h = c(0,1))
+#Label each measurement
+legend('topright',
+       names(dops),
+       col = clz,
+       lty = 1,
+       lwd = 2,
+       cex = 1
+)
+
+# . Save plot -------------------------------------------------------------
+dev.off()
+shell.exec.OS(eff_plot_file)
 # WIP! I GOT THIS FAR -----------------------------------------------------
