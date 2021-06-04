@@ -748,6 +748,7 @@ plot(NULL,
 axis(1,
      at = 1:length(effective_aops),
      labels = names(effective_aops),
+     cex.axis = 0.7
      )
 axis(2,
      at = seq(-180, 180, 90),
@@ -781,7 +782,7 @@ abline(h = seq(0, 1, 0.10), lwd = 0.25, col = 'gray')
 barplot(effective_dops,
         col = clz,
         add = T
-)
+        )
 #Add limits
 abline(h = c(0,1))
 #Label each measurement
