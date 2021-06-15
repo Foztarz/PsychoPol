@@ -41,9 +41,10 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #- Read in data +
 #- Neaten up    +
 #- Save plots   + 
-#- Counts/s   
-#- Summary calculations   
-#- Generalise calculations   
+#- Counts/s     +
+#- Summary calculations   +
+#- Generalise calculations   +
+#- Save results   
 
 # Input Variables ----------------------------------------------------------
 
@@ -731,7 +732,8 @@ plot(NULL,
 abline(h = seq(0, log10(max(effective_I0s)), 1), lwd = 0.25, col = 'gray')
 barplot(log10(effective_I0s),
         col = clz,
-        add = T
+        add = T,
+        las = 3
         )
 
 
@@ -781,7 +783,8 @@ plot(NULL,
 abline(h = seq(0, 1, 0.10), lwd = 0.25, col = 'gray')
 barplot(effective_dops,
         col = clz,
-        add = T
+        add = T,
+        las = 3
         )
 #Add limits
 abline(h = c(0,1))
@@ -798,3 +801,35 @@ legend('topright',
 dev.off()
 shell.exec.OS(eff_plot_file)
 # WIP! I GOT THIS FAR -----------------------------------------------------
+# Save everything ---------------------------------------------------------
+# fnm <- file.path(spc, mnm)
+# 
+# summed <- data.frame(total.flux = sm.photon_medians,
+#                      rel.flux = sm.rel.photon_medians
+# )
+# Calculated at each wavelength
+#only save wavelength data together if all measurements use the same scale
+if(!diff(range(sapply(wln, length))))
+{
+  write.csv(x = cbind(wavelength = wln[[1]], do.call(cbind, light_I0s)),
+            file = file.path(spc, paste0('-I0','.csv')),
+  )
+  write.csv(x = cbind(wavelength = wln[[1]], do.call(cbind, aops)),
+            file = file.path(spc, paste0('-aop','.csv')),
+  )
+  write.csv(x = cbind(wavelength = wln[[1]], do.call(cbind, dops)),
+            file = file.path(spc, paste0('-dop','.csv')),
+  )
+  
+}else{}#TODO handle case when wavelength scales differ
+
+# Average across range
+write.csv(x = effective_I0s,
+          file = file.path(spc, paste0('-summed.countspersec_',awl[1],'-', awl[2],'nm','.csv')),
+)
+write.csv(x = effective_aops,
+          file = file.path(spc, paste0('-aop_',awl[1],'-', awl[2],'nm','.csv')),
+)
+write.csv(x = effective_dops,
+          file = file.path(spc, paste0('-dop_',awl[1],'-', awl[2],'nm','.csv')),
+)
