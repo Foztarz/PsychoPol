@@ -68,7 +68,8 @@ fileformat = '.tiff'
 expos_type = 'name'#exposure is '--######us'
 edge_lim = 10#% bottom and top 10% replaced
 gamma_corr = 1.0#gamma correction for final image
-max_val = 0.95#top quantile to divide final image by
+#top quantile to divide final image by
+max_val = 0.99#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
 
 """
 ## Find files
@@ -193,14 +194,14 @@ img_AoLP_col_inv = cv2.cvtColor(img_AoLP_col.astype(np.float32), cv2.COLOR_RGB2B
 
 fln = os.path.basename(os.path.dirname(imfile))#crop the file type
 # cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.max(img_intensity))#np.uint8))
-cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.quantile(img_intensity,0.95))#np.uint8))
+cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.quantile(img_intensity,max_val))#np.uint8))
 cv2.imwrite(os.path.dirname(imfile)+'/HDR_DoLP_'+fln+".png",img_DoLP_col_inv.astype(np.float64)*255)
 cv2.imwrite(os.path.dirname(imfile)+'/HDR_AoLP_'+fln+".png",img_AoLP_col_inv.astype(np.float64)*255)
 # cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolBright_'+fln+".png",img_AoLP_cmapped)
 
 
 # img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.max(img_intensity), saturation = img_DoLP)
-img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.quantile(img_intensity,0.95), saturation = img_DoLP)
+img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.quantile(img_intensity,max_val), saturation = img_DoLP)
 plt.imshow(img_AoLP_colesque)
 img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.COLOR_RGB2BGR)
 #seems to work differently on Windows?
