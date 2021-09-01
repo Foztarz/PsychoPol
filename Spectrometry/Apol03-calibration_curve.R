@@ -151,6 +151,8 @@ with(int_ponly,
      )
 )
 
+# Predict Intensity -------------------------------------------------------
+
 lmu <- lm(formula = total.flux~as.numeric(u),
           data = int_uonly[int_uonly$u > 0, ]
           )
@@ -159,6 +161,7 @@ lmp <- lm(formula = total.flux~as.numeric(p),
           )
 abline(lmu, col = 'cyan')
 abline(lmp, col = 'magenta')
+
 
 prd.u_int <- predict(lmu, int)
 prd.p_int <- predict(lmp, int)
@@ -266,3 +269,89 @@ text(x = prd.dop,
      pos = 3,
      cex = 0.5
 )
+
+
+# Choose conditions -------------------------------------------------------
+Pred.stim <- function(
+                      p = 0,#controller box setting pol layer
+                      u = 0,#controller box setting unpol layer
+                      c.p = -4.975e12,#intercept for polarized layer
+                      m.p =  9.406e12,#slope for polarized layer
+                      c.u = -2.375e13,#intercept for unpolarized layer
+                      m.u =  4.109e13,#slope for unpolarized layer
+                      dop.p = 0.5377186,#DoP of polarized layer
+                      dop.u = 0.04282066,#DoP of unpolarized layer
+                      int_pol_ctn = 1.0,#polarized-added intensity correction
+                      int_upol_ctn = 0.5,#unpolarized-added intensity correction
+                      dop_pol_ctn = 1.0,#polarized-added DoP correction
+                      dop_upol_ctn = 1.5#unpolarized-added DoP correction
+)
+{
+  #check input
+  numcheck <- function(x){suppressWarnings(!is.na(as.numeric(x)))}
+  u <- ifelse(test = sapply(u, numcheck), yes = u, no = 0)#check for numeric values
+  p <- ifelse(test = sapply(p, numcheck), yes = p, no = 0)#check for numeric values
+  #linear intensity prediction
+  u_int <- c.u+m.u*u
+  p_int <- c.p+m.p*p
+  u_int[u_int<0 | is.na(u_int)] <- 0#predict a non-negative photon flux
+  p_int[p_int<0 | is.na(p_int)] <- 0#predict a non-negative photon flux
+  #check for mixed input stimuli
+  int.ct_pol <- rep(1, length(u))
+  int.ct_pol[u>0 & !is.na(u)] <- int_upol_ctn#if there is unpol, it appears to be more like 50%
+  int.ct_upol <- rep(1, length(p))
+  int.ct_upol[p>0 & !is.na(p)] <- int_pol_ctn#if there is pol
+  dop.ct_pol <- rep(1,length(u))
+  dop.ct_pol[u>0 & !is.na(u)] <- dop_upol_ctn#if there is unpol, it appears to be more polarized!
+  dop.ct_upol <- rep(1,length(p))
+  dop.ct_upol[p>0 & !is.na(p)] <- dop_pol_ctn#if there is pol
+  #estimate intensity
+  est_intensity <- u_int*int.ct_upol + p_int*int.ct_pol
+  #estimate degree of polarization
+  est_dop <- (dop.ct_upol*dop.u * u_int*int.ct_upol + #DoP of unpol layer multiplied by its intensity
+            dop.ct_pol*dop.p * p_int*int.ct_pol)/ #DoP of pol layer multiplied by its intensity
+          (dop.ct_upol * u_int*int.ct_upol+ #divided by intensity of unpolarized layer plus
+             dop.ct_pol * p_int*int.ct_pol) #divided by intensity of polarized layer
+  return(cbind(int = est_intensity, dop = est_dop))
+}
+
+levs <- seq(from = 0,
+            to = 7,
+            by = 0.5
+            )
+conds <- expand.grid(u = levs, p = levs)
+preds <- as.data.frame(with(conds, Pred.stim(u=u,p=p)))
+cond.pred <- as.data.frame(cbind(conds, preds))
+
+with(subset(cond.pred, u >0 & p >0),
+     {
+       plot(x = dop,
+            y = log10(int),
+            pch = 20,
+            col = rgb(0,0,0,0.5),
+            ylim = c(13,13.5)
+            )
+       text(x = dop,
+            y = log10(int),
+            labels = paste0('p',p,',','u',u),
+            adj = c(0,1),
+            cex = 0.5
+            )
+     }
+     )
+with(subset(cond.pred, u == 0 | p == 0),
+     {
+       points(x = dop,
+            y = log10(int),
+            pch = 3,
+            col = rgb(u>0,0,p>0,0.5)
+            )
+       text(x = dop,
+            y = log10(int),
+            labels = paste0('p',p,',','u',u),
+            adj = c(1,0),
+            cex = 0.5,
+            col = rgb(u>0,0,p>0,1)
+            )
+     }
+     )
