@@ -38,6 +38,18 @@ formals(data.frame)$stringsAsFactors <- FALSE
 # Useful packages ---------------------------------------------------------
 require(stringr)
 
+# Useful functions --------------------------------------------------------
+
+#Open file with default program on any OS
+# https://stackoverflow.com/a/35044209/3745353
+shell.exec.OS  <- function(x){
+  # replacement for shell.exec (doesn't exist on MAC)
+  if (exists("shell.exec",where = "package:base"))
+  {return(base::shell.exec(x))}else
+  {comm <- paste0('open "',x,'"')
+  return(system(comm))}
+}
+
 # Input Variables ----------------------------------------------------------
 
 #  .  User input -----------------------------------------------------------
@@ -312,25 +324,56 @@ Pred.stim <- function(
             dop.ct_pol*dop.p * p_int*int.ct_pol)/ #DoP of pol layer multiplied by its intensity
           (dop.ct_upol * u_int*int.ct_upol+ #divided by intensity of unpolarized layer plus
              dop.ct_pol * p_int*int.ct_pol) #divided by intensity of polarized layer
-  return(cbind(int = est_intensity, dop = est_dop))
+  return(cbind(p = p, u = u, int = est_intensity, dop = est_dop))
 }
 
 levs <- seq(from = 0,
             to = 7,
-            by = 0.5
+            by = 0.25
             )
 conds <- expand.grid(u = levs, p = levs)
-preds <- as.data.frame(with(conds, Pred.stim(u=u,p=p)))
-cond.pred <- as.data.frame(cbind(conds, preds))
+cond.pred <- as.data.frame(with(conds, Pred.stim(u=u,p=p)))
+# cond.pred <- as.data.frame(cbind(conds, preds))
 
+# Plot predictions --------------------------------------------------------
+
+i_bins <- seq(from = 12, to = 14, by  = 0.5)
+d_bins <- seq(from = 0, to  = 1, by = 0.1)
+
+# . Set up plot area ------------------------------------------------------
+plot_file <- file.path(ltp, 'Apol03-intensity.pdf')
+if(file.exists(plot_file))
+{
+  message('A plot called "', basename(plot_file), '" already exists in this folder.')
+  nnm <- readline(prompt = 'New plot name: '
+  )
+  plot_file <-  file.path(ltp,paste0(ifelse(nchar(nnm),nnm,'Apol03-intensity'),'.pdf'))
+}
+pdf(file = plot_file,
+    paper = 'a4',
+    height = 10,
+    bg = 'white',
+    useDingbats = F
+)
+par(mar = c(5,5,1,0.5),
+    mfrow = c(length(i_bins)-1,1)
+)
+
+
+#  . Loop through intensity bins ------------------------------------------
+
+for(i in (length(i_bins) - 1):1)
+{
 with(subset(cond.pred, u >0 & p >0),
      {
        plot(x = dop,
             y = log10(int),
             pch = 20,
             col = rgb(0,0,0,0.5),
-            ylim = c(13,13.5)
+            xlim = c(0,0.6),
+            ylim = i_bins[i+c(0,1)]
             )
+       abline(v = d_bins, lwd = 0.25)
        text(x = dop,
             y = log10(int),
             labels = paste0('p',p,',','u',u),
@@ -355,3 +398,122 @@ with(subset(cond.pred, u == 0 | p == 0),
             )
      }
      )
+}
+# . Save plot -------------------------------------------------------------
+dev.off()
+shell.exec.OS(plot_file)
+
+
+# Plot chosen conditions --------------------------------------------------
+
+
+# . 20210901 --------------------------------------------------------------
+
+#aimed at 1-3*10613
+cond20210901 <- as.data.frame(
+                  Pred.stim(p = c(0,1,1.5,2.5),
+                            u = c(1,1,1,0)
+                            )
+                  )
+with(subset(cond20210901, u >0 & p >0),
+     {
+       plot(x = dop,
+            y = log10(int),
+            pch = 20,
+            col = rgb(0,0,0,0.5),
+            xlim = c(0,0.6),
+            ylim = c(13, 13.5),
+            xlab = 'Degree of Polarization',
+            ylab = '10^13 photons/cm2/s',
+            main = 'Conditions 01.09.2021',
+            axes = F
+            
+       )
+       axis(1)
+       axis(2, 
+            at = log10(c(1,2,3,5)*10^13), 
+            labels = c(1,2,3,5),
+            cex = 0.5
+            )
+       abline(v = d_bins, lwd = 0.25)
+       text(x = dop,
+            y = log10(int),
+            labels = paste0('p',p,',','u',u),
+            adj = c(0,1),
+            cex = 0.5
+       )
+     }
+)
+with(subset(cond20210901, u == 0 | p == 0),
+     {
+       points(x = dop,
+              y = log10(int),
+              pch = 3,
+              col = rgb(u>0,0,p>0,0.5),
+              cex = 0.5
+       )
+       text(x = dop,
+            y = log10(int),
+            labels = paste0('p',p,',','u',u),
+            adj = c(1,0),
+            cex = 0.5,
+            col = rgb(u>0,0,p>0,1)
+       )
+     }
+)
+
+
+# . 20210902 --------------------------------------------------------------
+
+#aimed at 1-3*10613
+cond20210902 <- as.data.frame(
+                  Pred.stim(p = c(0,1,1.5,5.5,5.5),
+                            u = c(1.5,1.5,1.5,1,0)
+                            )
+                  )
+with(subset(cond20210902, u >0 & p >0),
+     {
+       plot(x = dop,
+            y = log10(int),
+            pch = 20,
+            col = rgb(0,0,0,0.5),
+            xlim = c(0,0.6),
+            ylim = c(13.5, 14),
+            xlab = 'Degree of Polarization',
+            ylab = '10^13 photons/cm2/s',
+            main = 'Conditions 02.09.2021',
+            axes = F
+       )
+       axis(1)
+       axis(2, 
+            at = log10(c(3,4,5,7,10)*10^13), 
+            labels = c(3,4,5,7,10),
+            cex.axis = 0.7
+       )
+       abline(v = d_bins, lwd = 0.25)
+       text(x = dop,
+            y = log10(int),
+            labels = paste0('p',p,',','u',u),
+            adj = c(0,1),
+            cex = 0.5
+       )
+     }
+)
+with(subset(cond20210902, u == 0 | p == 0),
+     {
+       points(x = dop,
+              y = log10(int),
+              pch = 3,
+              col = rgb(u>0,0,p>0,0.5),
+              cex = 0.5
+       )
+       text(x = dop,
+            y = log10(int),
+            labels = paste0('p',p,',','u',u),
+            adj = c(1,0),
+            cex = 0.5,
+            col = rgb(u>0,0,p>0,1)
+       )
+     }
+)
+
