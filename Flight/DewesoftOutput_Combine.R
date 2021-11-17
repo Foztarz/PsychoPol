@@ -175,7 +175,7 @@ message('Saving data as:\n',
              x = txt_file,
              replacement = '\n')
         )
-write.table(x = adata,
+write.table(x = adata_frame,
           file = txt_file,
           row.names = FALSE
 )
