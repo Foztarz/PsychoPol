@@ -305,6 +305,18 @@ adata = within(adata,
 # )
 }
 
+#  Save data --------------------------------------------------------------
+message('Saving data')
+csv_file <- file.path(dirname(path_file),
+                      paste0(basename(path_file),
+                             '_proc',
+                             '.csv')
+                      )
+write.csv(x = adata,
+          file = csv_file,
+          row.names = FALSE
+          )
+
 # Plot data ---------------------------------------------------------------
 message('Plotting data')
 
