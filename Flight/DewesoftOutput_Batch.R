@@ -2,16 +2,16 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 11 12
-#     MODIFIED:	James Foster              DATE: 2021 11 12
+#     MODIFIED:	James Foster              DATE: 2021 11 18
 #
 #  DESCRIPTION: Loads all matlab files om a folder and plots a summary of each.
 #               
 #       INPUTS: A ".mat" table with a column of time stamps and column of angles ("angle").
-#               User should specify test details (line 50).
+#               User should specify processing details (line 60).
 #               
 #      OUTPUTS: Plot (.pdf). 
 #
-#	   CHANGES: - 
+#	   CHANGES: - Plot checks time > averaging window
 #             - 
 #             - 
 #
@@ -258,11 +258,13 @@ suppressMessages(#these are disturbing users unnecessarily
                                       window = av_window,
                                       hz = sample_rate
                    )
-                   smooth_turn = predict(
-                     smooth.spline(x = experimental_time[!is.na(ma_turn)], 
-                                   y = ma_turn[!is.na(ma_turn)]),
-                     x = experimental_time
-                   )$y
+                   smooth_turn = if(sum(!is.na(ma_turn)))
+                                   {predict(
+                                         smooth.spline(x = experimental_time[!is.na(ma_turn)], 
+                                                       y = ma_turn[!is.na(ma_turn)]),
+                                                 x = experimental_time
+                                               )$y}else
+                                    {NA}
                  }
   )
   }
@@ -349,13 +351,13 @@ switch(save_type,
                      width = 210*10,
                      height = 297*10,
                      bg = 'white'
-             )
+                 )
        )
 switch(save_type,
        png = par(mfrow = c(4,1),
             mar = c(3,5,0,0),
             oma = c(1.5,0,1.5,0),
-            cex = 3
+            cex = 1.5
             ),
        par(mfrow = c(4,1),
             mar = c(3,5,0,0),
@@ -413,6 +415,8 @@ with(adata,
 )
 
 # . Plot moving averages --------------------------------------------------
+if(length(adata$time)> av_window*sample_rate)
+  {
 with(adata,
      {
        lines(x = experimental_time,
@@ -499,6 +503,22 @@ mtext(text = 'Time (min)',
       outer = T,
       side = 1
 )
+}else
+{
+  title(xlab = 'time (s)')
+  plot(NULL,
+       xlim = range(adata$experimental_time, na.rm = T),
+       ylim = c(-1,1),
+       xlab = 'time (s)',
+       col = 'white',
+       axes = F)
+  axis(1)
+  text(x = median(adata$experimental_time, na.rm = T),
+       y = 0,
+       labels = 'Dataset shorter than\naveraging window',
+       cex = 2
+      )
+}
 # . Save plot -------------------------------------------------------------
 dev.off()
 # shell.exec.OS(plot_file)
