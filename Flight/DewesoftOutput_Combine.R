@@ -7,8 +7,8 @@ graphics.off()
 #  DESCRIPTION: Loads ".csv" files saved by "DewesoftOutput.R" and compiles them
 #               into a single data frame for plotting and further analysis.
 #               
-#       INPUTS: A ".mat" table with a column of time stamps and column of angles ("angle").
-#               User should specify test details (line 50).
+#       INPUTS: A folder containing '.csv' files.
+#               User should specify processing details (line 60).
 #               
 #      OUTPUTS: Plot (.pdf or .png). Data table (.csv).
 #
