@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2021 08 12
+#     MODIFIED:	James Foster              DATE: 2021 11 19
 #
 #  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
 #               .
@@ -14,7 +14,7 @@ graphics.off()
 #      OUTPUTS: Results table (.csv).
 #
 #	   CHANGES: - Suppressed package loading messages (upsetting users)
-#             - 
+#             - Use aggregate to sort and plot
 #             - 
 #
 #   REFERENCES: Batschelet E (1981).
@@ -29,9 +29,11 @@ graphics.off()
 #TODO   ---------------------------------------------
 #TODO   
 #- Read in data   +
-#- Plot angles    
-#- Neat plot 
-#- Save results 
+#- Plot angles    +
+#- Subset by bee & day  +  
+#- Neat plot  +
+#- Save results + 
+#- Bimodal mean vector 
 
 # Useful functions --------------------------------------------------------
 # . Load package ----------------------------------------------------------
@@ -51,8 +53,6 @@ shell.exec.OS  <- function(x){
   {comm <- paste0('open "',x,'"')
   return(system(comm))}
 }
-
-
 
 # Input Variables ----------------------------------------------------------
 
@@ -74,21 +74,6 @@ if(sys_win){
   ltp <- Sys.getenv('HOME')#Life was easier on Mac
 }
 
-# Simulate data (not used) ------------------------------------------------
-# n_phases = 3
-# n_angles = 10
-# angles_sim = sapply(sort(rep(0:(n_phases - 1)*pi/2, n_angles)),
-#                     function(mm)
-#                     {suppressWarnings(rvonmises(n = 1,mu = mm, kappa = 3))}
-#                     )
-# sim = data.frame(stimulus = sort(rep(1:n_phases, n_angles)),
-#                  angle = round(angles_sim*180/pi)
-#                  )
-# write.table(x = sim,
-#             file = file.path(ltp,'Documents', "simulated_angles.csv"),
-#             sep = csv_sep,
-#             row.names = FALSE
-#             )
 
 # . Select files ---------------------------------------------------------
 
@@ -138,46 +123,75 @@ plot.circular(x = Cformat(adata[,angle_name]),
                 #            ),
                stack = T,
               sep = 0.1,
-              # col = as.numeric(factor(adata$stimulus)),
+              # col = as.numeric(factor(adata$orientation)),
               pch = 19,
               shrink = sqrt(length(adata[,angle_name]))/4,
               bins = 360/5-1
 )
 
 # Plot for each phase -----------------------------------------------------
-ustim <- unique(adata$stimulus)
-savepath <- paste0(path_file, '-byStimulus.pdf')
+# ustim <- unique(adata$stimulus)
+# uori <- unique(adata$orientation)
+# ubee <- unique(adata$bee)
+# lul = with(adata,
+#            {
+#              sapply(X = c('bee','dance','stimulus','orientation'),
+#                     FUN = function(i){length(unique(get(i)))})
+#              }
+#            )
+savepath <- paste0(path_file, '-byBDSO.pdf')
 pdf(file = savepath,
     paper = 'a4r',
     bg = 'white', 
     useDingbats = FALSE
     )
-par(mfrow = c(ceiling(sqrt(length(ustim))), ceiling(sqrt(length(ustim)))),
+df_lst = aggregate(formula = angle~orientation*stimulus*dance*bee,
+          data = adata, 
+          FUN = list
+          )
+            # FUN = function(x, ...){plot.circular(Cformat(x), ...)},
+            # template = 'geographics',
+            # stack = TRUE, 
+            # sep  = 0.1,
+            # bins = 360/5-1
+            # )
+dim(df_lst)
+nms = names(df_lst)
+ucond = dim(df_lst)[1]#prod(lul)
+sq_cond = ceiling(sqrt(ucond))
+shrk = sqrt(length(adata[,angle_name]))/ucond
+par(mfrow = c(sq_cond, sq_cond),
     mar = c(0,0,0,0)
     )
 invisible(
-  lapply(ustim,
-       function(i)
+  apply(X = df_lst,
+        MARGIN = 1,
+       FUN = function(dat)
          {
-         with(subset(adata, stimulus %in% i),
+         with(dat,
               {
-          plot.circular(
-            x = Cformat( eval(str2lang(angle_name)) ),
-          bins = 360/5-1,
-          stack = T,
-          sep = 0.1,
-          # col = as.numeric(factor(adata$stimulus)),
-          pch = 19,
-          shrink = sqrt(length(adata[,angle_name]))/length(ustim)
-          )
-          mtext(text = i,
-                line = -2
-                )
-         arrows.circular(x = mean.circular(Cformat( eval(str2lang(angle_name)) )),
-                         shrink = rho.circular(Cformat( eval(str2lang(angle_name)) )),
-                         col = 2,
-                         length = 0.05
-                         )
+            plot.circular(
+              x = Cformat(  angle ),
+            bins = 360/5-1,
+            stack = T,
+            sep = 0.1,
+            col = as.numeric(factor( orientation )),
+            pch = 19,
+            shrink = shrk
+            )
+            mtext(text = paste('bee',
+                               bee,
+                               'dance',
+                               dance, 
+                               stimulus,
+                               orientation),
+                  line = -2
+                  )
+           arrows.circular(x = mean.circular(Cformat( angle )),
+                           shrink = rho.circular(Cformat( angle )),
+                           col = 2,
+                           length = 0.05
+                           )
               }
          )
        }
