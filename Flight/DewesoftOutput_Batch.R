@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 11 12
-#     MODIFIED:	James Foster              DATE: 2021 11 18
+#     MODIFIED:	James Foster              DATE: 2021 11 19
 #
 #  DESCRIPTION: Loads all matlab files om a folder and plots a summary of each.
 #               
@@ -12,14 +12,14 @@ graphics.off()
 #      OUTPUTS: Plot (.pdf). 
 #
 #	   CHANGES: - Plot checks time > averaging window
-#             - 
+#             - Calculate acceleration
 #             - 
 #
 #   REFERENCES: Batschelet E (1981).
 #               In: Circular Statistics in Biology
 #               Academic Press (London)
 #
-#    EXAMPLES:  Fill out user input (lines 50-55), then press ctrl+shift+s to run
+#    EXAMPLES:  Fill out user input (lines 60-65), then press ctrl+shift+s to run
 # 
 #TODO   ---------------------------------------------
 #TODO   
@@ -30,6 +30,7 @@ graphics.off()
 #- Loop +
 #- Parallel processing  +
 #- Test on Mac
+#- Comment
 
 # Useful functions --------------------------------------------------------
 # . Load package ----------------------------------------------------------
@@ -42,7 +43,6 @@ suppressMessages(#these are disturbing users unnecessarily
     require(parallel)
   }
 )
-
 
 #Open file with default program on any OS
 # https://stackoverflow.com/a/35044209/3745353
@@ -264,7 +264,14 @@ suppressMessages(#these are disturbing users unnecessarily
                                                        y = ma_turn[!is.na(ma_turn)]),
                                                  x = experimental_time
                                                )$y}else
-                                    {NA}
+                                 {NA}
+                   ma_accel = parSapply(cl = clt,
+                                       X = 1:length(smooth_turn),
+                                       FUN = MAturnspeed,
+                                       dta = smooth_turn,
+                                       window = av_window,
+                                       hz = sample_rate
+                   )
                  }
   )
   }
@@ -301,6 +308,12 @@ adata = within(adata,
                                  y = ma_turn[!is.na(ma_turn)]),
                    x = experimental_time
                  )$y
+                 ma_accel = sapply(X = 1:length(smooth_turn),
+                                   FUN = MAturnspeed,
+                                   dta = smooth_turn,
+                                   window = av_window,
+                                   hz = sample_rate
+                 )
                }
 )
 #     }
@@ -350,18 +363,19 @@ switch(save_type,
                      quality = 100,
                      width = 210*10,
                      height = 297*10,
+                     height = 297*10,
                      bg = 'white'
                  )
        )
 switch(save_type,
        png = par(mfrow = c(4,1),
-            mar = c(3,5,0,0),
+            mar = c(3,5,0,3),
             oma = c(1.5,0,1.5,0),
             cex = 1.5
             ),
        par(mfrow = c(4,1),
             mar = c(3,5,0,0),
-            oma = c(1.5,0,1.5,0))
+            oma = c(1.5,0,1.5,3))
       )
 
 # . Plot raw data ---------------------------------------------------------
@@ -460,6 +474,30 @@ with(adata,
               col = 'black',
               lty = c(3,1,3),
               lwd = 0.25
+       )
+     }
+)
+with(adata,
+     {
+       lines(x = experimental_time,
+             y = ma_accel*5,
+             col = adjustcolor('darkred', alpha.f = 200/256)
+       )
+       axis(side = 4,
+            line = 0,
+            at = 5*10*
+              (round(min(ma_accel, na.rm = T)/10):
+                 round(max(ma_accel, na.rm = T)/10)),
+            labels = 10*
+              (round(min(ma_accel, na.rm = T)/10):
+                 round(max(ma_accel, na.rm = T)/10)/
+                 5),
+            col = 'darkred'
+       )
+       mtext(text = paste0('mean acceleration (°/s^2: ',av_window,'s)'),
+             side = 4,
+             cex = par('cex.main'),
+             line = 2
        )
      }
 )
