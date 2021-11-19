@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 11 18
-#     MODIFIED:	James Foster              DATE: 2021 11 18
+#     MODIFIED:	James Foster              DATE: 2021 11 19
 #
 #  DESCRIPTION: Loads ".csv" files saved by "DewesoftOutput.R" and compiles them
 #               into a single data frame for each day. Each of these data frames
@@ -13,7 +13,7 @@ graphics.off()
 #               
 #      OUTPUTS: Plot (.pdf or .png). Data table (.csv).
 #
-#	   CHANGES: - 
+#	   CHANGES: - Plot acceleration
 #             - 
 #             - 
 #
@@ -33,6 +33,7 @@ graphics.off()
 #- Angular acceleration  
 #- Test on multiple machines
 #- Test on Mac
+#- Comment
 
 # Useful functions --------------------------------------------------------
 # . Load package ----------------------------------------------------------
@@ -54,7 +55,6 @@ shell.exec.OS  <- function(x){
   {comm <- paste0('open "',x,'"')
   return(system(comm))}
 }
-
 
 # Input Variables ----------------------------------------------------------
 
@@ -260,6 +260,7 @@ rm(day_data_frame)#one copy in memory is enough
 day_data_table = within(day_data_table,
                         {
                         abs_turn = abs(ma_turn)  
+                        abs_accel = abs(ma_accel)  
                         }
                         )
 
@@ -297,6 +298,10 @@ time_abs_turn = aggregate(formula = abs_turn~experimental_time,
                     data = subset(day_data_table, flag_exp),
                     FUN = quantile,
                     p = quantls)
+time_abs_accel = aggregate(formula = abs_accel~experimental_time,
+                    data = subset(day_data_table, flag_exp),
+                    FUN = quantile,
+                    p = quantls)
 time_angle = aggregate(formula = angle ~ experimental_time,
                     data = subset(day_data_table, flag_exp),
                     FUN = function(a){
@@ -315,8 +320,8 @@ time_data_table = data.table::merge.data.table(x =
                                                  data.table::merge.data.table(
                                                      x = data.table(time_rho),
                                                     y = data.table::merge.data.table(
-                                                        x = data.table(time_turn) ,
-                                                        y = data.table(time_abs_turn) ),
+                                                        x = data.table(time_abs_turn) ,
+                                                        y = data.table(time_abs_accel) ),
                                                     by = 'experimental_time'
                                                    ),
                                                y = data.table(time_angle)
@@ -348,7 +353,7 @@ if(file.exists(plot_file))
   nnm <- readline(prompt = 'New plot name: '
   )
   
-  plot_file <-  file.path(dirname(path_file),paste0(ifelse(nchar(nnm),nnm,basename(path_file)),'_','.', save_type))
+  plot_file <-  file.path(dirname(path_folder1),paste0(ifelse(nchar(nnm),nnm,basename(path_folder1)),'_','.', save_type))
 }
 switch(save_type,
        pdf = 
@@ -425,50 +430,50 @@ switch(save_type,
 #        )
 #      }
 # )
-
-with(time_data_table,
-     {
-       plot(x = NULL,
-            xlim = range(experimental_time, na.rm = T),
-            ylim = range(c(ma_turn.2.5.,ma_turn.97.5.), na.rm = T),
-            xlab = 'time (s)',
-            ylab = paste0('mean turning speed (°/s: ',av_window,'s)'),
-            axes = F
-       )
-       axis(side = 1,
-            at = 60*(0:(max(experimental_time)/60)),
-            labels = 1*(0:(max(experimental_time)/60))
-       )
-       axis(side = 2#,
-       )
-       polygon(x = c(experimental_time,
-                     rev(experimental_time) ),
-               y = c(ma_turn.97.5.,
-                     rev(ma_turn.2.5.)),
-               col = 'gray',
-               border = NA
-       )
-       polygon(x = c(experimental_time,
-                     rev(experimental_time) ),
-               y = c(ma_turn.25.,
-                     rev(ma_turn.75.)),
-               col = 'lightblue',
-               border = NA
-       )
-       abline(v = 60*c(2,4,5,6,7),
-              col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
-              lwd = 2
-       )
-       lines(x = experimental_time,
-             y = ma_turn.50.,
-             col = point_col
-       )
-       abline(h = c(-90, 0, 90),
-              col = 'black',
-              lwd = 0.25
-       )
-     }
-)
+# 
+# with(time_data_table,
+#      {
+#        plot(x = NULL,
+#             xlim = range(experimental_time, na.rm = T),
+#             ylim = range(c(ma_turn.2.5.,ma_turn.97.5.), na.rm = T),
+#             xlab = 'time (s)',
+#             ylab = paste0('mean turning speed (°/s: ',av_window,'s)'),
+#             axes = F
+#        )
+#        axis(side = 1,
+#             at = 60*(0:(max(experimental_time)/60)),
+#             labels = 1*(0:(max(experimental_time)/60))
+#        )
+#        axis(side = 2#,
+#        )
+#        polygon(x = c(experimental_time,
+#                      rev(experimental_time) ),
+#                y = c(ma_turn.97.5.,
+#                      rev(ma_turn.2.5.)),
+#                col = 'gray',
+#                border = NA
+#        )
+#        polygon(x = c(experimental_time,
+#                      rev(experimental_time) ),
+#                y = c(ma_turn.25.,
+#                      rev(ma_turn.75.)),
+#                col = 'lightblue',
+#                border = NA
+#        )
+#        abline(v = 60*c(2,4,5,6,7),
+#               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+#               lwd = 2
+#        )
+#        lines(x = experimental_time,
+#              y = ma_turn.50.,
+#              col = point_col
+#        )
+#        abline(h = c(-90, 0, 90),
+#               col = 'black',
+#               lwd = 0.25
+#        )
+#      }
+# )
 
 with(time_data_table,
      {
@@ -484,7 +489,7 @@ with(time_data_table,
             labels = 1*(0:(max(experimental_time)/60))
        )
        axis(side = 2,
-            at = 45*(round(min(angle.2.5.)/45):round(max(angle.97.5.)/45))
+            at = 45*(0:360/45)
        )
        polygon(x = c(experimental_time,
                      rev(experimental_time) ),
@@ -506,6 +511,50 @@ with(time_data_table,
        )
        lines(x = experimental_time,
              y = abs_turn.50.,
+             col = point_col
+       )
+       abline(h = c(0, 15, 90),
+              col = 'black',
+              lwd = 0.25
+       )
+     }
+)
+with(time_data_table,
+     {
+       plot(x = NULL,
+            xlim = range(experimental_time, na.rm = T),
+            ylim = c(0,360)/20,#range(c(abs_turn.2.5.,abs_turn.97.5.), na.rm = T),
+            xlab = 'time (s)',
+            ylab = paste0('absolute mean acceleration (°/s^2 : ',av_window,'s)'),
+            axes = F
+       )
+       axis(side = 1,
+            at = 60*(0:(max(experimental_time)/60)),
+            labels = 1*(0:(max(experimental_time)/60))
+       )
+       axis(side = 2,
+            at = 15*(0:360/15)
+       )
+       polygon(x = c(experimental_time,
+                     rev(experimental_time) ),
+               y = c(abs_accel.97.5.,
+                     rev(abs_accel.2.5.)),
+               col = 'gray',
+               border = NA
+       )
+       polygon(x = c(experimental_time,
+                     rev(experimental_time) ),
+               y = c(abs_accel.25.,
+                     rev(abs_accel.75.)),
+               col = 'lightblue',
+               border = NA
+       )
+       abline(v = 60*c(2,4,5,6,7),
+              col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+              lwd = 2
+       )
+       lines(x = experimental_time,
+             y = abs_accel.50.,
              col = point_col
        )
        abline(h = c(0, 15, 90),
