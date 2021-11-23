@@ -63,6 +63,7 @@ angle_name = "angle" #The title of the column with angles; NO SPACES PLEASE
 angle_unit = "degrees" # "degrees" or "radians"
 angle_rot = 'clock' # counter' # 'counter' for anticlockwise (imageJ) 'clock' for clockwise
 angle_zero = pi/2 # 0 # angle start point: _0_ for right along x axis (imageJ) _pi/2_ for up along y axis (e.g. geographic North)
+point_col = 'darkblue' #colour for plot points
 
 #Check the operating system and assign a logical flag (T or F)
 sys_win <- Sys.info()[['sysname']] == 'Windows'
@@ -123,7 +124,7 @@ plot.circular(x = Cformat(adata[,angle_name]),
                 #            ),
                stack = T,
               sep = 0.1,
-              # col = as.numeric(factor(adata$orientation)),
+              col = point_col,
               pch = 19,
               shrink = sqrt(length(adata[,angle_name]))/4,
               bins = 360/5-1
@@ -159,7 +160,7 @@ dim(df_lst)
 nms = names(df_lst)
 ucond = dim(df_lst)[1]#prod(lul)
 sq_cond = ceiling(sqrt(ucond))
-shrk = sqrt(length(adata[,angle_name]))/ucond
+shrk = 1+sqrt(length(adata[,angle_name]))/ucond
 par(mfrow = c(sq_cond, sq_cond),
     mar = c(0,0,0,0)
     )
@@ -174,18 +175,22 @@ invisible(
               x = Cformat(  angle ),
             bins = 360/5-1,
             stack = T,
-            sep = 0.1,
-            col = as.numeric(factor( orientation )),
+            sep = 0.07,
+            col = point_col,
             pch = 19,
             shrink = shrk
             )
-            mtext(text = paste('bee',
+            mtext(text = paste0('bee ',
                                bee,
-                               'dance',
+                               ', dance ',
                                dance, 
+                               ', ',
                                stimulus,
-                               orientation),
-                  line = -2
+                               ', ',
+                               orientation,
+                               '°'),
+                  line = -1.5,
+                  cex = 3/sq_cond
                   )
            arrows.circular(x = mean.circular(Cformat( angle )),
                            shrink = rho.circular(Cformat( angle )),
