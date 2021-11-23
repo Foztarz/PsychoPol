@@ -475,6 +475,7 @@ switch(save_type,
 #      }
 # )
 
+# . . Turning speed -------------------------------------------------------
 with(time_data_table,
      {
        plot(x = NULL,
@@ -505,7 +506,11 @@ with(time_data_table,
                col = 'lightblue',
                border = NA
        )
-       abline(v = 60*c(2,4,5,6,7),
+       # abline(v = 60*c(2,4,5,6,7),
+       #        col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+       #        lwd = 2
+       # )
+       abline(v = 60*c(2,4,6,8,10),
               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
               lwd = 2
        )
@@ -519,6 +524,8 @@ with(time_data_table,
        )
      }
 )
+
+# . . Acceleration --------------------------------------------------------
 with(time_data_table,
      {
        plot(x = NULL,
@@ -549,7 +556,11 @@ with(time_data_table,
                col = 'lightblue',
                border = NA
        )
-       abline(v = 60*c(2,4,5,6,7),
+       # abline(v = 60*c(2,4,5,6,7),
+       #        col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+       #        lwd = 2
+       # )
+       abline(v = 60*c(2,4,6,8,10),
               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
               lwd = 2
        )
@@ -565,6 +576,7 @@ with(time_data_table,
 )
 
 
+# . . Mean vector length --------------------------------------------------
 with(time_data_table,
      {
        plot(x = NULL,
@@ -595,7 +607,11 @@ with(time_data_table,
                col = 'lightblue',
                border = NA
              )
-       abline(v = 60*c(2,4,5,6,7),
+       # abline(v = 60*c(2,4,5,6,7),
+       #        col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+       #        lwd = 2
+       # )
+       abline(v = 60*c(2,4,6,8,10),
               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
               lwd = 2
        )
