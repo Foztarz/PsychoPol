@@ -2,14 +2,14 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2021 11 19
+#     MODIFIED:	James Foster              DATE: 2021 11 24
 #
 #  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
 #               .
 #               
 #       INPUTS: A ".csv" table with columns for experiment phase ("stimulus") and
 #               angle ("angle").
-#               User should specify test details (line 60).
+#               User should specify test details (line 80).
 #               
 #      OUTPUTS: Results table (.csv).
 #
@@ -23,7 +23,7 @@ graphics.off()
 #               In: Circular Statistics in Biology
 #               Academic Press (London)
 #
-#    EXAMPLES:  Fill out user input (lines 60-56), then press ctrl+shift+s to run
+#    EXAMPLES:  Fill out user input (lines 80-86), then press ctrl+shift+s to run
 #
 # 
 #TODO   ---------------------------------------------
@@ -53,6 +53,26 @@ shell.exec.OS  <- function(x){
   {comm <- paste0('open "',x,'"')
   return(system(comm))}
 }
+#convert from angle to trapezoid-distorted angle
+Phi = function(theta,#original angle, radians
+               alpha)#angle between trapezoid and vertical, radians
+{
+  return(
+    atan2(y = sin(theta)*(1-cos(alpha)*cos(theta)),
+          x = cos(theta)*sin(alpha) )
+  )
+}
+#estimate inverse of trapezoid distortion to get original angles
+Theta = function(phi,#distorted angle, radians
+                 alpha)#angle between trapezoid and vertical, radians
+{
+  aa = seq(from = -pi,
+           to = pi,
+           length.out = 1e4)
+  ss = smooth.spline(x = Phi(theta = aa, alpha = alpha),
+                     y = aa)
+  return(predict(ss, x = phi)$y)
+}
 
 # Input Variables ----------------------------------------------------------
 
@@ -78,6 +98,9 @@ if(sys_win){
 
 # . Select files ---------------------------------------------------------
 
+
+# . . Select measured angles ----------------------------------------------
+
 # set path to files
 if(sys_win){#choose.files is only available on Windows
   message('\n\nPlease select the ".csv" file\n\n')
@@ -95,6 +118,27 @@ if(sys_win){#choose.files is only available on Windows
 if(is.null(path_file))
 {stop('No file selected.')}else
 {print(path_file)}
+
+
+# . . Select measured distortion ------------------------------------------
+
+# set path to files
+if(sys_win){#choose.files is only available on Windows
+  message('\n\nPlease select the distortion ".csv" file\n\n')
+  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+  tilt_file  <- choose.files(
+    default = file.path(ltp,'Documents', "*.csv"),#For some reason this is not possible in the "root" user
+    caption = 'Please select the distortion ".csv" file'
+  )
+}else{
+  message('\n\nPlease select the distortion ".csv" file\n\n')
+  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+  tilt_file <- file.choose(new=F)
+}
+#show the user the path they have selected
+if(is.null(tilt_file))
+{stop('No distortion file selected.')}else
+{print(tilt_file)}
 
 
 # Read in file ------------------------------------------------------------
@@ -130,17 +174,24 @@ plot.circular(x = Cformat(adata[,angle_name]),
               bins = 360/5-1
 )
 
+# Correct for distortion --------------------------------------------------
+ddata = read.table(file = tilt_file,#read from user-selected file
+                   header = T,#read the file header to use for variable names
+                   sep = csv_sep#,#values are separated by the user-specified character
+                   #other parameters can be added here for troubleshooting
+)
+tilt_ang = 90 - median(range(abs(ddata$Angle-90)))#mean(diff(ddata$Angle))
+adata = within(adata,
+               {
+               raw_angle = angle
+               angle = Theta(phi = raw_angle*pi/180,
+                             alpha = tilt_ang*pi/180
+                             )*180/pi
+               }
+)
+
 # Plot for each phase -----------------------------------------------------
-# ustim <- unique(adata$stimulus)
-# uori <- unique(adata$orientation)
-# ubee <- unique(adata$bee)
-# lul = with(adata,
-#            {
-#              sapply(X = c('bee','dance','stimulus','orientation'),
-#                     FUN = function(i){length(unique(get(i)))})
-#              }
-#            )
-savepath <- paste0(path_file, '-byBDSO.pdf')
+savepath <- paste0(path_file, '-byBDSO-corrected.pdf')
 pdf(file = savepath,
     paper = 'a4r',
     bg = 'white', 
