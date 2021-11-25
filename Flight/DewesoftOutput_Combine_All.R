@@ -60,7 +60,7 @@ shell.exec.OS  <- function(x){
 
 #  .  User input -----------------------------------------------------------
 av_window = 10#number of seconds to smooth over for averaging
-experiment_length = 8 #minutes
+experiment_length = 10#8 #minutes
 condition1_length = 2 #minutes
 point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
 save_type ="png"# "pdf"# 
