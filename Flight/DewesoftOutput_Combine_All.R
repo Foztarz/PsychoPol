@@ -14,7 +14,7 @@ graphics.off()
 #      OUTPUTS: Plot (.pdf or .png). Data table (.csv).
 #
 #	   CHANGES: - Plot acceleration
-#             - 
+#             - Check for wrong experiment length
 #             - 
 #
 #   REFERENCES: Batschelet E (1981).
@@ -29,8 +29,9 @@ graphics.off()
 #- Save data as txt + 
 #- Looping  +
 #- Combine all to csv +
+#- Angular acceleration + 
+#- Switch to fread to speed up 
 #- Legend for plot  
-#- Angular acceleration  
 #- Test on multiple machines
 #- Test on Mac
 #- Comment
@@ -45,7 +46,6 @@ suppressMessages(#these are disturbing users unnecessarily
     require(data.table)#package for reorganising large datasets
   }
 )
-
 #Open file with default program on any OS
 # https://stackoverflow.com/a/35044209/3745353
 shell.exec.OS  <- function(x){
@@ -57,10 +57,9 @@ shell.exec.OS  <- function(x){
 }
 
 # Input Variables ----------------------------------------------------------
-
 #  .  User input -----------------------------------------------------------
 av_window = 10#number of seconds to smooth over for averaging
-experiment_length = 10#8 #minutes
+experiment_length = 10# 8# #minutes
 condition1_length = 2 #minutes
 point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
 save_type ="png"# "pdf"# 
@@ -281,7 +280,21 @@ write.csv(x = day_data_table,
             row.names = FALSE
 )
 
-
+# . Check that there is still some data to summarise ----------------------
+if( with(day_data_table, !any( flag_exp)) )
+{stop('\n',
+      "NONE OF THE FILES LOADED WERE ", experiment_length, " min LONG!",
+      '\n', "Consider reducing the 'experiment length' input variable")
+  }else
+{
+  message( 
+        round(
+        with(day_data_table, sum(flag_exp))/ 
+                  (experiment_length*sample_rate*60)
+        ),
+        " files were ", experiment_length, " min long or longer"
+  )
+}
 
 # . Summarise data --------------------------------------------------------
 message('Summarising data from full experiments...','\n')
@@ -326,6 +339,7 @@ time_data_table = data.table::merge.data.table(x =
                                                    ),
                                                y = data.table(time_angle)
                                               )
+
 # . Save combined dataset in master folder --------------------------------
 summ_file <- file.path(path_folder1,
                        paste0(basename(path_folder1),
