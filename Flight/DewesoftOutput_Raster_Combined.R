@@ -58,7 +58,7 @@ shell.exec.OS  <- function(x){
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
 av_window = 10#number of seconds to smooth over for averaging
-experiment_length = 10#8 #minutes
+experiment_length = 10# 8# #minutes
 condition1_length = 2 #minutes
 point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
 save_type ="png"# "pdf"# 
@@ -123,6 +123,28 @@ tryCatch(#Perform no further analysis if the file doesn't load
 message('"',basename(path_file), '" loaded successfully')
 View(day_data_table)
 
+# . Check that there is some data to summarise --------------------------
+sample_rate = 1/mean(diff(
+  subset(day_data_table, 
+         subset = flight == unique(flight)[1] &
+                   date == unique(date)[1] 
+  )$experimental_time
+))
+
+if( with(day_data_table, !any( flag_exp)) )
+{stop('\n',
+      "NONE OF THE FILES LOADED WERE ", experiment_length, " min LONG!",
+      '\n', "Consider reducing the 'experiment length' input variable")
+}else
+{
+  message( 
+    round(
+      with(day_data_table, sum(flag_exp))/ 
+        (experiment_length*sample_rate*60)
+    ),
+    " files were ", experiment_length, " min long or longer"
+  )
+}
 
 # Summarise data --------------------------------------------------------
 message('Ranking by median value across 1st condition...','\n')
@@ -149,27 +171,6 @@ flight_abs_accel = aggregate(formula = abs_accel~flight_date,
                            FUN = quantile,
                            p = quantls)
 ##probably don't need to calculate the rest?
-
-# time_turn = aggregate(formula = ma_turn~experimental_time,
-#                       data = subset(day_data_table, 
-#                                     subset = experimental_time < condition1_length),
-#                       FUN = quantile,
-#                       p = quantls)
-# time_angle = aggregate(formula = angle ~ experimental_time,
-#                        data = subset(day_data_table, 
-#                                      subset = experimental_time < condition1_length),
-#                        FUN = function(a){
-#                          quantile.circular(
-#                            x = circular(a,
-#                                         type = 'angles',
-#                                         unit = 'degrees',
-#                                         template = 'geographics',
-#                                         modulo = '2pi',
-#                                         zero = pi/2,
-#                                         rotation = 'clock'),
-#                            p = quantls)
-#                        }
-# )
 day_data_table = data.table::merge.data.table(x = 
                                                  data.table::merge.data.table(
                                                    x = data.table(flight_rho),
@@ -216,12 +217,12 @@ full_expr = subset(day_data_table,
                    subset = flag_exp &
                      experimental_time < experiment_length*60
                    )
-sample_rate = 1/mean(diff(
-                          subset(full_expr, 
-                                 subset = flight_date == 
-                                           unique(flight_date)[1]
-                                 )$experimental_time
-                          ))
+# sample_rate = 1/mean(diff(
+#                           subset(full_expr, 
+#                                  subset = flight_date == 
+#                                            unique(flight_date)[1]
+#                                  )$experimental_time
+#                           ))
 n_flightdates = length(unique(full_expr$flight_date))
 #turning speed
 mtr_turn = with(data.table::setorderv(
@@ -329,7 +330,7 @@ with(day_data_table,
              useRaster = TRUE,
              zlim = TurnTrans(c(0,360)),
             xlim = c(0,1.1),
-            # ylim = c(1,n_flightdates),
+            # ylim = c(0,1.0),
             xlab = 'time (s)',
             ylab = ' ',
             main = paste0('absolute mean turning speed (°/s: ',av_window,'s)'),
@@ -495,10 +496,10 @@ legend(x = 'right',
                  'white'
                  )
       )
-mtext(text = 'time (s)',
+mtext(text = 'time (min)',
       side = 1,
       outer = T,
-      cex = par('cex.axis')
+      cex = par('cex.main')
     )
 # . Save plot -------------------------------------------------------------
 dev.off()
