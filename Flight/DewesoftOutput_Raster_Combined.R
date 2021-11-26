@@ -64,6 +64,7 @@ point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htm
 save_type ="png"# "pdf"# 
 quantls = c(0.025, 0.25, 0.5, 0.75, 0.975) # quantiles to use when summarising
 plette = 'Plasma'#'YlGnBu'#  for options see http://colorspace.r-forge.r-project.org/articles/approximations.html
+crossval = FALSE # TRUE, randomise the data to check the analysis
 
 #Check the operating system and assign a logical flag (T or F)
 sys_win <- Sys.info()[['sysname']] == 'Windows'
@@ -147,6 +148,60 @@ if( with(day_data_table, !any( flag_exp)) )
 }
 
 # Summarise data --------------------------------------------------------
+# . Cross validation ------------------------------------------------------
+if(crossval)
+{
+#function to recalc acceleration
+MAturnspeed <- function(i, #index
+                        dta, #vector
+                        window = 1, # time window in seconds
+                        hz = 100) # sampling rate
+{
+  n = window*hz
+  winmin = i-round(n/2)+1
+  winmax = i+round(n/2)-1
+  if(winmin<1){return(NA)}#{winmin = 1}
+  if(winmax>length(dta)){return(NA)}#{winmax = length(x)}
+  return(
+    mean(
+      diff(
+        x = dta[winmin:winmax],
+      )
+    )/hz
+  )
+}
+#randomise data to check the method
+
+day_data_table = within(day_data_table,
+    {#randomise each parameter of interest across the dataset
+    ma_rho = sample(x = ma_rho,
+                  size = length(moth),
+                  replace = FALSE)
+    abs_turn = sample(x = abs_turn,
+                  size = length(moth),
+                  replace = FALSE)
+    # abs_accel = sample(x = abs_accel,
+    #               size = length(moth),
+    #               replace = FALSE)
+    ## this one was smoothed
+    abs_accel = abs(
+                    sapply(X = 1:length(experimental_time),
+                       FUN = MAturnspeed,
+                       dta = predict(
+                              smooth.spline(
+                                x = (1:length(experimental_time))[!is.na(abs_turn)],
+                                y = abs_turn[!is.na(abs_turn)]),
+                              x = 1:length(experimental_time)
+                              )$y,
+                       window = 10,
+                       hz = sample_rate
+                      )
+                    )
+    }
+  )
+}
+
+# . Rank by first condition -----------------------------------------------
 message('Ranking by median value across 1st condition...','\n')
 #make a new ID, combination of flight and date
 day_data_table = within(day_data_table,
@@ -190,25 +245,8 @@ day_data_table = within(day_data_table,
                         rank_accel = rank(abs_accel.50.)  
                         }
                         )
-# View(day_data_table
-#      )
-## Maybe later
-#Save combined dataset in master folder --------------------------------
-# summ_file <- file.path(path_file,
-#                        paste0(basename(path_file),
-#                               '_summary',
-#                               '.csv')
-# )
-# message('Saving data summary as:\n', 
-#         gsub(pattern = '/',
-#              x = summ_file,
-#              replacement = '\n')
-# )
-# message('May take some time...','\n')
-# write.csv(x = time_data_table,
-#           file = summ_file,
-#           row.names = FALSE
-# )
+
+
 
 
 # . Make matrices of full experiments -------------------------------------
@@ -256,7 +294,11 @@ mtr_rho = with(data.table::setorderv(
 # Plot Summary ------------------------------------------------------------
 message("Making raster plot")
 # . Set up plot area ------------------------------------------------------
-plot_file <- file.path(dirname(path_file), paste0(basename(path_file),'_rast','.', save_type))
+plot_file <- file.path(dirname(path_file),
+                       paste0(basename(path_file),
+                              '_rast', ifelse(crossval, '-CROSSVAL',''),
+                              '.', save_type)
+                       )
 if(file.exists(plot_file))
 {
   message('A plot called "', basename(plot_file), '" already exists in this folder.')
@@ -268,7 +310,7 @@ if(file.exists(plot_file))
                                 ifelse(test = nchar(nnm),
                                        yes = nnm,
                                        no = basename(path_file)),
-                                '_rast','.', save_type)
+                                '_rast',ifelse(crossval, '-CROSSVAL',''),'.', save_type)
                           )
 }
 
@@ -501,6 +543,14 @@ mtext(text = 'time (min)',
       outer = T,
       cex = par('cex.main')
     )
+if(crossval)
+{
+mtext(text = 'Data were randomised for cross-validation',
+      side = 3,
+      outer = T,
+      cex = par('cex.main')
+    )
+}
 # . Save plot -------------------------------------------------------------
 dev.off()
 shell.exec.OS(plot_file)
