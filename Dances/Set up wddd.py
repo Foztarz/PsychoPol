@@ -30,7 +30,8 @@ pip install imageio
 #pip install pyflycapture2
 conda install git
 # downloaded https://github.com/GreenSlime96/PyCapture2_NumPy
-pip install git+https://github.com/Foztarz/bb_wdd2.git@WIP
+# pip install git+https://github.com/Foztarz/bb_wdd2.git@WIP
+pip install git+https://github.com/Foztarz/bb_wdd2.git@master #DDormagen has updated this
 
 #before running check
 python bb_wdd2/wdd/scripts/bb_wdd.py --help
