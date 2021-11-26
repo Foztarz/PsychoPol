@@ -563,7 +563,7 @@ dev.off()
 
 # Close the loop ----------------------------------------------------------
 }
-message('All files in ', basename(path_file1), ' processed.',
+message('All files in ', basename(dirname(path_file1)), ' processed.',
         '\n-----------------------------------------------\n'
 )
 
