@@ -252,7 +252,7 @@ message('Saving data summary as:\n',
              replacement = '\n')
 )
 message('May take some time...','\n')
-data.table::fwrite(x = within(day_data_table, {rm()},
+data.table::fwrite(x = day_data_table,
           file = av_file,
           row.names = FALSE
 )
