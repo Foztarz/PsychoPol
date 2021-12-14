@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 05 19
+#     MODIFIED:	James Foster              DATE: 2021 12 14
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
@@ -22,7 +22,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #               - International Light compatibility
 #               - Attempted SpectrILight compatibility (file format unclear)
 #               - Conversion to counts/second by reading header integration time
-#               
+#               - Better handling of values below dark baseline
 #
 #   REFERENCES: Johnsen, S., (2012) The Optics of Life: A Biologist’s Guide to
 #               Light in Nature (Princeton University Press)
@@ -44,7 +44,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #- Counts/s     +
 #- Summary calculations   +
 #- Generalise calculations   +
-#- Save results   
+#- Save results   +
 
 # Input Variables ----------------------------------------------------------
 
@@ -309,8 +309,15 @@ apolFUN <- function(x, nang)
 dpolFUN <- function(x, nang)
   {if(nang == 4)
     {
+    if(any(x<0))#lower than reference baseline, set to 0
+    return(0)
     xx <- sqrt((x[2]-x[4])^2 + (x[1]-x[3])^2)/(sum(x)/2)
-    xx <- ifelse(xx<1,ifelse(xx>0,xx,0),1) 
+    xx <- ifelse(test = xx<1,
+                 yes = ifelse(test = xx>0,
+                              yes = xx,
+                              no = 0),
+                 no = 1) 
+    return(xx)
     }else
     {warning('sorry, degree of polarization not implimented for ',nang, ' angles')}
   }
@@ -665,6 +672,7 @@ sm.effective_averages <- t(
                                      2,
                                      function(xx)
                                        {
+                                       xx[xx < 0] = 0#negative values subtract from integral
                                        sfsmisc::integrate.xy(
                                                               x = wln[[ii]],
                                                               fx = xx,
@@ -800,7 +808,6 @@ legend('topright',
 # . Save plot -------------------------------------------------------------
 dev.off()
 shell.exec.OS(eff_plot_file)
-# WIP! I GOT THIS FAR -----------------------------------------------------
 # Save everything ---------------------------------------------------------
 # fnm <- file.path(spc, mnm)
 # 
@@ -824,12 +831,14 @@ if(!diff(range(sapply(wln, length))))
 }else{}#TODO handle case when wavelength scales differ
 
 # Average across range
-write.csv(x = effective_I0s,
+write.csv(x = data.frame(counts.per.sec = effective_I0s),
           file = file.path(spc, paste0('-summed.countspersec_',awl[1],'-', awl[2],'nm','.csv')),
 )
-write.csv(x = effective_aops,
+write.csv(x = data.frame(angle.of.polarization = effective_aops),
           file = file.path(spc, paste0('-aop_',awl[1],'-', awl[2],'nm','.csv')),
 )
-write.csv(x = effective_dops,
+write.csv(x = data.frame(degree.of.polarization = effective_dops),
           file = file.path(spc, paste0('-dop_',awl[1],'-', awl[2],'nm','.csv')),
 )
+
+# WIP! I GOT THIS FAR -----------------------------------------------------
