@@ -746,17 +746,20 @@ barplot(log10(effective_I0s),
 
 
 # . Angle of Polarization -------------------------------------------------
-
+pr1 = par('xaxp')
 
 plot(NULL,
-     xlim = c(1,length(effective_aops))+c(-1,3)*1,
+     # xlim = pr1[c(1,2)],
+     xlim = c(1,length(effective_aops))+c(-1,3)*1.5,
      ylim = c(-180, 180),
      xlab = '',
      ylab = 'Angle of Polarization',
      axes = F
      )
 axis(1,
-     at = 1:length(effective_aops),
+     at = seq(from = pr1[1]+1-0.5/2,
+              to = pr1[3]*1.2-0.5,
+              length.out = length(effective_aops) ),
      labels = names(effective_aops),
      cex.axis = 0.7
      )
@@ -767,17 +770,25 @@ axis(2,
 )
 #Add limits
 abline(h = seq(-180, 180, 90), lwd = 0.25, col = 'gray')
-stripchart(data = data.frame(measurement = names(effective_aops),
-                             AoP = effective_aops
-                             ),
-           x = AoP~measurement,
-           add = T,
-           vertical  = T,
-           pch = 3,
-           lwd = 3,
-           col = clz,
-           ylim = c(-180,180)
-           )
+# stripchart(data = data.frame(measurement = names(effective_aops),
+#                              AoP = effective_aops
+#                              ),
+#            x = AoP~measurement,
+#            add = T,
+#            vertical  = T,
+#            pch = 3,
+#            lwd = 3,
+#            col = clz,
+#            ylim = c(-180,180)
+#            )
+points(x = seq(from = pr1[1]+1-0.5/2,
+               to = pr1[3]*1.2-0.5,
+               length.out = length(effective_aops) ),
+       y  = effective_aops,
+       pch = 3,
+       lwd = 3,
+       col = clz
+       )
 
 #  . Degree of polarization -----------------------------------------------
 plot(NULL,
@@ -794,6 +805,17 @@ barplot(effective_dops,
         add = T,
         las = 3
         )
+text(x = seq(from = pr1[1]+1-0.5/2,
+             to = pr1[3]*1.2-0.5,
+             length.out = length(effective_dops) ),
+     y = effective_dops+0.03,
+     labels = round(effective_dops,3),
+     col = adjustcolor(col = clz, 
+                       red.f = 0.7,
+                       green.f = 0.7,
+                       blue.f = 0.7
+                       )
+     )
 #Add limits
 abline(h = c(0,1))
 #Label each measurement
