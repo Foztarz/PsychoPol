@@ -4,7 +4,7 @@ graphics.off()
 formals(data.frame)$stringsAsFactors <- FALSE
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2020 11 26
-#     MODIFIED:	James Foster              DATE: 2021 12 14
+#     MODIFIED:	James Foster              DATE: 2021 12 17
 #
 #  DESCRIPTION: Adapted from "???.R"
 #               Loads text files in counts/nm and calculates polarization
@@ -508,7 +508,6 @@ dops <- lapply(light_averages,
                mang
 )
 
-
 # Plot spectra ------------------------------------------------------------
 #Set up plot colours
 clz <- sapply(
@@ -729,7 +728,8 @@ par(mar = c(5,5,1,0.5),
 )
 
 #  . Unpolarized intensity ------------------------------------------------
-
+spc = 0.2
+wdt = 1.0
 plot(NULL,
      xlim = c(1,length(effective_I0s))+c(-1,3)*1.5,
      ylim = c(0, log10(max(effective_I0s))),
@@ -739,14 +739,14 @@ plot(NULL,
      )
 abline(h = seq(0, log10(max(effective_I0s)), 1), lwd = 0.25, col = 'gray')
 barplot(log10(effective_I0s),
+        space = spc,
+        width = wdt,
         col = clz,
         add = T,
         las = 3
         )
 
-
 # . Angle of Polarization -------------------------------------------------
-pr1 = par('xaxp')
 
 plot(NULL,
      # xlim = pr1[c(1,2)],
@@ -757,12 +757,12 @@ plot(NULL,
      axes = F
      )
 axis(1,
-     at = seq(from = pr1[1]+1-0.5/2,
-              to = pr1[3]*1.2-0.5,
-              length.out = length(effective_aops) ),
-     labels = names(effective_aops),
+     at = seq(from = spc+1-wdt/2,
+              to = length(effective_dops)*(1+spc)-wdt/2,
+              length.out = length(effective_I0s) ),
+     labels = names(effective_I0s),
      cex.axis = 0.7
-     )
+)
 axis(2,
      at = seq(-180, 180, 90),
      labels = paste0(seq(-180, 180, 90),'°'),
@@ -770,19 +770,8 @@ axis(2,
 )
 #Add limits
 abline(h = seq(-180, 180, 90), lwd = 0.25, col = 'gray')
-# stripchart(data = data.frame(measurement = names(effective_aops),
-#                              AoP = effective_aops
-#                              ),
-#            x = AoP~measurement,
-#            add = T,
-#            vertical  = T,
-#            pch = 3,
-#            lwd = 3,
-#            col = clz,
-#            ylim = c(-180,180)
-#            )
-points(x = seq(from = pr1[1]+1-0.5/2,
-               to = pr1[3]*1.2-0.5,
+points(x = seq(from = spc+1-wdt/2,
+               to = length(effective_dops)*(1+spc)-wdt/2,
                length.out = length(effective_aops) ),
        y  = effective_aops,
        pch = 3,
@@ -805,8 +794,8 @@ barplot(effective_dops,
         add = T,
         las = 3
         )
-text(x = seq(from = pr1[1]+1-0.5/2,
-             to = pr1[3]*1.2-0.5,
+text(x = seq(from = spc+1-wdt/2,
+             to = length(effective_dops)*(1+spc)-wdt/2,
              length.out = length(effective_dops) ),
      y = effective_dops+0.03,
      labels = round(effective_dops,3),
