@@ -728,7 +728,7 @@ par(mar = c(5,5,1,0.5),
 )
 
 #  . Unpolarized intensity ------------------------------------------------
-spc = 0.2
+spa = 0.2
 wdt = 1.0
 plot(NULL,
      xlim = c(1,length(effective_I0s))+c(-1,3)*1.5,
@@ -739,7 +739,7 @@ plot(NULL,
      )
 abline(h = seq(0, log10(max(effective_I0s)), 1), lwd = 0.25, col = 'gray')
 barplot(log10(effective_I0s),
-        space = spc,
+        space = spa,
         width = wdt,
         col = clz,
         add = T,
@@ -757,8 +757,8 @@ plot(NULL,
      axes = F
      )
 axis(1,
-     at = seq(from = spc+1-wdt/2,
-              to = length(effective_dops)*(1+spc)-wdt/2,
+     at = seq(from = spa+1-wdt/2,
+              to = length(effective_dops)*(1+spa)-wdt/2,
               length.out = length(effective_I0s) ),
      labels = names(effective_I0s),
      cex.axis = 0.7
@@ -770,8 +770,8 @@ axis(2,
 )
 #Add limits
 abline(h = seq(-180, 180, 90), lwd = 0.25, col = 'gray')
-points(x = seq(from = spc+1-wdt/2,
-               to = length(effective_dops)*(1+spc)-wdt/2,
+points(x = seq(from = spa+1-wdt/2,
+               to = length(effective_dops)*(1+spa)-wdt/2,
                length.out = length(effective_aops) ),
        y  = effective_aops,
        pch = 3,
@@ -794,8 +794,8 @@ barplot(effective_dops,
         add = T,
         las = 3
         )
-text(x = seq(from = spc+1-wdt/2,
-             to = length(effective_dops)*(1+spc)-wdt/2,
+text(x = seq(from = spa+1-wdt/2,
+             to = length(effective_dops)*(1+spa)-wdt/2,
              length.out = length(effective_dops) ),
      y = effective_dops+0.03,
      labels = round(effective_dops,3),
