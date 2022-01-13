@@ -26,10 +26,11 @@ graphics.off()
 #       USAGE:  Fill out user input (lines 40-45), then press ctrl+shift+s to run
 #TODO   ---------------------------------------------
 #TODO   
-#- Read in data   
-#- Extract speed   
-#- Extract heading
-#- Save results 
+#- Read in data   +
+#- Extract speed   +
+#- Extract heading  +
+#- Save results +
+#- Unwrap angles
 
 
 
@@ -38,7 +39,7 @@ graphics.off()
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
 ball_radius = 25#mm
-av_window = 10#number of seconds to smooth over for averaging
+av_window = 1.0#number of seconds to smooth over for averaging
 angle_unit = "degrees" # "degrees" or "radians"
 point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
 save_type ="png"# "pdf"# 
@@ -57,6 +58,17 @@ if(sys_win){
 # . Load packages ----------------------------------------------------------
 # require(plot3D)#in case anything needs to be plotted in 3D
 require(circular)#for handing angles
+
+
+#Open file with default program on any OS
+# https://stackoverflow.com/a/35044209/3745353
+shell.exec.OS  <- function(x){
+  # replacement for shell.exec (doesn't exist on MAC)
+  if (exists("shell.exec",where = "package:base"))
+  {return(base::shell.exec(x))}else
+  {comm <- paste0('open "',x,'"')
+  return(system(comm))}
+}
 
 # . Select files ---------------------------------------------------------
 msg = paste('Please select the',
@@ -143,7 +155,7 @@ if(grepl(x = readLines(path_file,
 )
 {utf8BOM = T}else{utf8BOM = F}
 
-#set names
+# . Set up names ----------------------------------------------------------
 cnames = c('frame_counter', #1
                     'x_cam', #2  change radians, camera coords
                     'y_cam', #3  change radians, camera coords
@@ -182,7 +194,6 @@ adata =
              #other parameters can be added here for troubleshooting
   )
 
-# . Set up names ----------------------------------------------------------
 
 
 
@@ -219,23 +230,53 @@ summary(adata)
 #             )
 #      }
 # )
-
+par(mfrow = c(2,1), 
+    mar = c(0,0,0,0)
+    )
 with(adata,
      {
-       plot.circular(circular(NA),
+       plot(x = y_int,
+            y = x_int,
+            xlim = c(-1,1)*max(abs(c(y_int, x_int)), na.rm = T),
+            ylim = c(-1,1)*max(abs(c(y_int, x_int)), na.rm = T),
+            col = hcl.colors(n = length(frame_counter),
+                             palette = 'viridis',
+                             alpha = 0.5),
+            type = 'o',
+            pch = 19,
+            axes = F
+            )
+       abline(h = pretty(c(-1,1)*max(abs(c(y_int, x_int)), na.rm = T)),
+              v = pretty(c(-1,1)*max(abs(c(y_int, x_int)), na.rm = T)),
+              col = gray(level = 50/255,
+                         alpha = 0.25),
+              lwd = 0.25)
+       plot.circular(circular(NA,
+                              type = 'angles',
+                              unit = 'degrees',
+                              rotation = 'clock',
+                              zero = pi/2,
+                              modulo = '2pi'
+       ),
+       labels = 0:3*90,
                      xlim = c(-1,1)*max(frame_counter),
                      ylim = c(-1,1)*max(frame_counter),
                      shrink = 1/max(frame_counter)
        )
-       lines.circular(x = heading_integrated,
+       lines.circular(x = circular(deg(heading_integrated)-180,
+                                   type = 'angles',
+                                   unit = 'degrees',
+                                   template = 'geographics',
+                                   modulo = '2pi'
+                                 ),
             y = frame_counter/max(frame_counter)-1,
-            col = hcl.colors(n = length(frame_counter),
-                             palette = 'viridis'),
+            # zero = -pi/2,
+            col = adjustcolor(point_col, alpha.f = 0.5),
             type = 'p',
             pch = 19,
-            lty = 3
+            lty = 2,
+            cex = 0.75
             )
-       # axis(1); axis(side = 2, at = 0:4 * pi/2, labels = 0:4*90 )
      }
 )
 
@@ -320,9 +361,14 @@ MAturnspeed <- function(i, #index
 
 
 fps = mean(diff(adata$time_stamp))
+
+# . Add variables ---------------------------------------------------------
+
+
 adata = within(adata, 
                {
-                 heading = circular(deg(heading_integrated),#deg
+                 experimental_time = (time_stamp - min(time_stamp))/1e3 # seconds since start
+                 angle = circular(deg(heading_integrated),#180 is forwards!
                                   type = 'angles',
                                   unit = 'degrees',
                                   template = 'geographics',
@@ -330,7 +376,7 @@ adata = within(adata,
                                   zero = pi/2,
                                   rotation = 'clock'
                                   )
-                 angle = circular(deg(heading_instantaneous),#deg
+                 angle_instantaneous = circular(deg(heading_instantaneous),#180 is forwards!
                                   type = 'angles',
                                   unit = 'degrees',
                                   template = 'geographics',
@@ -341,7 +387,7 @@ adata = within(adata,
                  speed = speed_movement*ball_radius*fps #mm/s
                  x_pos = x_int*ball_radius #mm
                  y_pos = y_int*ball_radius #mm
-                 angle_speed = c(0,diff(deg(adata$heading_instantaneous)))*fps #deg/s
+                 angle_speed = c(0,diff(deg(heading_integrated)))*fps #deg/s
                  ma_angle = sapply(X = 1:length(angle),#all indices in angle
                                    FUN = MAmeanang,#the mean angle function
                                    dta = angle,#all angles observed
@@ -356,7 +402,7 @@ adata = within(adata,
                  )
                  ma_turn = sapply(X = 1:length(angle),#all indices in angle
                                   FUN = MAturnspeed, #the mean speed function
-                                  dta = deg(heading_instantaneous),#raw angles observed
+                                  dta = angle,#raw angles observed
                                   window = av_window,#window size (s)
                                   hz = fps #sample rate (Hz)
                  )
@@ -374,62 +420,329 @@ adata = within(adata,
                }
                )
 
-# Plot summary ------------------------------------------------------------
 
-par(mfrow = c(3, 1))
+# Plot data ---------------------------------------------------------------
+message('Plotting data')
+
+# . Set up plot area ------------------------------------------------------
+plot_file = file.path(dirname(path_file), 
+                      paste0(basename(path_file),'_','.', save_type))
+if(file.exists(plot_file))
+{
+  message('A plot called "', basename(plot_file), '" already exists in this folder.')
+  nnm = readline(prompt = 'New plot name: '
+  )
+  
+  plot_file = file.path(dirname(path_file),
+                          paste0(ifelse(nchar(nnm),nnm,basename(path_file)),'_','.', save_type))
+}
+switch(save_type,
+       pdf = 
+         pdf(file = plot_file,
+             paper = 'a4',
+             height = 10,
+             bg = 'white',
+             useDingbats = F
+         ),
+       png = png(file = plot_file,
+                 res = 150,
+                 width = 210*10,
+                 height = 297*10,
+                 bg = 'white'
+       ),
+       jpeg(file = paste0(plot_file,'.jpeg'),
+            quality = 100,
+            width = 210*10,
+            height = 297*10,
+            bg = 'white'
+       )
+)
+switch(save_type,
+       png = par(mfrow = c(5,1),
+                 mar = c(3,5,0,3),
+                 oma = c(1.5,0,1.5,0),
+                 cex = 1.5
+       ),
+       par(mfrow = c(5,1),
+           mar = c(3,5,0,3),
+           oma = c(1.5,0,1.5,0))
+)
+
+# . Plot raw data ---------------------------------------------------------
+par(pty = 's',
+    mar = c(3,0,0,0)) # set plot area to square?
 with(adata,
      {
        plot(x = y_pos,
             y = x_pos,
-            xlim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T),
-            ylim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T),
+            xlim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T), 
+            ylim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T), 
             col = hcl.colors(n = length(frame_counter),
-                             palette = 'viridis'),
+                             palette = 'viridis',
+                             alpha = 0.5),
+            xlab = 'lateral position (mm)',
+            ylab = 'forwards position (mm)',
             type = 'o',
             pch = 19
        )
-       abline(h = 0, 
-              v = 0, 
-              col = adjustcolor('black', alpha = 0.7),
+       abline(h = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
+              v = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
+              col = adjustcolor('black', alpha = 0.5),
               lwd = 0.25
-              )
-       plot(x = time_stamp,
-            y = angle,
-            col = hcl.colors(n = length(frame_counter),
-                             palette = 'viridis'),
-            type = 'p',
-            pch = 19
        )
-       lines(x = time_stamp,
-             y = ma_angle,
-             col = 'magenta',
-             bg = 'white',
-             type = 'p',
-             pch = 21,
-             cex = 0.5
-       )
-       abline(h = 0, 
-              col = adjustcolor('black', alpha = 0.7),
-              lwd = 0.25
-              )
-       plot(x = time_stamp,
-            y = ma_turn,
-            col = hcl.colors(n = length(frame_counter),
-                             palette = 'viridis'),
-            pch = 19,
-            type = 'o',
-       )
-       lines(x = time_stamp,
-             y = smooth_turn,
-             col = 'magenta',
-             bg = 'white',
-             type = 'p',
-             pch = 21,
-             cex = 0.5
-       )
-       abline(h = 0, 
-              col = adjustcolor('black', alpha = 0.7),
-              lwd = 0.25
-              )
+       
      }
 )
+# plot(NULL, xlim = c(0,1), ylim = c(0,1), axes = F, xlab = '', ylab = '')
+# plot(NULL, xlim = c(0,1), ylim = c(0,1), axes = F, xlab = '', ylab = '')
+with(adata,
+     {
+      plot.circular(circular(NA,
+                             type = 'angles',
+                             unit = 'degrees',
+                             rotation = 'clock',
+                             zero = pi/2,
+                             modulo = '2pi'
+      ),
+      labels = 0:3*90,
+      xlim = c(-1,1)*max(experimental_time),
+      ylim = c(-1,1)*max(experimental_time),
+      shrink = 1/max(experimental_time)
+      )
+      lines.circular(x = circular(angle-180,
+                                  type = 'angles',
+                                  unit = 'degrees',
+                                  template = 'geographics',
+                                  modulo = '2pi'
+      ),
+      y = experimental_time/max(experimental_time)-1,
+      col = adjustcolor(point_col, alpha.f = 0.5),
+      type = 'p',
+      pch = 19,
+      lty = 2,
+      cex = 0.75
+      )
+      invisible(
+        {
+          lapply(X = 10*(0:(max(experimental_time)/10)),
+                FUN =function(i)
+                  {
+                  lines.circular(
+                    x = circular(x = seq(from = -pi, 
+                                                      to = pi, 
+                                                      length.out = 1e3),
+                                              template = 'none'),
+                    y = rep(x = i/max(experimental_time) - 1, 
+                            times = 1e3),
+                    col = gray(level = 0, alpha = 0.5)
+                    )
+                  }
+                )
+        }
+      )
+     }
+)
+par(pty = 'm',
+    mar = c(3,5,0,3))
+with(adata,
+     {
+       plot(x = experimental_time,
+            y = angle,
+            xlab = 'time since start',
+            ylab = 'fictive direction',
+            type = 'p',
+            pch = 19,
+            cex = 0.1,
+            col = adjustcolor(point_col, alpha.f = 20/256),
+            axes = F
+       )
+       axis(side = 1,
+            at = 10*(0:(max(experimental_time)/10)),
+            labels = 10*(0:(max(experimental_time)/10))
+       )
+       axis(side = 2,
+            at = 90*(round(min(angle)/90):round(max(angle)/90)),
+            labels = paste0(90*(round(min(angle)/90):round(max(angle)/90)),
+                            '°')
+       )
+       abline(h = 90*(round(min(angle)/90):round(max(angle)/90)),
+              col = rgb(0,0,0,0.1)
+       )
+       
+     }
+)
+
+# . Plot moving averages --------------------------------------------------
+with(adata,
+     {
+       lines(x = experimental_time,
+             y = ma_angle,
+             type = 'p',
+             pch = 19,
+             cex = 0.1,
+             col = rgb(0,0.5,0,0.3),
+       )
+     }
+)
+par(pty = 'm',
+    mar = c(3,5,0,3))
+with(adata,
+     {
+       plot(x = NULL,
+            xlim = range(experimental_time, na.rm = T),
+            ylim = range(ma_turn, na.rm = T),
+            xlab = 'time (s)',
+            ylab = paste0('mean turning speed (°/s: ',av_window,'s)'),
+            axes = F
+       )
+       axis(side = 1,
+            at = 10*(0:(max(experimental_time)/10)),
+            labels = 10*(0:(max(experimental_time)/10))
+       )
+       axis(side = 2,
+            at = 90*(round(min(ma_turn, na.rm = T)/90):round(max(ma_turn, na.rm = T)/90))
+       )
+       points(x = experimental_time,
+              y = ma_turn,
+              col = adjustcolor(point_col, alpha.f = 20/256),
+              cex = 0.5,
+              pch = 19
+       )
+       lines(x = experimental_time,
+             y = smooth_turn,
+             col = 'darkgreen'
+       )
+       abline(h = c(-15, 0, 15),
+              col = 'black',
+              lwd = 0.25
+       )
+     }
+)
+with(adata,
+     {
+       lines(x = experimental_time,
+             y = ma_accel*5,
+             col = adjustcolor('darkred', alpha.f = 200/256)
+       )
+       axis(side = 4,
+            line = 0,
+            at = 5*10*
+              (round(min(ma_accel, na.rm = T)/10):
+                 round(max(ma_accel, na.rm = T)/10)),
+            labels = 10*
+              (round(min(ma_accel, na.rm = T)/10):
+                 round(max(ma_accel, na.rm = T)/10)/
+                 5),
+            col = 'darkred'
+       )
+       mtext(text = paste0('mean acceleration (°/s^2: ',av_window,'s)'),
+             side = 4,
+             cex = par('cex.main'),
+             line = 2
+       )
+     }
+)
+with(adata,
+     {
+       plot(x = NULL,
+            xlim = range(experimental_time, na.rm = T),
+            ylim = c(0,1),
+            xlab = 'time (s)',
+            ylab = paste0('mean vector length (',av_window,'s)'),
+            axes = F
+       )
+       axis(side = 1,
+            at = 10*(0:(max(experimental_time)/10)),
+            labels = 10*(0:(max(experimental_time)/10))
+       )
+       axis(side = 2,
+            at = 0:5/5
+       )
+       lines(x = experimental_time,
+             y = ma_rho,
+             col = point_col
+       )
+       abline(h = c(0,1),
+              col = 'black',
+              lwd = 0.25
+       )
+       abline(h = sqrt(-log(c(0.05, 0.01)))/(av_window*fps),#Mean vector Rayleigh test p
+              col = 'red',
+              lty = c(3,2),
+              lwd = 0.25
+       )
+       
+     }
+)
+mtext(text = basename(path_file),
+      outer = T, 
+      side = 3
+)
+mtext(text = 'Time (sec)',
+      outer = T,
+      side = 1
+)
+# . Save plot -------------------------------------------------------------
+dev.off()
+shell.exec.OS(plot_file)
+
+
+# # Plot summary ------------------------------------------------------------
+# 
+# par(mfrow = c(3, 1))
+# with(adata,
+#      {
+#        plot(x = y_pos,
+#             y = x_pos,
+#             xlim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T),
+#             ylim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T),
+#             col = hcl.colors(n = length(frame_counter),
+#                              palette = 'viridis'),
+#             type = 'o',
+#             pch = 19
+#        )
+#        abline(h = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
+#               v = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
+#               col = adjustcolor('black', alpha = 0.7),
+#               lwd = 0.25
+#               )
+#        plot(x = time_stamp,
+#             y = angle,
+#             col = hcl.colors(n = length(frame_counter),
+#                              palette = 'viridis'),
+#             type = 'p',
+#             pch = 19
+#        )
+#        lines(x = time_stamp,
+#              y = ma_angle,
+#              col = 'magenta',
+#              bg = 'white',
+#              type = 'p',
+#              pch = 21,
+#              cex = 0.5
+#        )
+#        abline(h = 0, 
+#               col = adjustcolor('black', alpha = 0.7),
+#               lwd = 0.25
+#               )
+#        plot(x = time_stamp,
+#             y = ma_turn,
+#             col = hcl.colors(n = length(frame_counter),
+#                              palette = 'viridis'),
+#             pch = 19,
+#             type = 'o',
+#        )
+#        lines(x = time_stamp,
+#              y = smooth_turn,
+#              col = 'magenta',
+#              bg = 'white',
+#              type = 'p',
+#              pch = 21,
+#              cex = 0.5
+#        )
+#        abline(h = 0, 
+#               col = adjustcolor('black', alpha = 0.7),
+#               lwd = 0.25
+#               )
+#      }
+# )
