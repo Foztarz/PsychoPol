@@ -39,7 +39,7 @@ graphics.off()
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
 ball_radius = 25#mm
-av_window = 1.0#number of seconds to smooth over for averaging
+av_window = 5.0#number of seconds to smooth over for averaging
 angle_unit = "degrees" # "degrees" or "radians"
 point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
 save_type ="png"# "pdf"# 
@@ -350,11 +350,31 @@ MAturnspeed <- function(i, #index
   winmax = i+round(n/2)-1 #index of window end
   if(winmin<1){return(NA)}#if window starts outside data, don't calculate
   if(winmax>length(dta)){return(NA)}#if window ends outside data, don't calculate
+  dff = diff( # sequential differences within a vector of data
+                x = dta[winmin:winmax], #data in the window
+              )
+  #convert (-360, 360) to (0, 360)
+  Mod360 = function(x)
+              {
+                while(x >  360){x = x-360}
+                while(x < 0){x = x+360}
+                return(x)
+              }
+  #convert (0, 360) to (-180, 180)
+  Mod180 = function(x)
+              {
+                if(x >  180){return(-180 +(x-180))}
+                if(x < -180){return(180 -(x+180))}
+                return(x)
+  }
+  #First one and then the other
+  Mod360.180 = function(x){Mod180(Mod360(x))}
+  dff = sapply(X = dff,
+               FUN = Mod360.180
+              ) 
   return(
     mean( # default method for mean, no missing values allowed
-      diff( # sequential differences within a vector of data
-        x = dta[winmin:winmax], #data in the window
-      )
+      dff
     )*hz #number of data collected per second, units returned are deg/s
   )
 }
@@ -402,7 +422,7 @@ adata = within(adata,
                  )
                  ma_turn = sapply(X = 1:length(angle),#all indices in angle
                                   FUN = MAturnspeed, #the mean speed function
-                                  dta = angle,#raw angles observed
+                                  dta = deg(heading_integrated),#raw angles observed
                                   window = av_window,#window size (s)
                                   hz = fps #sample rate (Hz)
                  )
@@ -600,7 +620,7 @@ with(adata,
             labels = 10*(0:(max(experimental_time)/10))
        )
        axis(side = 2,
-            at = 90*(round(min(ma_turn, na.rm = T)/90):round(max(ma_turn, na.rm = T)/90))
+            at = 15*(round(min(ma_turn, na.rm = T)/15):round(max(ma_turn, na.rm = T)/15))
        )
        points(x = experimental_time,
               y = ma_turn,
@@ -626,12 +646,12 @@ with(adata,
        )
        axis(side = 4,
             line = 0,
-            at = 5*10*
-              (round(min(ma_accel, na.rm = T)/10):
-                 round(max(ma_accel, na.rm = T)/10)),
-            labels = 10*
-              (round(min(ma_accel, na.rm = T)/10):
-                 round(max(ma_accel, na.rm = T)/10)/
+            at = 5*5*
+              (round(min(ma_accel, na.rm = T)/5):
+                 round(max(ma_accel, na.rm = T)/5)),
+            labels = 5*5*
+              (round(min(ma_accel, na.rm = T)/5):
+                 round(max(ma_accel, na.rm = T)/5)/
                  5),
             col = 'darkred'
        )
