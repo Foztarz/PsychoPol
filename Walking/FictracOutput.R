@@ -354,21 +354,29 @@ MAturnspeed <- function(i, #index
                 x = dta[winmin:winmax], #data in the window
               )
   #convert (-360, 360) to (0, 360)
-  Mod360 = function(x)
-              {
-                while(x >  360){x = x-360}
-                while(x < 0){x = x+360}
-                return(x)
-              }
-  #convert (0, 360) to (-180, 180)
-  Mod180 = function(x)
-              {
-                if(x >  180){return(-180 +(x-180))}
-                if(x < -180){return(180 -(x+180))}
-                return(x)
-  }
-  #First one and then the other
-  Mod360.180 = function(x){Mod180(Mod360(x))}
+  # Mod360 = function(x)
+  #             {
+  #               while(x >  360){x = x-360}
+  #               while(x < 0){x = x+360}
+  #               return(x)
+  #             }
+  # #convert (0, 360) to (-180, 180)
+  # Mod180 = function(x)
+  #             {
+  #               if(x >  180){return(-180 +(x-180))}
+  #               if(x < -180){return(180 -(x+180))}
+  #               return(x)
+  # }
+  # #First one and then the other
+  # Mod360.180 = function(x){Mod180(Mod360(x))}
+  Mod360.180 = function(x)
+    {
+    deg(
+      atan2(y = sin(rad(x)),
+            x = cos(rad(x))
+      )
+    )
+      }
   dff = sapply(X = dff,
                FUN = Mod360.180
               ) 
