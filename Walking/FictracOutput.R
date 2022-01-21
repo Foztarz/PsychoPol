@@ -2,14 +2,14 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 12
-#     MODIFIED:	James Foster              DATE: 2022 01 13
+#     MODIFIED:	James Foster              DATE: 2022 01 21
 #
 #  DESCRIPTION: Loads a ".dat" file saved by fictrac and organises data into
 #               speed and angle.
 #               
 #       INPUTS: A ".dat" csv file with 23 columns specified in : 
 #               https://github.com/rjdmoore/fictrac/blob/master/doc/data_header.txt
-#               User should specify analysis details (line 40).
+#               User should specify analysis details (line 200).
 #               
 #      OUTPUTS: Results table (.csv) saved in the same place as the data.
 #
@@ -23,18 +23,176 @@ graphics.off()
 #              https://doi.org/10.1016/j.jneumeth.2014.01.010
 #              https://github.com/rjdmoore/fictrac
 # 
-#       USAGE:  Fill out user input (lines 40-45), then press ctrl+shift+s to run
+#       USAGE:  Fill out user input (lines 200-205), then press ctrl+shift+s to run
 #TODO   ---------------------------------------------
 #TODO   
 #- Read in data   +
 #- Extract speed   +
 #- Extract heading  +
-#- Save results +
-#- Unwrap angles
+#- Choose scale mean speed  +
+#- Choose scale acceleration  +
+#- Save results 
+#- Figure legend
+#- Fast version
 
+# Load packages ----------------------------------------------------------
+# require(plot3D)#in case anything needs to be plotted in 3D
+require(circular)#for handing angles
 
+# Useful functions --------------------------------------------------------
+#Convert any angle in degrees to (-180,180)
+Mod360.180 = function(x)
+{
+  deg(
+    atan2(y = sin(rad(x)),
+          x = cos(rad(x))
+    )
+  )
+}
 
-
+#Open file with default program on any OS
+# https://stackoverflow.com/a/35044209/3745353
+shell.exec.OS  <- function(x){
+  # replacement for shell.exec (doesn't exist on MAC)
+  if (exists("shell.exec",where = "package:base"))
+  {return(base::shell.exec(x))}else
+  {comm <- paste0('open "',x,'"')
+  return(system(comm))}
+}
+# . Averaging functions ---------------------------------------------------
+MAmeanang <- function(i, #index
+                      dta, #vector of data
+                      window = 1, # time window in seconds
+                      hz = 100) # sampling rate
+{
+  n = window*hz # number of samples to use
+  winmin = i-round(n/2)+1 #index of window start
+  winmax = i+round(n/2)-1 #index of window end
+  if(winmin<1){return(NA)}#if the window starts outside data, don't calculate
+  if(winmax>length(dta)){return(NA)}#if the window ends outside data, don't calculate
+  # dd = dta[winmin:winmax] *pi/180 #avoid repeating indexing for calculation
+  return(
+    mean.circular(#use the method for an object of class "circular"
+      x = circular(dta[winmin:winmax],#data in the window, if the window is in the data
+                   type = 'angles',
+                   unit = 'degrees',
+                   template = 'geographics',
+                   modulo = '2pi'
+      )
+    )
+    #conversion to class circular is actually faster
+    # atan2(
+    #   y = mean(sin(dd)),
+    #   x = mean(cos(dd))
+    #   )*180/pi
+  )
+}
+#Write a function for calculating the local mean vector length
+MAmeanvec <- function(i, #index
+                      dta, #vector of data
+                      window = 1, # time window in seconds
+                      hz = 100) # sampling rate
+{
+  n = window*hz # number of samples to use
+  winmin = i-round(n/2)+1 #index of window start
+  winmax = i+round(n/2)-1 # index of window end
+  if(winmin<1){return(NA)}#if window starts outside data, don't calculate
+  if(winmax>length(dta)){return(NA)}#if window ends outside data, don't calculate
+  return(
+    rho.circular(#use the method for an object of class "circular"
+      x = circular(dta[winmin:winmax],#data in the window, if the window is in the data
+                   type = 'angles',
+                   unit = 'degrees',
+                   template = 'geographics',
+                   modulo = '2pi'
+      )
+    )
+    #conversion to class circular is actually faster
+    # sqrt(
+    #  mean(sin(dta[winmin:winmax]*pi/180))^2 +
+    #  mean(cos(dta[winmin:winmax]*pi/180))^2
+    #   )
+  )
+}
+#Calculate average turning speed (1st derivative of angle)
+#When input data is speed rather than angle
+# returns angular acceleration (2nd derivative of angle)
+MAturnspeed <- function(i, #index
+                        dta, #vector of data
+                        window = 1, # time window in seconds
+                        hz = 100) # sampling rate
+{
+  n = window*hz # number of samples to use
+  winmin = i-round(n/2)+1 #index of window start 
+  winmax = i+round(n/2)-1 #index of window end
+  if(winmin<1){return(NA)}#if window starts outside data, don't calculate
+  if(winmax>length(dta)){return(NA)}#if window ends outside data, don't calculate
+  dff = diff( # sequential differences within a vector of data
+    x = dta[winmin:winmax], #data in the window
+  )
+  #convert (-360, 360) to (0, 360)
+  # Mod360 = function(x)
+  #             {
+  #               while(x >  360){x = x-360}
+  #               while(x < 0){x = x+360}
+  #               return(x)
+  #             }
+  # #convert (0, 360) to (-180, 180)
+  # Mod180 = function(x)
+  #             {
+  #               if(x >  180){return(-180 +(x-180))}
+  #               if(x < -180){return(180 -(x+180))}
+  #               return(x)
+  # }
+  # #First one and then the other
+  # Mod360.180 = function(x){Mod180(Mod360(x))}
+  Mod360.180 = function(x)
+  {
+    deg(
+      atan2(y = sin(rad(x)),
+            x = cos(rad(x))
+      )
+    )
+  }
+  dff = sapply(X = dff,
+               FUN = Mod360.180
+  ) 
+  return(
+    mean( # default method for mean, no missing values allowed
+      dff
+    )*hz #number of data collected per second, units returned are deg/s
+  )
+}
+#Calculate average speed from a vector of distances
+MAspeed <- function(i, #index
+                    dta_x, #vector of data
+                    dta_y, #vector of data
+                    window = 1, # time window in seconds
+                    hz = 100,  # sampling rate
+                    method = 'average' # mean between frames or distance across interval
+)
+{
+  n = window*hz # number of samples to use
+  winmin = i-round(n/2)+1 #index of window start 
+  winmax = i+round(n/2)-1 #index of window end
+  if(winmin<1){return(NA)}#if window starts outside data, don't calculate
+  if(winmax>length(dta_x)){return(NA)}#if window ends outside data, don't calculate
+  return(
+    switch(EXPR = method,
+           `total distance` = sqrt( # maximum distance travelled over time interval (not necessarily from start to end)
+             diff(dta_x[c(winmin,winmax)])^2 + 
+               diff(dta_y[c(winmin,winmax)])^2  
+           )/window, #window size in seconds, units returned are mm/s
+           mean =   mean(
+             x = sqrt(
+               diff(dta_x[winmin:winmax])^2 +
+                 diff(dta_y[winmin:winmax])^2
+             ),
+             na.rm = T
+           )*hz #window size in seconds, units returned are mm/s
+    )
+  )
+}
 
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
@@ -42,7 +200,7 @@ ball_radius = 25#mm
 av_window = 5.0#number of seconds to smooth over for averaging
 angle_unit = "degrees" # "degrees" or "radians"
 point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
-save_type ="png"# "pdf"# 
+save_type = "pdf"# "png"#
 csv_sep_load = ','#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
 csv_sep_write = ','#Results in a comma separated or semicolon separated csv? For tab sep, use "\t"
 
@@ -55,29 +213,16 @@ if(sys_win){
 }else{#Root directory should be the "HOME" directory on a Mac (or Linux?)
   ltp = Sys.getenv('HOME')#Easier on Mac
 }
-# . Load packages ----------------------------------------------------------
-# require(plot3D)#in case anything needs to be plotted in 3D
-require(circular)#for handing angles
 
-
-#Open file with default program on any OS
-# https://stackoverflow.com/a/35044209/3745353
-shell.exec.OS  <- function(x){
-  # replacement for shell.exec (doesn't exist on MAC)
-  if (exists("shell.exec",where = "package:base"))
-  {return(base::shell.exec(x))}else
-  {comm <- paste0('open "',x,'"')
-  return(system(comm))}
-}
 
 # . Select files ---------------------------------------------------------
-msg = paste('Please select the',
-                   '".dat"',
+msg = paste('Please select the',#message to display
+            '".dat"',
             'file')
-here_path = tryCatch(expr = 
+here_path = tryCatch(expr = #look in the folder containing this file: sys.frame(1)$ofile
                        {file.path(dirname(sys.frame(1)$ofile))},
                      error = function(e)
-                     {
+                     {#if that fails, try to find the "Documents" folder
                        file.path(ltp,'Documents', 
                                       '*.dat')
                      }
@@ -150,7 +295,7 @@ if(is.null(path_file))
 #Check for Byte Order Marks, which can make a mess
 if(grepl(x = readLines(path_file,
                        n = 1,
-                       warn = F),#check the first line of the file, where "angle" should be written
+                       warn = F),#check the first line of the file
          pattern = "ï|ÿ|þ")#common BOM renderings, are there any others?
 )
 {utf8BOM = T}else{utf8BOM = F}
@@ -185,7 +330,7 @@ cnames = c('frame_counter', #1
 #read in data
 adata = 
   read.table(file = path_file,#read from user-selected file
-             sep = csv_sep_load,
+             sep = csv_sep_load,#user specified comma separation
              header = FALSE,#Fictrac does not produce headers
              fileEncoding = ifelse(test = utf8BOM, #If the file contains Byte Order Markers
                                    yes = "UTF-8-BOM",#read in using the appropriate format
@@ -282,113 +427,9 @@ with(adata,
 
 # Conversions -------------------------------------------------------------
 
-# . Averaging functions ---------------------------------------------------
-MAmeanang <- function(i, #index
-                      dta, #vector of data
-                      window = 1, # time window in seconds
-                      hz = 100) # sampling rate
-{
-  n = window*hz # number of samples to use
-  winmin = i-round(n/2)+1 #index of window start
-  winmax = i+round(n/2)-1 #index of window end
-  if(winmin<1){return(NA)}#if the window starts outside data, don't calculate
-  if(winmax>length(dta)){return(NA)}#if the window ends outside data, don't calculate
-  # dd = dta[winmin:winmax] *pi/180 #avoid repeating indexing for calculation
-  return(
-    mean.circular(#use the method for an object of class "circular"
-      x = circular(dta[winmin:winmax],#data in the window, if the window is in the data
-                   type = 'angles',
-                   unit = 'degrees',
-                   template = 'geographics',
-                   modulo = '2pi'
-      )
-    )
-    #conversion to class circular is actually faster
-    # atan2(
-    #   y = mean(sin(dd)),
-    #   x = mean(cos(dd))
-    #   )*180/pi
-  )
-}
-#Write a function for calculating the local mean vector length
-MAmeanvec <- function(i, #index
-                      dta, #vector of data
-                      window = 1, # time window in seconds
-                      hz = 100) # sampling rate
-{
-  n = window*hz # number of samples to use
-  winmin = i-round(n/2)+1 #index of window start
-  winmax = i+round(n/2)-1 # index of window end
-  if(winmin<1){return(NA)}#if window starts outside data, don't calculate
-  if(winmax>length(dta)){return(NA)}#if window ends outside data, don't calculate
-  return(
-    rho.circular(#use the method for an object of class "circular"
-      x = circular(dta[winmin:winmax],#data in the window, if the window is in the data
-                   type = 'angles',
-                   unit = 'degrees',
-                   template = 'geographics',
-                   modulo = '2pi'
-      )
-    )
-    #conversion to class circular is actually faster
-    # sqrt(
-    #  mean(sin(dta[winmin:winmax]*pi/180))^2 +
-    #  mean(cos(dta[winmin:winmax]*pi/180))^2
-    #   )
-  )
-}
-#Calculate average turning speed (1st derivative of angle)
-#When input data is speed rather than angle
-# returns angular acceleration (2nd derivative of angle)
-MAturnspeed <- function(i, #index
-                        dta, #vector of data
-                        window = 1, # time window in seconds
-                        hz = 100) # sampling rate
-{
-  n = window*hz # number of samples to use
-  winmin = i-round(n/2)+1 #index of window start 
-  winmax = i+round(n/2)-1 #index of window end
-  if(winmin<1){return(NA)}#if window starts outside data, don't calculate
-  if(winmax>length(dta)){return(NA)}#if window ends outside data, don't calculate
-  dff = diff( # sequential differences within a vector of data
-                x = dta[winmin:winmax], #data in the window
-              )
-  #convert (-360, 360) to (0, 360)
-  # Mod360 = function(x)
-  #             {
-  #               while(x >  360){x = x-360}
-  #               while(x < 0){x = x+360}
-  #               return(x)
-  #             }
-  # #convert (0, 360) to (-180, 180)
-  # Mod180 = function(x)
-  #             {
-  #               if(x >  180){return(-180 +(x-180))}
-  #               if(x < -180){return(180 -(x+180))}
-  #               return(x)
-  # }
-  # #First one and then the other
-  # Mod360.180 = function(x){Mod180(Mod360(x))}
-  Mod360.180 = function(x)
-    {
-    deg(
-      atan2(y = sin(rad(x)),
-            x = cos(rad(x))
-      )
-    )
-      }
-  dff = sapply(X = dff,
-               FUN = Mod360.180
-              ) 
-  return(
-    mean( # default method for mean, no missing values allowed
-      dff
-    )*hz #number of data collected per second, units returned are deg/s
-  )
-}
 
 
-fps = mean(diff(adata$time_stamp))
+fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
 
 # . Add variables ---------------------------------------------------------
 
@@ -435,9 +476,9 @@ adata = within(adata,
                                   hz = fps #sample rate (Hz)
                  )
                  smooth_turn = predict( # fit a spline and predict its values across all times
-                   smooth.spline(x = time_stamp[!is.na(ma_turn)], #use only times when speed was calculated
+                   smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
                                  y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
-                   x = time_stamp # predict for all times
+                   x = 1:length(angle) # predict for all times
                  )$y
                  ma_accel = sapply(X = 1:length(smooth_turn),#all indices in angle
                                    FUN = MAturnspeed, #the mean speed function, here converts speed to acceleration
@@ -445,12 +486,29 @@ adata = within(adata,
                                    window = av_window,#window size (s)
                                    hz = fps #sample rate (Hz)
                  )
+                 x_speed = c(NA, diff(x_pos))*fps #forwards speed in mm/s
+                 y_speed = c(NA, diff(y_pos))*fps #sideways speed in mm/s
+                 ground_speed = sqrt(x_speed^2 + y_speed^2) #speed in mm/s
+                 straight_distance = sqrt(x_pos^2 + y_pos^2) #straight-line distance in mm
+                 #TODO fix this
+                 ma_speed =sapply(X = 1:length(straight_distance),#all indices in angle
+                                  FUN = MAspeed, #the mean speed function
+                                  dta_x = x_pos,#x coordinate
+                                  dta_y = y_pos,#y coordinate
+                                  window = av_window,#window size (s)
+                                  hz = fps, #sample rate (Hz)
+                                  method = 'mean' #average between frame
+                                 )
                }
                )
 
 
 # Plot data ---------------------------------------------------------------
 message('Plotting data')
+
+# . Set up plot variables -------------------------------------------------
+plt_speed_max = 200
+plt_accel_scale = 1.5
 
 # . Set up plot area ------------------------------------------------------
 plot_file = file.path(dirname(path_file), 
@@ -486,12 +544,12 @@ switch(save_type,
        )
 )
 switch(save_type,
-       png = par(mfrow = c(5,1),
+       png = par(mfrow = c(2,1),
                  mar = c(3,5,0,3),
                  oma = c(1.5,0,1.5,0),
                  cex = 1.5
        ),
-       par(mfrow = c(5,1),
+       par(mfrow = c(2,1),
            mar = c(3,5,0,3),
            oma = c(1.5,0,1.5,0))
 )
@@ -570,8 +628,50 @@ with(adata,
       )
      }
 )
+# while(!par('page')) plot.new()
+# . Plot time series --------------------------------------------------
 par(pty = 'm',
-    mar = c(3,5,0,3))
+    mfrow = c(4, 1),
+    mar = c(3,5,0,3)
+    )
+with(adata,
+     {
+       plot(x = experimental_time,
+            y = ground_speed,
+            xlab = 'time since start',
+            ylab = 'ground speed (mm/s)',
+            ylim = c(0, max(x = c(ma_speed,plt_speed_max), na.rm = T)),
+            type = 'p',
+            pch = 19,
+            cex = 0.1,
+            col = adjustcolor(point_col, alpha.f = 20/256),
+            axes = F
+       )
+       axis(side = 1,
+            at = 10*(0:(max(experimental_time)/10)),
+            labels = 10*(0:(max(experimental_time)/10))
+       )
+       axis(side = 2
+       )
+       abline(h = 10*(round(min(ground_speed, na.rm = T)/10):round(max(ground_speed, na.rm = T)/10)),
+              col = rgb(0,0,0,0.1)
+       )
+       
+     }
+)
+
+with(adata,
+     {
+       lines(x = experimental_time,
+             y = ma_speed,
+             # type = 'p',
+             # pch = 19,
+             cex = 0.1,
+             col = rgb(0,0.5,0),
+       )
+     }
+)
+
 with(adata,
      {
        plot(x = experimental_time,
@@ -600,7 +700,6 @@ with(adata,
      }
 )
 
-# . Plot moving averages --------------------------------------------------
 with(adata,
      {
        lines(x = experimental_time,
@@ -649,23 +748,25 @@ with(adata,
 with(adata,
      {
        lines(x = experimental_time,
-             y = ma_accel*5,
+             y = ma_accel*plt_accel_scale,
              col = adjustcolor('darkred', alpha.f = 200/256)
        )
        axis(side = 4,
-            line = 0,
-            at = 5*5*
+            line = -1,
+            at = plt_accel_scale*5*
               (round(min(ma_accel, na.rm = T)/5):
                  round(max(ma_accel, na.rm = T)/5)),
-            labels = 5*5*
+            labels = plt_accel_scale*5*
               (round(min(ma_accel, na.rm = T)/5):
                  round(max(ma_accel, na.rm = T)/5)/
-                 5),
+                 plt_accel_scale),
             col = 'darkred'
        )
-       mtext(text = paste0('mean acceleration (°/s^2: ',av_window,'s)'),
+       mtext(text = bquote(mean ~ acceleration ~
+                             '(°/s'^2 ~ 
+                             .(av_window)*s ~ ")"),
              side = 4,
-             cex = par('cex.main'),
+             cex = par('cex.lab')/1.5,
              line = 2
        )
      }
@@ -715,7 +816,7 @@ dev.off()
 shell.exec.OS(plot_file)
 
 
-# # Plot summary ------------------------------------------------------------
+# # Plot summary ---
 # 
 # par(mfrow = c(3, 1))
 # with(adata,
