@@ -675,7 +675,7 @@ with(adata,
 with(adata,
      {
        plot(x = experimental_time,
-            y = angle,
+            y = Mod360.180(angle),
             xlab = 'time since start',
             ylab = 'fictive direction',
             type = 'p',
@@ -689,11 +689,13 @@ with(adata,
             labels = 10*(0:(max(experimental_time)/10))
        )
        axis(side = 2,
-            at = 90*(round(min(angle)/90):round(max(angle)/90)),
-            labels = paste0(90*(round(min(angle)/90):round(max(angle)/90)),
+            # at = 90*(round(min(angle)/90):round(max(angle)/90)),
+            at = 90*(round(-180/90):round(180/90)),
+            labels = paste0(90*(round(-180/90):round(180/90)),
                             '°')
        )
-       abline(h = 90*(round(min(angle)/90):round(max(angle)/90)),
+       # abline(h = 90*(round(min(angle)/90):round(max(angle)/90)),
+       abline(h = 90*(round(-180/90):round(180/90)),
               col = rgb(0,0,0,0.1)
        )
        
@@ -703,7 +705,7 @@ with(adata,
 with(adata,
      {
        lines(x = experimental_time,
-             y = ma_angle,
+             y = Mod360.180(ma_angle),
              type = 'p',
              pch = 19,
              cex = 0.1,
