@@ -2,18 +2,18 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 12
-#     MODIFIED:	James Foster              DATE: 2022 01 21
+#     MODIFIED:	James Foster              DATE: 2022 01 24
 #
 #  DESCRIPTION: Loads a ".dat" file saved by fictrac and organises data into
 #               speed and angle.
 #               
 #       INPUTS: A ".dat" csv file with 23 columns specified in : 
 #               https://github.com/rjdmoore/fictrac/blob/master/doc/data_header.txt
-#               User should specify analysis details (line 200).
+#               User should specify analysis details (line 190).
 #               
-#      OUTPUTS: Results table (.csv) saved in the same place as the data.
+#      OUTPUTS: Results table (.csv) saved (.gz compression) in original folder.
 #
-#	   CHANGES: - 
+#	   CHANGES: - Compression
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -23,7 +23,7 @@ graphics.off()
 #              https://doi.org/10.1016/j.jneumeth.2014.01.010
 #              https://github.com/rjdmoore/fictrac
 # 
-#       USAGE:  Fill out user input (lines 200-205), then press ctrl+shift+s to run
+#       USAGE:  Fill out user input (lines 190-200), then press ctrl+shift+s to run
 #TODO   ---------------------------------------------
 #TODO   
 #- Read in data   +
@@ -31,12 +31,11 @@ graphics.off()
 #- Extract heading  +
 #- Choose scale mean speed  +
 #- Choose scale acceleration  +
-#- Save results 
+#- Save results +
 #- Figure legend
 #- Fast version
 
 # Load packages ----------------------------------------------------------
-# require(plot3D)#in case anything needs to be plotted in 3D
 require(circular)#for handing angles
 
 # Useful functions --------------------------------------------------------
@@ -70,7 +69,6 @@ MAmeanang <- function(i, #index
   winmax = i+round(n/2)-1 #index of window end
   if(winmin<1){return(NA)}#if the window starts outside data, don't calculate
   if(winmax>length(dta)){return(NA)}#if the window ends outside data, don't calculate
-  # dd = dta[winmin:winmax] *pi/180 #avoid repeating indexing for calculation
   return(
     mean.circular(#use the method for an object of class "circular"
       x = circular(dta[winmin:winmax],#data in the window, if the window is in the data
@@ -80,7 +78,7 @@ MAmeanang <- function(i, #index
                    modulo = '2pi'
       )
     )
-    #conversion to class circular is actually faster
+    #N.B. conversion to class circular faster than calculating from 1st principles in R
     # atan2(
     #   y = mean(sin(dd)),
     #   x = mean(cos(dd))
@@ -107,7 +105,7 @@ MAmeanvec <- function(i, #index
                    modulo = '2pi'
       )
     )
-    #conversion to class circular is actually faster
+    #N.B. conversion to class circular faster than calculating from 1st principles in R
     # sqrt(
     #  mean(sin(dta[winmin:winmax]*pi/180))^2 +
     #  mean(cos(dta[winmin:winmax]*pi/180))^2
@@ -130,35 +128,20 @@ MAturnspeed <- function(i, #index
   dff = diff( # sequential differences within a vector of data
     x = dta[winmin:winmax], #data in the window
   )
-  #convert (-360, 360) to (0, 360)
-  # Mod360 = function(x)
-  #             {
-  #               while(x >  360){x = x-360}
-  #               while(x < 0){x = x+360}
-  #               return(x)
-  #             }
-  # #convert (0, 360) to (-180, 180)
-  # Mod180 = function(x)
-  #             {
-  #               if(x >  180){return(-180 +(x-180))}
-  #               if(x < -180){return(180 -(x+180))}
-  #               return(x)
-  # }
-  # #First one and then the other
-  # Mod360.180 = function(x){Mod180(Mod360(x))}
   Mod360.180 = function(x)
-  {
+  {#use atan2 to convert any angle to the range (-180,180)
     deg(
       atan2(y = sin(rad(x)),
             x = cos(rad(x))
       )
     )
   }
-  dff = sapply(X = dff,
+  dff = sapply(X = dff,#convert all angles to (-180,180)
                FUN = Mod360.180
   ) 
   return(
-    mean( # default method for mean, no missing values allowed
+    # mean( # default method for mean, no missing values allowed
+    median( # default method for median, no missing values allowed
       dff
     )*hz #number of data collected per second, units returned are deg/s
   )
@@ -169,7 +152,7 @@ MAspeed <- function(i, #index
                     dta_y, #vector of data
                     window = 1, # time window in seconds
                     hz = 100,  # sampling rate
-                    method = 'average' # mean between frames or distance across interval
+                    method = 'median' # mean between frames or distance across interval
 )
 {
   n = window*hz # number of samples to use
@@ -189,10 +172,18 @@ MAspeed <- function(i, #index
                  diff(dta_y[winmin:winmax])^2
              ),
              na.rm = T
+           )*hz, #window size in seconds, units returned are mm/s
+           median =   median(
+             x = sqrt(
+               diff(dta_x[winmin:winmax])^2 +
+                 diff(dta_y[winmin:winmax])^2
+             ),
+             na.rm = T
            )*hz #window size in seconds, units returned are mm/s
     )
   )
 }
+
 
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
@@ -203,9 +194,11 @@ point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htm
 save_type = "pdf"# "png"#
 csv_sep_load = ','#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
 csv_sep_write = ','#Results in a comma separated or semicolon separated csv? For tab sep, use "\t"
+compress_csv = TRUE #Compress to ".gz" to save space?
+speedup_parallel = TRUE #Use the parallel package to speed up calculations
 
 #Check the operating system and assign a logical flag (TRUE or FALSE)
-sys_win <- Sys.info()[['sysname']] == 'Windows'
+sys_win = Sys.info()[['sysname']] == 'Windows'
 #On computers set up by JMU Würzburg, use user profile instead of home directory
 if(sys_win){
   #get rid of all the backslashes
@@ -343,7 +336,7 @@ adata =
 
 
 # . Inspect ---------------------------------------------------------------
-summary(adata)
+# summary(adata)
 # View(adata)#show the user the data that was read in
 
 # #ball movements in 3D
@@ -427,13 +420,34 @@ with(adata,
 
 # Conversions -------------------------------------------------------------
 
-
-
+# . Derive variables ------------------------------------------------------
 fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
 
+# . Set up parallel processing, if used -----------------------------------
+if(speedup_parallel)
+{
+  require(parallel)
+  message('Using parallel processing...')
+  #Benefits from some parallel processing, but setting up the cluster is slow
+  avail.cores <- parallel::detectCores() - 1
+  clt = makeCluster(avail.cores,# run as many as possible
+                   type="SOCK")
+  clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
+                list('adata',
+                     'fps',
+                     'MAmeanang',
+                     'MAmeanvec',
+                     'MAturnspeed',
+                     'mean.circular',
+                     'rho.circular',
+                     'circular',
+                     'deg',
+                     'rad'),
+                environment()#needs to be reminded to use function environment, NOT global environment
+  )
+}
+
 # . Add variables ---------------------------------------------------------
-
-
 adata = within(adata, 
                {
                  experimental_time = (time_stamp - min(time_stamp))/1e3 # seconds since start
@@ -457,51 +471,132 @@ adata = within(adata,
                  x_pos = x_int*ball_radius #mm
                  y_pos = y_int*ball_radius #mm
                  angle_speed = c(0,diff(deg(heading_integrated)))*fps #deg/s
-                 ma_angle = sapply(X = 1:length(angle),#all indices in angle
-                                   FUN = MAmeanang,#the mean angle function
-                                   dta = angle,#all angles observed
-                                   window = av_window,#window size (s)
-                                   hz = fps #sample rate (Hz)
-                 )
-                 ma_rho = sapply(X = 1:length(angle),#all indices in angle
-                                 FUN = MAmeanvec,#the mean vector function
-                                 dta = angle,#all angles observed
-                                 window = av_window,#window size (s)
-                                 hz = fps #sample rate (Hz)
-                 )
-                 ma_turn = sapply(X = 1:length(angle),#all indices in angle
-                                  FUN = MAturnspeed, #the mean speed function
-                                  dta = deg(heading_integrated),#raw angles observed
-                                  window = av_window,#window size (s)
-                                  hz = fps #sample rate (Hz)
-                 )
+                 ma_angle = if(speedup_parallel)
+                             {
+                               parSapply(cl = clt,
+                                     X = 1:length(angle),#all indices in angle
+                                     FUN = MAmeanang,#the mean angle function
+                                     dta = angle,#all angles observed
+                                     window = av_window,#window size (s)
+                                     hz = fps #sample rate (Hz)
+                             )
+                             }else
+                             {
+                               sapply(X = 1:length(angle),#all indices in angle
+                                     FUN = MAmeanang,#the mean angle function
+                                     dta = angle,#all angles observed
+                                     window = av_window,#window size (s)
+                                     hz = fps #sample rate (Hz)
+                                     )
+                             }
+                 ma_rho = if(speedup_parallel)
+                             {
+                             parSapply(cl = clt,
+                                       X = 1:length(angle),#all indices in angle
+                                           FUN = MAmeanvec,#the mean vector function
+                                           dta = angle,#all angles observed
+                                           window = av_window,#window size (s)
+                                           hz = fps #sample rate (Hz)
+                                   )
+                             }else
+                             {
+                             sapply(X = 1:length(angle),#all indices in angle
+                                           FUN = MAmeanvec,#the mean vector function
+                                           dta = angle,#all angles observed
+                                           window = av_window,#window size (s)
+                                           hz = fps #sample rate (Hz)
+                                   )
+                             }
+                 ma_turn = if(speedup_parallel)
+                             {
+                               parSapply(cl = clt,
+                                         X = 1:length(angle),#all indices in angle
+                                              FUN = MAturnspeed, #the mean speed function
+                                              dta = deg(heading_integrated),#raw angles observed
+                                              window = av_window,#window size (s)
+                                              hz = fps #sample rate (Hz)
+                             )
+                             }else
+                             {
+                               sapply(X = 1:length(angle),#all indices in angle
+                                              FUN = MAturnspeed, #the mean speed function
+                                              dta = deg(heading_integrated),#raw angles observed
+                                              window = av_window,#window size (s)
+                                              hz = fps #sample rate (Hz)
+                             )
+                             }
                  smooth_turn = predict( # fit a spline and predict its values across all times
                    smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
                                  y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
                    x = 1:length(angle) # predict for all times
                  )$y
-                 ma_accel = sapply(X = 1:length(smooth_turn),#all indices in angle
-                                   FUN = MAturnspeed, #the mean speed function, here converts speed to acceleration
-                                   dta = smooth_turn, #use smoothed speeds
-                                   window = av_window,#window size (s)
-                                   hz = fps #sample rate (Hz)
-                 )
+                 ma_accel = if(speedup_parallel)
+                             {
+                               parSapply(cl = clt,
+                                         X = 1:length(smooth_turn),#all indices in angle
+                                         FUN = MAturnspeed, #the mean speed function, here converts speed to acceleration
+                                         dta = smooth_turn, #use smoothed speeds
+                                         window = av_window,#window size (s)
+                                         hz = fps #sample rate (Hz)
+                                         )
+                             }else
+                             {
+                               sapply(X = 1:length(smooth_turn),#all indices in angle
+                                               FUN = MAturnspeed, #the mean speed function, here converts speed to acceleration
+                                               dta = smooth_turn, #use smoothed speeds
+                                               window = av_window,#window size (s)
+                                               hz = fps #sample rate (Hz)
+                             )
+                             }
                  x_speed = c(NA, diff(x_pos))*fps #forwards speed in mm/s
                  y_speed = c(NA, diff(y_pos))*fps #sideways speed in mm/s
                  ground_speed = sqrt(x_speed^2 + y_speed^2) #speed in mm/s
                  straight_distance = sqrt(x_pos^2 + y_pos^2) #straight-line distance in mm
-                 #TODO fix this
-                 ma_speed =sapply(X = 1:length(straight_distance),#all indices in angle
-                                  FUN = MAspeed, #the mean speed function
-                                  dta_x = x_pos,#x coordinate
-                                  dta_y = y_pos,#y coordinate
-                                  window = av_window,#window size (s)
-                                  hz = fps, #sample rate (Hz)
-                                  method = 'mean' #average between frame
-                                 )
+                 ma_speed = if(speedup_parallel)
+                             {
+                             parSapply(cl = clt,
+                                       X = 1:length(straight_distance),#all indices in angle
+                                       FUN = MAspeed, #the mean speed function
+                                       dta_x = x_pos,#x coordinate
+                                       dta_y = y_pos,#y coordinate
+                                       window = av_window,#window size (s)
+                                       hz = fps, #sample rate (Hz)
+                                       method = 'mean' #average between frame
+                                     )
+                             }else
+                             {
+                             sapply(X = 1:length(straight_distance),#all indices in angle
+                                    FUN = MAspeed, #the mean speed function
+                                    dta_x = x_pos,#x coordinate
+                                    dta_y = y_pos,#y coordinate
+                                    window = av_window,#window size (s)
+                                    hz = fps, #sample rate (Hz)
+                                    method = 'mean' #average between frame
+                                   )
+                             }
                }
                )
-
+#close the parallel cluster
+if(speedup_parallel){ stopCluster(clt) }
+#  Save data --------------------------------------------------------------
+message('Saving data')
+csv_file = file.path(dirname(path_file),
+                      paste0(basename(path_file),
+                             '_proc',
+                             '.', 
+                             '.csv',
+                             ifelse(test = compress_csv,
+                                    yes = '.gz',
+                                    no = ''
+                                    )
+                             )
+)
+write.csv(x = adata,
+          file = if(compress_csv)
+                  {gzfile(description = csv_file)}else
+                  {csv_file},
+          row.names = FALSE
+)
 
 # Plot data ---------------------------------------------------------------
 message('Plotting data')
