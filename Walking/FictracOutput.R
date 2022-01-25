@@ -14,6 +14,7 @@ graphics.off()
 #      OUTPUTS: Results table (.csv) saved (.gz compression) in original folder.
 #
 #	   CHANGES: - Compression
+#             - Legends
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -32,8 +33,8 @@ graphics.off()
 #- Choose scale mean speed  +
 #- Choose scale acceleration  +
 #- Save results +
-#- Figure legend
-#- Fast version
+#- Figure legend +
+#- Fast version ?
 
 # Load packages ----------------------------------------------------------
 require(circular)#for handing angles
@@ -191,6 +192,7 @@ ball_radius = 25#mm
 av_window = 5.0#number of seconds to smooth over for averaging
 angle_unit = "degrees" # "degrees" or "radians"
 point_col = "darkblue" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
+trend_col = "darkgreen" # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
 save_type = "pdf"# "png"#
 csv_sep_load = ','#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
 csv_sep_write = ','#Results in a comma separated or semicolon separated csv? For tab sep, use "\t"
@@ -604,6 +606,9 @@ message('Plotting data')
 # . Set up plot variables -------------------------------------------------
 plt_speed_max = 200
 plt_accel_scale = 1.5
+plt_leg_pos = 'topleft'
+plt_leg_inset = c(0,-0.01)
+plt_leg_cex = 0.5
 
 # . Set up plot area ------------------------------------------------------
 plot_file = file.path(dirname(path_file), 
@@ -652,6 +657,7 @@ switch(save_type,
 # . Plot raw data ---------------------------------------------------------
 par(pty = 's',
     mar = c(3,0,0,0)) # set plot area to square?
+#trajectory
 with(adata,
      {
        plot(x = y_pos,
@@ -666,6 +672,11 @@ with(adata,
             type = 'o',
             pch = 19
        )
+       points(x = y_pos[which.min(abs(experimental_time - 60))],
+              y = x_pos[which.min(abs(experimental_time - 60))],
+              pch = 3,
+              col = 'darkred'
+              )
        abline(h = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
               v = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
               col = adjustcolor('black', alpha = 0.5),
@@ -674,8 +685,24 @@ with(adata,
        
      }
 )
-# plot(NULL, xlim = c(0,1), ylim = c(0,1), axes = F, xlab = '', ylab = '')
-# plot(NULL, xlim = c(0,1), ylim = c(0,1), axes = F, xlab = '', ylab = '')
+pretty_time = with(adata, paste0(pretty(range(experimental_time)), 's'))
+legend(x = plt_leg_pos,
+       inset= plt_leg_inset,
+       xpd = TRUE,
+       legend = c(rev(pretty_time), '1 min'),
+       pch = c(rep(x = 15, times = length(pretty_time)),3),
+       col = c(
+               rev(
+                 hcl.colors(n = length(pretty_time),
+                            palette = 'viridis',
+                            alpha = 0.5)
+                 ),
+               'darkred'
+               ),
+       pt.cex = 1.2,
+       cex = plt_leg_cex
+)
+#Circular heading
 with(adata,
      {
       plot.circular(circular(NA,
@@ -701,7 +728,7 @@ with(adata,
       type = 'p',
       pch = 19,
       lty = 2,
-      cex = 0.75
+      cex = 0.5
       )
       invisible(
         {
@@ -723,12 +750,40 @@ with(adata,
       )
      }
 )
-# while(!par('page')) plot.new()
+lines.circular(
+  x = circular(x = seq(from = -pi, 
+                       to = pi, 
+                       length.out = 1e3),
+               template = 'none'),
+  y = rep(x = 60/max(adata$experimental_time) - 1, 
+          times = 1e3),
+  col = adjustcolor('darkred', alpha.f = 0.5),
+  lwd = 5
+)
+with(adata,
+     {
+axis(side = 1,
+     at = 10*round(-(max(experimental_time/10)):(max(experimental_time/10)))/max(experimental_time),
+     labels = abs(
+                 10*round(-(max(experimental_time/10)):(max(experimental_time/10)))
+                 ),
+     cex.axis = plt_leg_cex/1.5
+     )
+     }
+)
+mtext(text = 'Time (sec)',
+      outer = T,
+      side = 1
+)
 # . Plot time series --------------------------------------------------
+
+# . . Ground speed --------------------------------------------------------
+
 par(pty = 'm',
     mfrow = c(4, 1),
     mar = c(3,5,0,3)
     )
+#Raw data
 with(adata,
      {
        plot(x = experimental_time,
@@ -749,28 +804,41 @@ with(adata,
        axis(side = 2
        )
        abline(h = 10*(round(min(ground_speed, na.rm = T)/10):round(max(ground_speed, na.rm = T)/10)),
+              v = c(0,60,120),
               col = rgb(0,0,0,0.1)
        )
        
      }
 )
-
+#Trendline
 with(adata,
      {
        lines(x = experimental_time,
              y = ma_speed,
-             # type = 'p',
-             # pch = 19,
              cex = 0.1,
-             col = rgb(0,0.5,0),
+             col = trend_col,
        )
      }
 )
+legend(x = plt_leg_pos,
+       inset= plt_leg_inset,
+       xpd = TRUE,
+       legend = c('instantaneous',
+                  paste0('moving average (median: ',av_window,'s)')),
+       lty = c(NA,1),
+       pch = c(19,NA),
+       col = c(point_col,
+               trend_col),
+       cex = plt_leg_cex
+       )
 
+# . . Fictive direction ---------------------------------------------------
+#Raw data
 with(adata,
      {
        plot(x = experimental_time,
             y = Mod360.180(angle),
+            ylim = c(-180,180),
             xlab = 'time since start',
             ylab = 'fictive direction',
             type = 'p',
@@ -784,19 +852,18 @@ with(adata,
             labels = 10*(0:(max(experimental_time)/10))
        )
        axis(side = 2,
-            # at = 90*(round(min(angle)/90):round(max(angle)/90)),
             at = 90*(round(-180/90):round(180/90)),
             labels = paste0(90*(round(-180/90):round(180/90)),
                             '°')
        )
-       # abline(h = 90*(round(min(angle)/90):round(max(angle)/90)),
        abline(h = 90*(round(-180/90):round(180/90)),
+              v = c(0,60,120),
               col = rgb(0,0,0,0.1)
        )
        
      }
 )
-
+#Trendline
 with(adata,
      {
        lines(x = experimental_time,
@@ -804,19 +871,34 @@ with(adata,
              type = 'p',
              pch = 19,
              cex = 0.1,
-             col = rgb(0,0.5,0,0.3),
+             col = adjustcolor(col = trend_col, alpha.f = 0.3),
        )
      }
 )
+legend(x = plt_leg_pos,
+       inset= plt_leg_inset,
+       xpd = TRUE,
+       legend = c('instantaneous',
+                  paste0('moving average (mean angle: ', av_window,'s)')),
+       lty = c(NA,1),
+       pch = c(19,NA),
+       col = c(point_col,
+               trend_col),
+       cex = plt_leg_cex
+)
+
+
+# . . Turning speed -------------------------------------------------------
 par(pty = 'm',
     mar = c(3,5,0,3))
+#Raw data
 with(adata,
      {
        plot(x = NULL,
             xlim = range(experimental_time, na.rm = T),
-            ylim = range(ma_turn, na.rm = T),
+            ylim = c(-1,1)*max(abs(range(ma_turn, na.rm = T))),
             xlab = 'time (s)',
-            ylab = paste0('mean turning speed (°/s: ',av_window,'s)'),
+            ylab = paste0('median turning speed (°/s: ',av_window,'s)'),
             axes = F
        )
        axis(side = 1,
@@ -832,16 +914,19 @@ with(adata,
               cex = 0.5,
               pch = 19
        )
+# Trendline
        lines(x = experimental_time,
              y = smooth_turn,
-             col = 'darkgreen'
+             col = trend_col
        )
        abline(h = c(-15, 0, 15),
+              v = c(0,60,120),
               col = 'black',
               lwd = 0.25
        )
      }
 )
+#Acceleration
 with(adata,
      {
        lines(x = experimental_time,
@@ -859,7 +944,7 @@ with(adata,
                  plt_accel_scale),
             col = 'darkred'
        )
-       mtext(text = bquote(mean ~ acceleration ~
+       mtext(text = bquote(median ~ acceleration ~
                              '(°/s'^2 ~ 
                              .(av_window)*s ~ ")"),
              side = 4,
@@ -868,6 +953,23 @@ with(adata,
        )
      }
 )
+legend(x = plt_leg_pos,
+       inset= plt_leg_inset,
+       xpd = TRUE,
+       legend = c(paste0('median ', '(', av_window,'s)'),
+                  'smoothing spline',
+                  'acceleration'),
+       lty = c(NA,1, 1),
+       pch = c(19,NA, NA),
+       col = c(point_col,
+               trend_col,
+               'darkred'),
+       cex = plt_leg_cex
+)
+
+
+
+# . . Mean vector length --------------------------------------------------
 with(adata,
      {
        plot(x = NULL,
@@ -889,6 +991,7 @@ with(adata,
              col = point_col
        )
        abline(h = c(0,1),
+              v = c(0,60,120),
               col = 'black',
               lwd = 0.25
        )
@@ -900,6 +1003,20 @@ with(adata,
        
      }
 )
+legend(x = plt_leg_pos,
+       inset= plt_leg_inset,
+       xpd = TRUE,
+       legend = c(paste0('mean vector ', '(', av_window,'s)'),
+                  'Rayleigh (p = 0.05)'),
+       lty = c(1, 3),
+       pch = c(NA, NA),
+       col = c(point_col,
+               'red'),
+       cex = plt_leg_cex
+)
+
+# . . Outer labels --------------------------------------------------------
+
 mtext(text = basename(path_file),
       outer = T, 
       side = 3
