@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 24
-#     MODIFIED:	James Foster              DATE: 2022 01 24
+#     MODIFIED:	James Foster              DATE: 2022 01 25
 #
 #  DESCRIPTION: A set of functions to load a set of ".dat" files exported from 
 #               fictrac,export speed and angle and their moving averages, 
@@ -10,8 +10,8 @@
 #               
 #      OUTPUTS: 
 #
-#	   CHANGES: - 
-#             - 
+#	   CHANGES: - Combine within folder
+#             - Find animal and experiment names
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -27,10 +27,10 @@
 #- Read in data   +
 #- Add variables  +
 #- Save results +
-#- Combine  ...
+#- Combine folder +
+#- Combine day  
+#- Combine all  
 #- Raster plot
-
-
 
 # General use -------------------------------------------------------------
 IsWin = function(...)
@@ -568,92 +568,107 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
 }
 
 
-# # Combine files in one folder ---------------------------------------------
-# FT_combine_folder = function(path_folder = FT_select_folder(),
-#                              )
-# {
-#   # . Find files ---------------------------------------------------------------
-#   names_files = list.files(path = path_folder,
-#                            pattern = '_proc.csv.gz$'
-#   )
-#   #show the user the path they have selected
-#   if(is.null(names_files))
-#   {stop('No "_proc.csv.gz" files found in', path_folder)}else
-#   {message('Files found:\n',paste0(names_files,'\n'),
-#            '\n------------------------------------------')}
-#   
-#   # . Read in files ------------------------------------------------------------
-#   message('Reading in files from', basename(path_folder), '\nplease be patient...')
-#   tryCatch(#Perform no further analysis if the file doesn't load
-#     {
-#       adata = lapply(X = lapply(file.path(path_folder, names_files), gzfile),
-#                      FUN = read.csv,
-#                      header = TRUE
-#       )#,#read from user-selected file
-#     },
-#     error = function(e)
-#     {
-#       stop(
-#         paste0('One or more files in "', 
-#                basename(path_folder), 
-#                '" could not be loaded!\n',
-#                e)
-#       )
-#     }
-#   )
-#   message('All files in "',basename(path_folder), '" loaded successfully')
-#   names(adata) = names_files
-#   
-#   # View(adata)#show the user the data that 
-#   
-#   # . Organise data ---------------------------------------------------------
-#   #check sample rates for each
-#   sample_rates = lapply(X = adata, 
-#                         FUN = function(x)
-#                         {with(x, 1/mean(diff(experimental_time)))}
-#   )#Hz
-#   if(sum(diff(unlist(sample_rates))))
-#   {warning('Sample rates differ between recordings\n',
-#            'proceed with caution!')}else{
-#              message('All recordings have a sample rate of ',
-#                      sample_rates[[1]],
-#                      ' Hz')
-#            }
-#   adata_frame = do.call(what = rbind,
-#                         args = adata)
-#   #TODO make this work for FicTrac
-#   FlightNamer = function(txt)
-#   {
-#     regmatches(m = regexpr(pattern = '^([^.]+)', 
-#                            text = txt),
-#                x = txt)
-#   }
-#   adata_frame$flight = FlightNamer(rownames(adata_frame))
-#   adata_frame = within(adata_frame,
-#                        {
-#                          moth = regmatches(m = regexpr(pattern = '^([^-]+)',
-#                                                        text = flight),
-#                                            x = flight)
-#                          trial = regmatches(m = regexpr(pattern = '[^ -][^-]*$',
-#                                                         text = flight),
-#                                             x = flight)
-#                        }
-#   )
-#   # .  Save data --------------------------------------------------------------
-#   txt_file = file.path(path_folder,
-#                         paste0(basename(path_folder),
-#                                '_proc',
-#                                '.txt')
-#   )
-#   message('Saving data as:\n', 
-#           gsub(pattern = '/',
-#                x = txt_file,
-#                replacement = '\n')
-#   )
-#   write.table(x = adata_frame,
-#               file = txt_file,
-#               row.names = FALSE
-#   )
-#   return(txt_file)
-# }
+# Combine files in one folder ---------------------------------------------
+FT_combine_folder = function(path_folder = FT_select_folder(),
+                             compress_txt = TRUE
+                             )
+{
+  # . Find files ---------------------------------------------------------------
+  names_files = list.files(path = path_folder,
+                           pattern = '_proc.csv.gz$'
+  )
+  #show the user the path they have selected
+  if(is.null(names_files))
+  {stop('No "_proc.csv.gz" files found in', path_folder)}else
+  {message('Files found:\n',paste0(names_files,'\n'),
+           '\n------------------------------------------')}
+
+  # . Read in files ------------------------------------------------------------
+  message('Reading in files from', basename(path_folder), '\nplease be patient...')
+  tryCatch(#Perform no further analysis if the file doesn't load
+    {
+      adata = lapply(X = lapply(file.path(path_folder, names_files), gzfile),
+                     FUN = read.csv,
+                     header = TRUE
+      )#,#read from user-selected file
+    },
+    error = function(e)
+    {
+      stop(
+        paste0('One or more files in "',
+               basename(path_folder),
+               '" could not be loaded!\n',
+               e)
+      )
+    }
+  )
+  message('All files in "',basename(path_folder), '" loaded successfully')
+  names(adata) = names_files
+
+  # View(adata)#show the user the data that
+
+  # . Organise data ---------------------------------------------------------
+  #check sample rates for each
+  sample_rates = lapply(X = adata,
+                        FUN = function(x)
+                        {with(x, 1/mean(diff(experimental_time)))}
+  )#Hz
+  if(sum(diff(unlist(sample_rates))))
+  {warning('Sample rates differ between recordings\n',
+           'proceed with caution!')}else{
+             message('All recordings have a sample rate of ',
+                     sample_rates[[1]],
+                     ' Hz')
+           }
+  adata_frame = do.call(what = rbind,
+                        args = adata)
+  #TODO make this work for FicTrac
+  TrackNamer = function(txt)
+  {
+    regmatches(m = regexpr(pattern = '^([^.]+)',
+                           text = txt),
+               x = txt)
+  }
+  adata_frame$track = TrackNamer(rownames(adata_frame))
+  adata_frame = within(adata_frame,
+                       {
+                         bumblebee = sub(pattern = 'Bumblebee ',
+                                         x = basename(dirname(path_folder)),
+                                         replacement = ''
+                                         )
+                         experiment = regmatches(
+                                         m = regexpr(pattern = '[^ -][^-]*$',
+                                                     text = basename(
+                                                             dirname(dirname(path_folder))
+                                                           )
+                                                    ),
+                                         x = basename(
+                                               dirname(dirname(path_folder))
+                                             )
+                                         )
+                       }
+  )
+  # .  Save data --------------------------------------------------------------
+  txt_file = file.path(path_folder,
+                        paste0(basename(path_folder),
+                               '_proc',
+                               '.txt',
+                               if(compress_txt)
+                                 {'.gz'}else
+                                 {''}
+                               )
+  )
+  message('Saving data as:\n',
+          gsub(pattern = '/',
+               x = txt_file,
+               replacement = '\n')
+  )
+  write.table(x = adata_frame,
+              file = if(compress_txt)
+                        {gzfile(txt_file)}else
+                        {txt_file},
+              row.names = FALSE
+  )
+  return(txt_file)
+}
 
