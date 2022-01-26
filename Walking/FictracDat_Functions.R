@@ -28,8 +28,10 @@
 #- Add variables  +
 #- Save results +
 #- Combine folder +
-#- Combine day  
-#- Combine all  
+#- Combine day  +
+#- Combine all  +
+#- Speed up with data.table  ...
+#- Externalise cluster  ...
 #- Raster plot
 
 # General use -------------------------------------------------------------
@@ -81,24 +83,27 @@ FT_select_dat = function(sys_win = IsWin())
   return(path_file)
 }
 
-FT_select_folder = function(sys_win = IsWin())
+FT_select_folder = function(file_type = "_proc.csv.gz",
+                            sys_win = Sys.info()[['sysname']] == 'Windows'
+                            )
 {
   #On computers set up by JMU Würzburg, use user profile instead of home directory
   if(sys_win){
     #get rid of all the backslashes
     ltp = gsub('\\\\', '/', Sys.getenv('USERPROFILE'))
-  }else{#Root directory should be the "HOME" directory on a Mac (or Linux?)
+  }else
+  {#Root directory should be the "HOME" directory on a Mac (or Linux?)
     ltp = Sys.getenv('HOME')#Easier on Mac
   }
   msg = if(sys_win)
     {
-    paste('Please a folder containing',#message to display
-              '"_proc.csv.gz"',
-              'files')
+    paste0('Please a folder containing ',#message to display
+              '"',file_type,'"',
+              ' files')
     }else
     {
     paste('Please select any',
-          '"_proc.csv.gz"',
+          '"',file_type,'"',
           'file in the correct folder')
     }
   here_path = tryCatch(expr = #look in the folder containing this file: sys.frame(1)$ofile
@@ -106,7 +111,7 @@ FT_select_folder = function(sys_win = IsWin())
                        error = function(e)
                        {#if that fails, try to find the "Documents" folder
                          file.path(ltp,'Documents', 
-                                   '*.dat')
+                                   '*',file_type)
                        }
   )
   # set path to files
@@ -124,7 +129,7 @@ FT_select_folder = function(sys_win = IsWin())
   }
   #show the user the path they have selected
   if(is.null(path_folder))
-  {stop('No file selected.')}else
+  {stop('Nothing selected/ no folder found.')}else
   {print(path_folder)}
   return(path_folder)
 }
@@ -283,7 +288,12 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                          av_window = 5.0,#number of seconds to smooth over for averaging
                          csv_sep_load = ',',#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
                          speedup_parallel = TRUE, #Use the parallel package to speed up calculations
-                         compress_csv = TRUE #Compress to ".gz" to save space?
+                         speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                         compress_csv = TRUE, #Compress to ".gz" to save space?
+                         verbose = TRUE,
+                         clust = if(speedup_parallel)
+                           {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                           {null}
 )
 {
 
@@ -375,7 +385,17 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
              # 'ms_since_midnight' #25 time of capture
   )
   #read in data
-  adata = 
+  adata = if(speedup_data.table)
+  {
+  data.table::fread(
+    file = path_file,#read from user-selected file
+    sep = csv_sep_load,#user specified comma separation
+    header = FALSE,#Fictrac does not produce headers
+    col.names = cnames # best to set these here
+    #other parameters can be added here for troubleshooting
+  )
+  }else
+  {
     read.table(file = path_file,#read from user-selected file
                sep = csv_sep_load,#user specified comma separation
                header = FALSE,#Fictrac does not produce headers
@@ -385,20 +405,21 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                col.names = cnames # best to set these here
                #other parameters can be added here for troubleshooting
     )
+  }
   
   # Conversions -------------------------------------------------------------
   
   # . Derive variables ------------------------------------------------------
   fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
   
-  # . Set up parallel processing, if used -----------------------------------
+  # . Add variables ---------------------------------------------------------
+  # . . Set up parallel processing, if used -----------------------------------
   if(speedup_parallel)
   {
-    message('Using parallel processing...')
+    if(verbose)
+    {message('Using parallel processing...')}
     #Benefits from some parallel processing, but setting up the cluster is slow
-    avail.cores = parallel::detectCores() - 1
-    clt = makeCluster(avail.cores,# run as many as possible
-                      type="SOCK")
+    clt = clust
     clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
                   list('adata',
                        'fps',
@@ -413,8 +434,160 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                   environment()#needs to be reminded to use function environment, NOT global environment
     )
   }
+
+# . . Variable definitions ------------------------------------------------
+
+  if(speedup_data.table)
+  {
+    #has a slightly different syntax
+    #N.B. Cannot call variable until after it has been created
+    #data.table method
+    adata[, `:=`( #assign from list call
+                     experimental_time = (time_stamp - min(time_stamp))/1e3, # seconds since start
+                     angle = circular(deg(heading_integrated),#180 is forwards!
+                                      type = 'angles',
+                                      unit = 'degrees',
+                                      template = 'geographics',
+                                      modulo = '2pi',
+                                      zero = pi/2,
+                                      rotation = 'clock'
+                                     )
+                     )
+          ]#,
+    adata[, `:=`( #assign from list call
+                     angle_instantaneous = circular(deg(heading_instantaneous),#180 is forwards!
+                                                    type = 'angles',
+                                                    unit = 'degrees',
+                                                    template = 'geographics',
+                                                    modulo = '2pi',
+                                                    zero = pi/2,
+                                                    rotation = 'clock'
+                     ),
+                     speed = speed_movement*ball_radius*fps, #mm/s
+                     x_pos = x_int*ball_radius, #mm
+                     y_pos = y_int*ball_radius, #mm
+                     angle_speed = c(0,diff(deg(heading_integrated)))*fps, #deg/s
+                     ma_angle = if(speedup_parallel)
+                     {
+                       parSapply(cl = clt,
+                                 X = 1:length(angle),#all indices in angle
+                                 FUN = MAmeanang,#the mean angle function
+                                 dta = angle,#all angles observed
+                                 window = av_window,#window size (s)
+                                 hz = fps #sample rate (Hz)
+                       )
+                     }else
+                     {
+                       sapply(X = 1:length(angle),#all indices in angle
+                              FUN = MAmeanang,#the mean angle function
+                              dta = angle,#all angles observed
+                              window = av_window,#window size (s)
+                              hz = fps #sample rate (Hz)
+                       )
+                     },
+                     ma_rho = if(speedup_parallel)
+                     {
+                       parSapply(cl = clt,
+                                 X = 1:length(angle),#all indices in angle
+                                 FUN = MAmeanvec,#the mean vector function
+                                 dta = angle,#all angles observed
+                                 window = av_window,#window size (s)
+                                 hz = fps #sample rate (Hz)
+                       )
+                     }else
+                     {
+                       sapply(X = 1:length(angle),#all indices in angle
+                              FUN = MAmeanvec,#the mean vector function
+                              dta = angle,#all angles observed
+                              window = av_window,#window size (s)
+                              hz = fps #sample rate (Hz)
+                       )
+                     },
+                     ma_turn = if(speedup_parallel)
+                     {
+                       parSapply(cl = clt,
+                                 X = 1:length(angle),#all indices in angle
+                                 FUN = MAturnspeed, #the mean speed function
+                                 dta = deg(heading_integrated),#raw angles observed
+                                 window = av_window,#window size (s)
+                                 hz = fps #sample rate (Hz)
+                       )
+                     }else
+                     {
+                       sapply(X = 1:length(angle),#all indices in angle
+                              FUN = MAturnspeed, #the mean speed function
+                              dta = deg(heading_integrated),#raw angles observed
+                              window = av_window,#window size (s)
+                              hz = fps #sample rate (Hz)
+                       )
+                     }
+                     )
+          ]#,
+    adata[, `:=`( #assign from list call
+                     smooth_turn = predict( # fit a spline and predict its values across all times
+                       smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
+                                     y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
+                       x = 1:length(angle) # predict for all times
+                     )$y
+                     )
+          ]#,
+    adata[, `:=`( #assign from list call
+                     ma_accel = if(speedup_parallel)
+                     {
+                       parSapply(cl = clt,
+                                 X = 1:length(smooth_turn),#all indices in angle
+                                 FUN = MAturnspeed, #the mean speed function, here converts speed to acceleration
+                                 dta = smooth_turn, #use smoothed speeds
+                                 window = av_window,#window size (s)
+                                 hz = fps #sample rate (Hz)
+                       )
+                     }else
+                     {
+                       sapply(X = 1:length(smooth_turn),#all indices in angle
+                              FUN = MAturnspeed, #the mean speed function, here converts speed to acceleration
+                              dta = smooth_turn, #use smoothed speeds
+                              window = av_window,#window size (s)
+                              hz = fps #sample rate (Hz)
+                       )
+                     },
+                     x_speed = c(NA, diff(x_pos))*fps, #forwards speed in mm/s
+                     y_speed = c(NA, diff(y_pos))*fps #sideways speed in mm/s
+    )
+    ]
+    adata[, `:=`( #assign from list call
+                     ground_speed = sqrt(x_speed^2 + y_speed^2), #speed in mm/s
+                     straight_distance = sqrt(x_pos^2 + y_pos^2) #straight-line distance in mm
+    )
+    ]
+    adata[, `:=`( #assign from list call
+                     ma_speed = if(speedup_parallel)
+                     {
+                       parSapply(cl = clt,
+                                 X = 1:length(straight_distance),#all indices in angle
+                                 FUN = MAspeed, #the mean speed function
+                                 dta_x = x_pos,#x coordinate
+                                 dta_y = y_pos,#y coordinate
+                                 window = av_window,#window size (s)
+                                 hz = fps, #sample rate (Hz)
+                                 method = 'mean' #average between frame
+                       )
+                     }else
+                     {
+                       sapply(X = 1:length(straight_distance),#all indices in angle
+                              FUN = MAspeed, #the mean speed function
+                              dta_x = x_pos,#x coordinate
+                              dta_y = y_pos,#y coordinate
+                              window = av_window,#window size (s)
+                              hz = fps, #sample rate (Hz)
+                              method = 'mean' #average between frame
+                       )
+                     }
+    )
+    ]#end of data.table
+  }else
+  {
   
-  # . Add variables ---------------------------------------------------------
+  #data.frame method
   adata = within(adata, 
                  {
                    experimental_time = (time_stamp - min(time_stamp))/1e3 # seconds since start
@@ -543,8 +716,9 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                    }
                  }
   )
+  }
   #close the parallel cluster
-  if(speedup_parallel){ stopCluster(clt) }
+  if(speedup_parallel){ if(missing(clust)){stopCluster(clt)} }#only close internal cluster
   #  Save data --------------------------------------------------------------
   new_name = paste0(basename(path_file),
                     '_proc',
@@ -554,41 +728,67 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                            no = ''
                     )
   )
-  message('Saving data as: ', new_name)
+  if(verbose)
+  {message('Saving data as: ', new_name)}
   csv_file = file.path(dirname(path_file),
                        new_name
                       )
-  write.csv(x = adata,
-            file = if(compress_csv)
-            {gzfile(description = csv_file)}else
-            {csv_file},
-            row.names = FALSE
-  )
+  if(speedup_data.table)
+  {
+    data.table::fwrite(
+            x = adata,
+            file = csv_file,#N.B. data.table >= 1.12.4 can write to .gz automatically
+            row.names = FALSE,
+            sep = ','
+    )
+  }else
+  {
+    write.csv(
+              x = adata,
+              file = if(compress_csv)
+              {gzfile(description = csv_file)}else
+              {csv_file},
+              row.names = FALSE
+    )
+  }
   return(csv_file)
 }
 
 
 # Combine files in one folder ---------------------------------------------
 FT_combine_folder = function(path_folder = FT_select_folder(),
-                             compress_txt = TRUE
+                             file_type = '_proc.csv.gz',#N.B. currently only for this type
+                             compress_txt = TRUE,
+                             verbose = TRUE
                              )
 {
+  file_regex = paste0(file_type, '$')
   # . Find files ---------------------------------------------------------------
   names_files = list.files(path = path_folder,
-                           pattern = '_proc.csv.gz$'
-  )
+                           pattern = file_regex,
+                           recursive = if(file_type %in% #these files are stored in the folder
+                                          c('_proc.csv.gz', '_proc.txt.gz')
+                                         )
+                                       {FALSE}else{TRUE}#other types may be in subfolders
+                          )
   #show the user the path they have selected
-  if(is.null(names_files))
-  {stop('No "_proc.csv.gz" files found in', path_folder)}else
+  if(is.null(names_files)|!length(names_files))
+  {stop('No "',file_type,'" files found in \n', path_folder)}else
   {message('Files found:\n',paste0(names_files,'\n'),
            '\n------------------------------------------')}
 
   # . Read in files ------------------------------------------------------------
-  message('Reading in files from', basename(path_folder), '\nplease be patient...')
+  if(verbose)
+  {message('Reading in files from:\t', basename(path_folder), '\nplease be patient...')}
   tryCatch(#Perform no further analysis if the file doesn't load
     {
       adata = lapply(X = lapply(file.path(path_folder, names_files), gzfile),
-                     FUN = read.csv,
+                     FUN = read.table,
+                     sep = switch(EXPR = file_type,
+                                  `_proc.csv.gz` = ',', 
+                                  `_proc.txt.gz` = ' ',# '\t',
+                                  '\t'
+                                  ),
                      header = TRUE
       )#,#read from user-selected file
     },
@@ -602,33 +802,46 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
       )
     }
   )
-  message('All files in "',basename(path_folder), '" loaded successfully')
+  if(verbose)
+  {message('All files in "',basename(path_folder), '" loaded successfully')}
   names(adata) = names_files
 
-  # View(adata)#show the user the data that
-
   # . Organise data ---------------------------------------------------------
+  if(file_type == '_proc.csv.gz')
+  {
   #check sample rates for each
   sample_rates = lapply(X = adata,
                         FUN = function(x)
                         {with(x, 1/mean(diff(experimental_time)))}
   )#Hz
-  if(sum(diff(unlist(sample_rates))))
-  {warning('Sample rates differ between recordings\n',
-           'proceed with caution!')}else{
-             message('All recordings have a sample rate of ',
-                     sample_rates[[1]],
-                     ' Hz')
-           }
+  if(verbose)
+  {
+    if(sum(diff(unlist(sample_rates))))
+      {
+        warning('Sample rates differ between recordings\n',
+               'proceed with caution!')
+      }else
+      {
+       message('All recordings have a sample rate of ',
+               sample_rates[[1]],
+               ' Hz')
+      }
+  }
+  }
+  #combine all data into a single data frame
   adata_frame = do.call(what = rbind,
                         args = adata)
-  #TODO make this work for FicTrac
+  #find names for tracks
   TrackNamer = function(txt)
   {
     regmatches(m = regexpr(pattern = '^([^.]+)',
                            text = txt),
                x = txt)
   }
+  naming_expression = switch(
+    EXPR = file_type,
+    `_proc.csv.gz` = 
+      {
   adata_frame$track = TrackNamer(rownames(adata_frame))
   adata_frame = within(adata_frame,
                        {
@@ -636,20 +849,33 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
                                          x = basename(dirname(path_folder)),
                                          replacement = ''
                                          )
-                         experiment = regmatches(
+                         condition = regmatches(
+                                         m = regexpr(pattern = '[^ -][^-]*$',
+                                                     text = basename(path_folder)
+                                                    ),
+                                         x = basename(path_folder)
+                                         )
+                         date = regmatches(
                                          m = regexpr(pattern = '[^ -][^-]*$',
                                                      text = basename(
                                                              dirname(dirname(path_folder))
                                                            )
                                                     ),
                                          x = basename(
-                                               dirname(dirname(path_folder))
-                                             )
+                                           dirname(dirname(path_folder))
+                                                     )
                                          )
                        }
+                      )
+      }, #if it is the csv, find track, bumblebee and condition
+  `_proc.txt.gz` = 
+    { #If it is the txt, then the date is the rowname
+      # adata_frame$date = TrackNamer(rownames(adata_frame))
+    },
+  {}
   )
   # .  Save data --------------------------------------------------------------
-  txt_file = file.path(path_folder,
+  txt_file = file.path(dirname(path_folder),#store outside this folder
                         paste0(basename(path_folder),
                                '_proc',
                                '.txt',
@@ -658,15 +884,19 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
                                  {''}
                                )
   )
-  message('Saving data as:\n',
-          gsub(pattern = '/',
-               x = txt_file,
-               replacement = '\n')
-  )
+  if(verbose)
+  {
+    message('Saving data as:\n',
+            gsub(pattern = '/',
+                 x = txt_file,
+                 replacement = '\n')
+    )
+  }
   write.table(x = adata_frame,
               file = if(compress_txt)
                         {gzfile(txt_file)}else
                         {txt_file},
+              sep = '\t',
               row.names = FALSE
   )
   return(txt_file)
