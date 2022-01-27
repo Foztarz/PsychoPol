@@ -15,6 +15,9 @@ graphics.off()
 #      OUTPUTS: Results table (.csv) saved in the same place as the data.
 #
 #	   CHANGES: - Load FictracDat_Functions.R
+#             - Speed up with parallel
+#             - Speed up with data.table
+#             - Read all files directly to single tab sep file
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -27,12 +30,9 @@ graphics.off()
 #       USAGE:  Fill out user input (lines 40-45), then press ctrl+shift+s to run
 #TODO   ---------------------------------------------
 #TODO   
-#- Read in ".dat" files
-#- Read in ".txt" files
-#- Combine all files
-
-
-
+#- Read in ".dat" files +
+#- Combine all files  +
+#- Raster plots
 
 
 # Input Variables ----------------------------------------------------------
@@ -49,8 +49,8 @@ use_par = TRUE # whether or not to use parallel processing
 # . Load packages ----------------------------------------------------------
 # require(plot3D)#in case anything needs to be plotted in 3D
 require(circular)#for handing angles
-require(parallel)#for parallel processing
-require(data.table)#for fast data handling
+if(use_dt){require(data.table)}#for fast data handling
+if(use_par){require(parallel)}#for parallel processing
 
 
 # . Get functions ---------------------------------------------------------
@@ -92,23 +92,13 @@ path_conditions = unique(dirname(path_files))
 path_animals = unique(dirname(path_conditions))
 path_days = unique(dirname(path_animals))
 
+system.time({
 # Set up parallel processing ----------------------------------------------
 if(use_par){clt = makeCluster(parallel::detectCores() - 1,type="SOCK")}
-#dat test
-#speedup_data.table + speedup_parallel
-# user  system elapsed 
-# 22.28    2.67  219.37 
-#speedup_data.table 
-# user  system elapsed 
-# 486.18    2.03  495.89
-# no speedup
-# user  system elapsed 
-# 519.64    3.47  545.60 
 
 # Process ".dat" files ----------------------------------------------------
-message('Files found:\n', paste0(path_files,'\n'), '\nProcessing files.',
+message(length(path_files),' files found:\n', paste0(path_files,'\n'), '\nProcessing files.',
         '\n------------------------------------------')
-system.time({
 invisible(
   {
   path_input = file.path(
@@ -129,7 +119,6 @@ invisible(
   names(path_csv) = path_input
   }
   )
-})
 if(all(!is.na(path_csv)))
 {
   message('\n','Files processed','\n')
@@ -138,104 +127,130 @@ if(all(!is.na(path_csv)))
   warning(path_input[is.na(path_csv)], '\nnot processed!')
 }
 
-# Combine within conditions -----------------------------------------------
-message('Conditions found:\n', paste0(path_conditions,'\n'), '\nCombining files within each.',
+# Combine across all trials -----------------------------------------------
+message('Combining data from all trials.',
         '\n------------------------------------------')
-invisible(
-  {
-    condition_path = file.path(
-      path_folder,
-      path_conditions)
-    path_txt_conditions = lapply(
-      X = condition_path,
-      FUN = FT_combine_folder,
-      file_type = '_proc.csv.gz',
-      compress_txt = TRUE, #Compress to ".gz" to save space?
-      verbose = FALSE #Tell the user what is going on?
-    )
-    names(path_txt_conditions) = condition_path
-  }
-)
-if(all(!is.na(path_txt_conditions)))
+  invisible(
+    {
+      path_txt = FT_combine_folders(
+                  path_folder = path_folder,
+                  file_type = '_proc.csv.gz',#N.B. currently only for this type
+                  speedup_parallel = TRUE, #Use the parallel package to speed up calculations
+                  speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                  compress_txt = TRUE, #Compress to ".gz" to save space?
+                  verbose = TRUE, #Tell the user what is going on
+                  recursive = TRUE,   #Search in sub folders                          
+                  clust = clt
+                  )
+    }
+  )
+if(all(!is.na(path_txt)))
 {
-  message('\n','Conditions combined','\n')
+  message('\n','Files combined','\n')
 }else
 {
-  warning(condition_path[is.na(path_txt_conditions)], '\nnot included!')
+  warning('\nCombining failed!')
 }
 
-
-# Combine within animals --------------------------------------------------
-message('Animals found:\n', paste0(path_animals,'\n'), '\nCombining files within each.',
-        '\n------------------------------------------')
-invisible(
-  {
-    animal_path = file.path(
-                            path_folder,
-                            path_animals)
-    path_txt_animals = lapply(
-      X = animal_path,
-      FUN = FT_combine_folder,
-      file_type = '_proc.txt.gz',
-      compress_txt = TRUE, #Compress to ".gz" to save space?
-      verbose = FALSE #Tell the user what is going on?
-    )
-    names(path_txt_animals) = animal_path
-  }
-)
-if(all(!is.na(path_txt_animals)))
-{
-  message('\n','Animals combined','\n')
-}else
-{
-  warning(animal_path[is.na(path_txt_animals)], '\nnot included!')
-}
-
-
-
-# Combine within days --------------------------------------------------
-message('Days found:\n', paste0(path_days,'\n'), '\nCombining files  within each.',
-        '\n------------------------------------------')
-invisible(
-  {
-    day_path = file.path(
-      path_folder,
-      path_days)
-    path_txt_days = lapply(
-      X = day_path,
-      FUN = FT_combine_folder,
-      file_type = '_proc.txt.gz',
-      compress_txt = TRUE, #Compress to ".gz" to save space?
-      verbose = FALSE #Tell the user what is going on?
-    )
-    names(path_txt_days) = day_path
-  }
-)
-if(all(!is.na(path_txt_days)))
-{
-  message('\n','days combined','\n')
-}else
-{
-  warning(day_path[is.na(path_txt_days)], '\nnot included!')
-}
-# Combine across days --------------------------------------------------
-message('Combining files across days.',
-        '\n------------------------------------------')
-invisible(
-  {
-    path_txt_all = lapply(
-      X = path_folder,
-      FUN = FT_combine_folder,
-      file_type = '_proc.txt.gz',
-      compress_txt = TRUE, #Compress to ".gz" to save space?
-      verbose = FALSE #Tell the user what is going on?
-    )
-  }
-)
-if(all(!is.na(path_txt_all)))
-{
-  message('\n','All combined in','\n', path_txt_all)
-}else
-{
-  stop('Failed to combine all data in:\n', path_folder)
-}
+})
+# # Combine within conditions ---
+# message('Conditions found:\n', paste0(path_conditions,'\n'), '\nCombining files within each.',
+#         '\n------------------------------------------')
+# invisible(
+#   {
+#     condition_path = file.path(
+#       path_folder,
+#       path_conditions)
+#     path_txt_conditions = lapply(
+#       X = condition_path,
+#       FUN = FT_combine_folder,
+#       file_type = '_proc.csv.gz',
+#       compress_txt = TRUE, #Compress to ".gz" to save space?
+#       verbose = FALSE #Tell the user what is going on?
+#     )
+#     names(path_txt_conditions) = condition_path
+#   }
+# )
+# if(all(!is.na(path_txt_conditions)))
+# {
+#   message('\n','Conditions combined','\n')
+# }else
+# {
+#   warning(condition_path[is.na(path_txt_conditions)], '\nnot included!')
+# }
+# 
+# 
+# # Combine within animals ---
+# message('Animals found:\n', paste0(path_animals,'\n'), '\nCombining files within each.',
+#         '\n------------------------------------------')
+# invisible(
+#   {
+#     animal_path = file.path(
+#                             path_folder,
+#                             path_animals)
+#     path_txt_animals = lapply(
+#       X = animal_path,
+#       FUN = FT_combine_folder,
+#       file_type = '_proc.txt.gz',
+#       compress_txt = TRUE, #Compress to ".gz" to save space?
+#       verbose = FALSE #Tell the user what is going on?
+#     )
+#     names(path_txt_animals) = animal_path
+#   }
+# )
+# if(all(!is.na(path_txt_animals)))
+# {
+#   message('\n','Animals combined','\n')
+# }else
+# {
+#   warning(animal_path[is.na(path_txt_animals)], '\nnot included!')
+# }
+# 
+# 
+# 
+# # Combine within days ---
+# message('Days found:\n', paste0(path_days,'\n'), '\nCombining files  within each.',
+#         '\n------------------------------------------')
+# invisible(
+#   {
+#     day_path = file.path(
+#       path_folder,
+#       path_days)
+#     path_txt_days = lapply(
+#       X = day_path,
+#       FUN = FT_combine_folder,
+#       file_type = '_proc.txt.gz',
+#       compress_txt = TRUE, #Compress to ".gz" to save space?
+#       verbose = FALSE #Tell the user what is going on?
+#     )
+#     names(path_txt_days) = day_path
+#   }
+# )
+# if(all(!is.na(path_txt_days)))
+# {
+#   message('\n','days combined','\n')
+# }else
+# {
+#   warning(day_path[is.na(path_txt_days)], '\nnot included!')
+# }
+# # Combine across days ---
+# message('Combining files across days.',
+#         '\n------------------------------------------')
+# invisible(
+#   {
+#     path_txt_all = lapply(
+#       X = path_folder,
+#       FUN = FT_combine_folder,
+#       file_type = '_proc.txt.gz',
+#       compress_txt = TRUE, #Compress to ".gz" to save space?
+#       verbose = FALSE #Tell the user what is going on?
+#     )
+#   }
+# )
+# if(all(!is.na(path_txt_all)))
+# {
+#   message('\n','All combined in','\n', path_txt_all)
+# }else
+# {
+#   stop('Failed to combine all data in:\n', path_folder)
+# }
