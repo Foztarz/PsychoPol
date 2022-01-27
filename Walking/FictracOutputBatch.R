@@ -45,6 +45,7 @@ use_par = TRUE # whether or not to use parallel processing
 # I recommend using both data.table & parallel
 #data.table can reduce time by approx. 10%
 #adding parallel to data.table can reduce time by another 55%
+#test w/ 28 files took 6min 9sec
 
 # . Load packages ----------------------------------------------------------
 # require(plot3D)#in case anything needs to be plotted in 3D
@@ -92,7 +93,6 @@ path_conditions = unique(dirname(path_files))
 path_animals = unique(dirname(path_conditions))
 path_days = unique(dirname(path_animals))
 
-system.time({
 # Set up parallel processing ----------------------------------------------
 if(use_par){clt = makeCluster(parallel::detectCores() - 1,type="SOCK")}
 
@@ -151,8 +151,8 @@ if(all(!is.na(path_txt)))
 {
   warning('\nCombining failed!')
 }
+stopCluster(clt)
 
-})
 # # Combine within conditions ---
 # message('Conditions found:\n', paste0(path_conditions,'\n'), '\nCombining files within each.',
 #         '\n------------------------------------------')
