@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 12
-#     MODIFIED:	James Foster              DATE: 2022 01 25
+#     MODIFIED:	James Foster              DATE: 2022 01 27
 #
 #  DESCRIPTION: Loads all ".dat" files saved by fictrac and organises data into
 #               speed and angle. These are saved as compressed ".csv" files and 
@@ -40,7 +40,11 @@ graphics.off()
 ball_radius = 25#mm
 av_window = 5.0#number of seconds to smooth over for averaging
 csv_sep_load = ','#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
+use_dt = TRUE # whether or not to use data.table for reading, converting & writing
 use_par = TRUE # whether or not to use parallel processing
+# I recommend using both data.table & parallel
+#data.table can reduce time by approx. 10%
+#adding parallel to data.table can reduce time by another 55%
 
 # . Load packages ----------------------------------------------------------
 # require(plot3D)#in case anything needs to be plotted in 3D
@@ -89,11 +93,22 @@ path_animals = unique(dirname(path_conditions))
 path_days = unique(dirname(path_animals))
 
 # Set up parallel processing ----------------------------------------------
-clt = makeCluster(parallel::detectCores() - 1,type="SOCK")
+if(use_par){clt = makeCluster(parallel::detectCores() - 1,type="SOCK")}
+#dat test
+#speedup_data.table + speedup_parallel
+# user  system elapsed 
+# 22.28    2.67  219.37 
+#speedup_data.table 
+# user  system elapsed 
+# 486.18    2.03  495.89
+# no speedup
+# user  system elapsed 
+# 519.64    3.47  545.60 
 
 # Process ".dat" files ----------------------------------------------------
 message('Files found:\n', paste0(path_files,'\n'), '\nProcessing files.',
         '\n------------------------------------------')
+system.time({
 invisible(
   {
   path_input = file.path(
@@ -106,13 +121,15 @@ invisible(
                     av_window = av_window,#number of seconds to smooth over for averaging
                     csv_sep_load = csv_sep_load,#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
                     speedup_parallel = use_par, #Use the parallel package to speed up calculations
+                    speedup_data.table = FALSE, #Use the data.table package to speed up reading and writing
                     compress_csv = TRUE, #Compress to ".gz" to save space?
-                    verbose = FALSE, #tell the user what's going on?
-                    clust = clt
+                    verbose = FALSE#, #tell the user what's going on?
+                    # clust = clt
                     )
   names(path_csv) = path_input
   }
   )
+})
 if(all(!is.na(path_csv)))
 {
   message('\n','Files processed','\n')
