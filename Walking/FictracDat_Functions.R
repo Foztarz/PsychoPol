@@ -296,7 +296,7 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                            {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                            {null},
-                         folder_labels = TRUE, #read date, animal and experiment from the containing folder
+                         folder_labels = TRUE #read date, animal and experiment from the containing folder
 )
 {
 
@@ -424,7 +424,7 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
     #Benefits from some parallel processing, but setting up the cluster is slow
     clt = clust
     clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
-                  list('adata',
+                  varlist = list('adata',
                        'fps',
                        'MAmeanang',
                        'MAmeanvec',
@@ -434,7 +434,7 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                        'circular',
                        'deg',
                        'rad'),
-                  environment()#needs to be reminded to use function environment, NOT global environment
+                  envir = environment()#needs to be reminded to use function environment, NOT global environment
     )
   }
 
@@ -758,6 +758,280 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
 }
 
 
+# Combine all files in all folders ---------------------------------------------
+FT_combine_folders = function(path_folder = FT_select_folder(),
+                             file_type = '_proc.csv.gz',#N.B. currently only for this type
+                             speedup_parallel = TRUE, #Use the parallel package to speed up calculations
+                             speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                             compress_txt = TRUE, #Compress to ".gz" to save space?
+                             verbose = TRUE, #Tell the user what is going on
+                             recursive = TRUE,   #Search in sub folders                          
+                             clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
+                             {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                             {null}
+                             )
+{
+  file_regex = paste0(file_type, '$')
+  # . Find files ---------------------------------------------------------------
+  names_files = list.files(path = path_folder,
+                           pattern = file_regex,
+                           recursive = recursive
+                          )
+  #show the user the path they have selected
+  if(is.null(names_files)|!length(names_files))
+  {stop('No "',file_type,'" files found in \n', path_folder)}else
+  {message(length(names_files),' files found:\n',paste0(names_files,'\n'),
+           '\n------------------------------------------')}
+
+  # . Read in files ------------------------------------------------------------
+  if(verbose)
+  {message('Reading in files from:\t', basename(path_folder), '\nplease be patient...')}
+  file_paths = file.path(path_folder, names_files)
+  if(speedup_parallel)
+  {
+    clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
+                  varlist = 
+                    list('file_paths',
+                         'data.table',
+                         'fread',
+                         'file_type'),
+                  envir = environment()#needs to be reminded to use function environment, NOT global environment
+    )
+  }
+  tryCatch(#Perform no further analysis if the file doesn't load
+    {
+      adata = if(speedup_parallel)
+        {
+        parLapply(cl = clt,
+                  X = if(speedup_data.table)
+                          {file_paths}else
+                          {lapply(file_paths, gzfile)},
+                     fun = if(speedup_data.table) #N.B. parLapply uses "fun" not "FUN"
+                             {data.table::fread}else
+                             {read.table},
+                     sep = switch(EXPR = file_type,
+                                  `_proc.csv.gz` = ',', 
+                                  `_proc.txt.gz` = '\t',
+                                  ' '#default output for write.table
+                                  ),
+                     header = TRUE
+                    )
+        }else#
+        {
+      lapply(X = if(speedup_data.table)
+                          {file_paths}else
+                          {lapply(file_paths, gzfile)},
+                     FUN = if(speedup_data.table)
+                             {data.table::fread}else
+                             {read.table},
+                     sep = switch(EXPR = file_type,
+                                  `_proc.csv.gz` = ',', 
+                                  `_proc.txt.gz` = '\t',
+                                  ' '#default output for write.table
+                                  ),
+                     header = TRUE
+                    )#
+        }
+    },
+    error = function(e)
+    {
+      stop(
+        paste0('One or more files in "',
+               basename(path_folder),
+               '" could not be loaded!\n',
+               e)
+      )
+    }
+  )
+  if(verbose)
+  {message('All files in "',basename(path_folder), '" loaded successfully')}
+  names(adata) = names_files
+
+  # . Organise data ---------------------------------------------------------
+  if(file_type == '_proc.csv.gz')
+  {
+  #check sample rates for each
+  sample_rates = lapply(X = adata,
+                        FUN = function(x)
+                        {with(x, 1/mean(diff(experimental_time)))}
+  )#Hz
+  if(verbose)
+  {
+    if(sum(diff(unlist(sample_rates))))
+      {
+        warning('Sample rates differ between recordings\n',
+               'proceed with caution!\n',
+               paste(x = signif(range(sample_rates, na.rm = TRUE), 5),
+                     collapse = ' - '),
+               'Hz'
+               )
+      }else
+      {
+       message('All recordings have a sample rate of ',
+               sample_rates[[1]],
+               ' Hz')
+      }
+  }
+  }
+  
+  # . . Find trial details ----------------------------------------------------
+  FoldName = function(x,
+                      type = 'Condition')
+    {
+    switch(EXPR = type,
+            Condition = basename(dirname(x)), #condition is folder containing file
+            Bumblebee = basename(dirname(dirname(x))), #bumblebee name is one folder containing folder
+            Day = basename(dirname(dirname(dirname(x)))), #day is two folders above containing folder
+            basename(x)
+            )
+    }
+  FT_trial_details = function(i)
+  {
+    dt = adata[[i]]
+    
+  if(speedup_data.table)
+    {#assume works the same with data.table (nothing defined and used in same expr)
+    dt = within(dt,
+               {
+                 track = regmatches(
+                           m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
+                                       text = basename(file_paths[[i]])
+                           ),
+                           x = basename(file_paths[[i]])
+                         )
+                 condition = regmatches(
+                                 m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
+                                             text = FoldName(x = file_paths[[i]], 
+                                                             type = 'Condition')
+                                            ),
+                                 x = FoldName(x = file_paths[[i]], 
+                                              type = 'Condition')
+                                 )
+                 bumblebee = sub(pattern = 'Bumblebee ',
+                                 x = FoldName(file_paths[[i]], 'Bumblebee'),
+                                 replacement = ''
+                                 )
+                 date = regmatches(
+                                 m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
+                                             text = FoldName(x = file_paths[[i]], 
+                                                             type = 'Day')
+                                            ),
+                                 x = FoldName(x = file_paths[[i]], 
+                                              type = 'Day')
+                                 )
+               }
+              )
+    }else
+    {
+    dt = within(dt,
+               {
+                 track = regmatches(
+                           m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
+                                       text = basename(file_paths[[i]])
+                           ),
+                           x = basename(file_paths[[i]])
+                         )
+                 condition = regmatches(
+                               m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
+                                           text = FoldName(x = file_paths[[i]], 
+                                                           type = 'Condition')
+                               ),
+                               x = FoldName(x = file_paths[[i]], 
+                                            type = 'Condition')
+                             )
+                 bumblebee = sub(pattern = 'Bumblebee ',
+                                 x = FoldName(file_paths[[i]], 'Bumblebee'),
+                                 replacement = ''
+                 )
+                 date = regmatches(
+                         m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
+                                     text = FoldName(x = file_paths[[i]], 
+                                                     type = 'Day')
+                         ),
+                         x = FoldName(x = file_paths[[i]], 
+                                      type = 'Day')
+                       )
+               }
+              )
+    }
+    return(dt)
+  }
+  # . . Set up parallel processing, if used -----------------------------------
+  if(speedup_parallel)
+  {
+    if(verbose)
+    {message('Using parallel processing...')}
+    #Benefits from some parallel processing, but setting up the cluster is slow
+    clt = clust
+    clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
+                  varlist = 
+                    list('adata',
+                       'file_paths',
+                       'data.table',
+                       'FT_trial_details',
+                       'FoldName'),
+                  envir = environment()#needs to be reminded to use function environment, NOT global environment
+    )
+  }
+  adata = if(speedup_parallel)
+  {
+    parLapply(cl = clt,
+           X = 1:length(adata),
+           fun = FT_trial_details #N.B. parLapply uses "fun" not "FUN" like parSapply & lapply
+           )
+  }else
+  {
+    lapply(
+            X = 1:length(adata),
+            FUN = FT_trial_details
+          )
+  }
+  names(adata) = basename(file_paths)
+  #close the parallel cluster
+  if(speedup_parallel){ if(missing(clust)){stopCluster(clt)} }#only close internal cluster
+  
+  # . combine all data into a single data frame -------------------------------
+  adata_frame = do.call(what = rbind,#N.B. seems to work the same with data.table & data.frame
+                        args = adata)
+  # .  Save data --------------------------------------------------------------
+  txt_file = file.path(dirname(path_folder),#store outside this folder
+                        paste0(basename(path_folder),
+                               '_proc',
+                               '.txt',
+                               if(compress_txt)
+                                 {'.gz'}else
+                                 {''}
+                               )
+  )
+  if(verbose)
+  {
+    message('Saving data as:\n',
+            gsub(pattern = '/',
+                 x = txt_file,
+                 replacement = '\n')
+    )
+  }
+  if(speedup_data.table)
+  {
+  data.table::fwrite(x = adata_frame,
+              file = txt_file,#N.B. data.table >= 1.12.4 can write to .gz automatically
+              sep = '\t',
+              row.names = FALSE
+  )
+  }else
+  {
+  write.table(x = adata_frame,
+              file = if(compress_txt)
+                        {gzfile(txt_file)}else
+                        {txt_file},
+              sep = '\t',
+              row.names = FALSE
+  )
+  }
+  return(txt_file)
+}
+
+
 # Combine files in one folder ---------------------------------------------
 FT_combine_folder = function(path_folder = FT_select_folder(),
                              file_type = '_proc.csv.gz',#N.B. currently only for this type
@@ -938,7 +1212,7 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
   }
   if(speedup_data.table)
   {
-  data.table::frwite(x = adata_frame,
+  data.table::fwrite(x = adata_frame,
               file = txt_file,#N.B. data.table >= 1.12.4 can write to .gz automatically
               sep = '\t',
               row.names = FALSE
