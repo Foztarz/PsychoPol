@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 24
-#     MODIFIED:	James Foster              DATE: 2022 01 25
+#     MODIFIED:	James Foster              DATE: 2022 01 27
 #
 #  DESCRIPTION: A set of functions to load a set of ".dat" files exported from 
 #               fictrac,export speed and angle and their moving averages, 
@@ -33,6 +33,8 @@
 #- Speed up with data.table  ...
 #- Externalise cluster  ...
 #- Raster plot
+#- Add labels in csv
+#- Recursive FT_select_folder
 
 # General use -------------------------------------------------------------
 IsWin = function(...)
@@ -290,10 +292,11 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                          speedup_parallel = TRUE, #Use the parallel package to speed up calculations
                          speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
                          compress_csv = TRUE, #Compress to ".gz" to save space?
-                         verbose = TRUE,
-                         clust = if(speedup_parallel)
+                         verbose = TRUE, #Tell the user what is going on
+                         clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                            {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
-                           {null}
+                           {null},
+                         folder_labels = TRUE, #read date, animal and experiment from the containing folder
 )
 {
 
@@ -758,18 +761,25 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
 # Combine files in one folder ---------------------------------------------
 FT_combine_folder = function(path_folder = FT_select_folder(),
                              file_type = '_proc.csv.gz',#N.B. currently only for this type
-                             compress_txt = TRUE,
-                             verbose = TRUE
+                             # speedup_parallel = TRUE, #Use the parallel package to speed up calculations
+                             speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                             compress_txt = TRUE, #Compress to ".gz" to save space?
+                             verbose = TRUE, #Tell the user what is going on
+                             recursive = FALSE   #Search in sub folders                          
+                             # clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
+                             # {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                             # {null}
                              )
 {
   file_regex = paste0(file_type, '$')
   # . Find files ---------------------------------------------------------------
   names_files = list.files(path = path_folder,
                            pattern = file_regex,
-                           recursive = if(file_type %in% #these files are stored in the folder
-                                          c('_proc.csv.gz', '_proc.txt.gz')
-                                         )
-                                       {FALSE}else{TRUE}#other types may be in subfolders
+                           recursive = recursive
+                           # recursive = if(file_type %in% #these files are stored in the folder
+                           #                c('_proc.csv.gz', '_proc.txt.gz')
+                           #               )
+                           #             {FALSE}else{TRUE}#other types may be in subfolders
                           )
   #show the user the path they have selected
   if(is.null(names_files)|!length(names_files))
@@ -780,14 +790,19 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
   # . Read in files ------------------------------------------------------------
   if(verbose)
   {message('Reading in files from:\t', basename(path_folder), '\nplease be patient...')}
+  file_paths = file.path(path_folder, names_files)
   tryCatch(#Perform no further analysis if the file doesn't load
     {
-      adata = lapply(X = lapply(file.path(path_folder, names_files), gzfile),
-                     FUN = read.table,
+      adata = lapply(X = if(speedup_data.table)
+                          {file_paths}else
+                          {lapply(file_paths, gzfile)},
+                     FUN = if(speedup_data.table)
+                             {data.table::fread}else
+                             {read.table},
                      sep = switch(EXPR = file_type,
                                   `_proc.csv.gz` = ',', 
-                                  `_proc.txt.gz` = ' ',# '\t',
-                                  '\t'
+                                  `_proc.txt.gz` = '\t',
+                                  ' '#default output for write.table
                                   ),
                      header = TRUE
       )#,#read from user-selected file
@@ -829,7 +844,7 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
   }
   }
   #combine all data into a single data frame
-  adata_frame = do.call(what = rbind,
+  adata_frame = do.call(what = rbind,#N.B. seems to work the same with data.table & data.frame
                         args = adata)
   #find names for tracks
   TrackNamer = function(txt)
@@ -843,6 +858,8 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
     `_proc.csv.gz` = 
       {
   adata_frame$track = TrackNamer(rownames(adata_frame))
+  if(speedup_data.table)
+  {#assume works the same with data.table (nothing defined and used in same expr)
   adata_frame = within(adata_frame,
                        {
                          bumblebee = sub(pattern = 'Bumblebee ',
@@ -867,6 +884,33 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
                                          )
                        }
                       )
+  }else
+  {
+  adata_frame = within(adata_frame,
+                       {
+                         bumblebee = sub(pattern = 'Bumblebee ',
+                                         x = basename(dirname(path_folder)),
+                                         replacement = ''
+                                         )
+                         condition = regmatches(
+                                         m = regexpr(pattern = '[^ -][^-]*$',
+                                                     text = basename(path_folder)
+                                                    ),
+                                         x = basename(path_folder)
+                                         )
+                         date = regmatches(
+                                         m = regexpr(pattern = '[^ -][^-]*$',
+                                                     text = basename(
+                                                             dirname(dirname(path_folder))
+                                                           )
+                                                    ),
+                                         x = basename(
+                                           dirname(dirname(path_folder))
+                                                     )
+                                         )
+                       }
+                      )
+  }
       }, #if it is the csv, find track, bumblebee and condition
   `_proc.txt.gz` = 
     { #If it is the txt, then the date is the rowname
@@ -892,6 +936,15 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
                  replacement = '\n')
     )
   }
+  if(speedup_data.table)
+  {
+  data.table::frwite(x = adata_frame,
+              file = txt_file,#N.B. data.table >= 1.12.4 can write to .gz automatically
+              sep = '\t',
+              row.names = FALSE
+  )
+  }else
+  {
   write.table(x = adata_frame,
               file = if(compress_txt)
                         {gzfile(txt_file)}else
@@ -899,6 +952,7 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
               sep = '\t',
               row.names = FALSE
   )
+  }
   return(txt_file)
 }
 
