@@ -45,6 +45,48 @@ IsWin = function(...)
 }
 
 # . Select files ---------------------------------------------------------
+FT_select_file = function(file_type = ".dat",
+                          sys_win = IsWin())
+{
+  #On computers set up by JMU Würzburg, use user profile instead of home directory
+  if(sys_win){
+    #get rid of all the backslashes
+    ltp = gsub('\\\\', '/', Sys.getenv('USERPROFILE'))
+  }else{#Root directory should be the "HOME" directory on a Mac (or Linux?)
+    ltp = Sys.getenv('HOME')#Easier on Mac
+  }
+  msg = paste('Please select the',#message to display
+              '"', file_type,'"',
+              'file')
+  here_path = tryCatch(expr = #look in the folder containing this file: sys.frame(1)$ofile
+                         {file.path(dirname(sys.frame(1)$ofile))},
+                       error = function(e)
+                       {#if that fails, try to find the "Documents" folder
+                         file.path(ltp,'Documents', 
+                                   paste0('*',file_type)
+                                   )
+                       }
+  )
+  # set path to files
+  if(sys_win){#choose.files is only available on Windows
+    message('\n\n',msg,'\n\n')
+    Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+    path_file  = choose.files(
+      default = here_path,#look where the function is stored
+      caption = msg
+    )
+  }else{
+    message('\n\n',msg,'\n\n')
+    Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+    path_file = file.choose(new=F)
+  }
+  #show the user the path they have selected
+  if(is.null(path_file))
+  {stop('No file selected.')}else
+  {print(path_file)}
+  return(path_file)
+}
+
 FT_select_dat = function(sys_win = IsWin())
 {
   #On computers set up by JMU Würzburg, use user profile instead of home directory
