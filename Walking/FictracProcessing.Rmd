@@ -138,9 +138,9 @@ This folder should have the structure:
   Inside each **condition folder** = 
       `.dat` files saved by `FicTrac` for that condition and animal, on that day.
 ```{r Find the files, echo=TRUE}
-# path_folder = FT_select_folder(file_type = 'Fictrac experiment')
-#for knitting, it is not possible to ask the user
-path_folder = "C:\\Users\\jaf54iq\\Documents\\AllTestdata\\dat_folder"
+if(interactive())#for knitting, it is not possible to ask the user
+{path_folder = FT_select_folder(file_type = 'Fictrac experiment')}else
+{path_folder = "C:\\Users\\jaf54iq\\Documents\\AllTestdata\\dat_folder"}
 path_files = list.files(path = path_folder,
                         pattern = '.dat$',
                         recursive = T
