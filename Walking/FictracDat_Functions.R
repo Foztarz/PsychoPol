@@ -863,13 +863,13 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
                'proceed with caution!\n',
                paste(x = signif(range(sample_rates, na.rm = TRUE), 5),
                      collapse = ' - '),
-               'Hz'
+               'Hz\n'
                )
       }else
       {
        message('All recordings have a sample rate of ',
                sample_rates[[1]],
-               ' Hz')
+               ' Hz\n')
       }
   }
   }
@@ -1113,7 +1113,7 @@ FT_combine_folder = function(path_folder = FT_select_folder(),
       {
        message('All recordings have a sample rate of ',
                sample_rates[[1]],
-               ' Hz')
+               ' Hz\n')
       }
   }
   }
