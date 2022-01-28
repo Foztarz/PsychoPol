@@ -1,0 +1,179 @@
+---
+title: "FictracOutputBatch"
+output: html_document
+---
+#Details ---------------------------------------------------------------
+>       AUTHOR:	James Foster              DATE: 2022 01 12
+>     MODIFIED:	James Foster              DATE: 2022 01 28
+>
+  DESCRIPTION: Loads all ".dat" files saved by fictrac and organises data into
+               speed and angle. These are saved as compressed ".csv" files and 
+               which are then combined into a single ".txt" file.
+>               
+       INPUTS: A ".dat" csv file with 23 columns specified in : 
+               https://github.com/rjdmoore/fictrac/blob/master/doc/data_header.txt
+               User should specify analysis details (line 40).
+>               
+      OUTPUTS: Results table (.csv) saved in the same place as the data.
+>
+	   CHANGES: - Load FictracDat_Functions.R
+              - Speed up with parallel
+              - Speed up with data.table
+              - Read all files directly to single tab sep file
+>
+   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
+               Srinivasan MV (2014). 
+               FicTrac: a visual method for tracking spherical motion and 
+               generating fictive animal paths. 
+              Journal of neuroscience methods 225, 106–19. 
+              https://doi.org/10.1016/j.jneumeth.2014.01.010
+              https://github.com/rjdmoore/fictrac
+> 
+       USAGE:  Fill out user input (lines 40-45)
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Input variables
+Find out everything R needs to know to process the ".dat" files.
+#- User input
+Note that the size of the averaging window an have a big effect on time-averaged parameters: too short and it is biased by small fluctuations, too large and it  may not reflect structures in the data at shorter temporal scales (see: https://en.wikipedia.org/wiki/Aliasing).
+I recommend using both `data.table` & `parallel` to speed up processing.
+`data.table` is a tool for rapid reading, writing and calculations with large text datasets, and can reduce time by approx. 10%
+`parallel` allows processes to be split between different CPUs to be run separately in parallel.
+Adding `parallel` to `data.table` can reduce time by a further 55%
+On 20220127 a test on AG Pfeiffer laptop 5 (`wbz2084`: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz   2.30 GHz) with 28 files took 6min 9sec.
+```{r User input}
+ball_radius = 25#mm
+av_window = 5.0#number of seconds to smooth over for averaging
+csv_sep_load = ','#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
+use_dt = TRUE # whether or not to use data.table for reading, converting & writing
+use_par = TRUE # whether or not to use parallel processing
+```
+#- Load packages
+Load the packages required to run the analysis. If these packages are not already installed on your machine, you will need to install them before running this section.
+( `install.packages(...)` or select `Tools>Install packages` in the Rstudio menu)
+```{r Load packages, echo=FALSE}
+# .  ----------------------------------------------------------
+require(circular)#for handing angles
+if(use_dt){require(data.table)}#for fast data handling
+if(use_par){require(parallel)}#for parallel processing
+```
+#- Load functions
+Load the special functions for processing `FicTrac` output.
+These should be in a file called "FictracDat_Functions.R" downloaded in the same folder as this script, from GitHub (which is the first place `R` will look).
+```{r Get functions, echo=FALSE}
+fun_file = "FictracDat_Functions.R"
+fun_path = tryCatch(expr = #Search in the folder containing this script
+                      {file.path(dirname(sys.frame(1)$ofile), fun_file)},
+                    error = function(e){fun_file}
+)
+if(!file.exists(fun_path))#If not foud, ask the user
+{
+  msg = paste0('Please select "',fun_file,'"')
+  # ask user to find data
+  if( Sys.info()[['sysname']] == 'Windows' ){#choose.files is only available on Windows
+    message('\n\n',msg,'\n\n')
+    Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+    fun_path  <- choose.files(
+      default = file.path(gsub('\\\\', '/', Sys.getenv('USERPROFILE')),#user
+                          'Documents'),#For some reason this is not possible in the "root" user
+      caption = msg
+    )
+  }else{
+    message('\n\n',msg,'\n\n')
+    Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+    fun_path <- file.choose(new=F)
+  }
+}
+#read in relevant functions
+source(file = fun_path, 
+       encoding = 'UTF-8')
+```
+#Search for the files
+The user should select a folder containing all ".dat" files saved by `FicTrac`.
+This folder should have the structure:
+  Inside the *selected folder* =
+      folder named for the *date* (yyyymmdd)
+  Inside each *date folder* = 
+      folder with the *animal's name* (any string)
+  Inside each *animal folder* = 
+      folder with the *condition name* (any string; should be the same as the equivalent for other animals)
+  Inside each *condition folder* = 
+      ".dat" files saved by `FicTrac` for that condition and animal, on that day.
+```{r Find the files,, echo=FALSE}
+path_folder = FT_select_folder(file_type = 'Fictrac experiment')
+path_files = list.files(path = path_folder,
+                        pattern = '.dat$',
+                        recursive = T
+)
+```
+#If using parallel processing, set up the cluster to use
+If the user input indicated that the user would like to use parallel processing, `R` will open a "cluster" of processors to use.
+It detects how many processors are available and uses all except one (leaving some power for other processes happening on the computer).
+In combination with `data.table`, this utilises most of the computer's available resources.
+```{r Set up parallel processing, echo=FALSE}
+if(use_par){clt = makeCluster(parallel::detectCores() - 1,type="SOCK")}
+```
+#Process all files
+Open each ".dat" file, perform some additional calculations (convert to real-world units of distance, calculate moving averages across time) and then save as a compressed ".csv" file with headers in the same folder. These files can then be opened for plotting (`R` or `Excel`)
+```{r Process ".dat" files, echo=FALSE}
+message(length(path_files),' files found:\n', paste0(path_files,'\n'), '\nProcessing files.',
+        '\n------------------------------------------')
+invisible(
+  {
+  path_input = file.path(
+                          path_folder,
+                          path_files)
+  path_csv = lapply(
+                    X = path_input,
+                    FUN = FT_read_write,
+                    ball_radius = ball_radius,#mm
+                    av_window = av_window,#number of seconds to smooth over for averaging
+                    csv_sep_load = csv_sep_load,#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
+                    speedup_parallel = use_par, #Use the parallel package to speed up calculations
+                    speedup_data.table = FALSE, #Use the data.table package to speed up reading and writing
+                    compress_csv = TRUE, #Compress to ".gz" to save space?
+                    verbose = FALSE#, #tell the user what's going on?
+                    # clust = clt
+                    )
+  names(path_csv) = path_input
+  }
+  )
+if(all(!is.na(path_csv)))
+{
+  message('\n','Files processed','\n')
+}else
+{
+  warning(path_input[is.na(path_csv)], '\nnot processed!')
+}
+```
+#Combine all files
+Read in each of the saved ".csv" files in each folder, and combine the data into a single table including the name of the original file, the condition, the animal and the date. This is then saved as a ".txt" file with the same headers as the ".csv" file, plus headers for condition, bumblebee name, date and ".dat" file.
+```{r Combine across all trials, echo=FALSE}
+message('Combining data from all trials.',
+        '\n------------------------------------------')
+  invisible(
+    {
+      path_txt = FT_combine_folders(
+                  path_folder = path_folder,
+                  file_type = '_proc.csv.gz',#N.B. currently only for this type
+                  speedup_parallel = TRUE, #Use the parallel package to speed up calculations
+                  speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                  compress_txt = TRUE, #Compress to ".gz" to save space?
+                  verbose = TRUE, #Tell the user what is going on
+                  recursive = TRUE,   #Search in sub folders                          
+                  clust = clt
+                  )
+    }
+  )
+if(all(!is.na(path_txt)))
+{
+  message('\n','Files combined','\n')
+}else
+{
+  warning('\nCombining failed!')
+}
+stopCluster(clt)
+```
