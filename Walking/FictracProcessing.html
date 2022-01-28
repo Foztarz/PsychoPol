@@ -261,9 +261,9 @@ source(file = fun_path,
 <p>Inside each <strong>date folder</strong> = folder with the <strong>animal’s name</strong> (any string)</p>
 <p>Inside each <strong>animal folder</strong> = folder with the <strong>condition name</strong> (any string; should be the same as the equivalent for other animals)</p>
 <p>Inside each <strong>condition folder</strong> = <code>.dat</code> files saved by <code>FicTrac</code> for that condition and animal, on that day.</p>
-<pre class="r"><code># path_folder = FT_select_folder(file_type = &#39;Fictrac experiment&#39;)
-#for knitting, it is not possible to ask the user
-path_folder = &quot;C:\\Users\\jaf54iq\\Documents\\AllTestdata\\dat_folder&quot;
+<pre class="r"><code>if(interactive())#for knitting, it is not possible to ask the user
+{path_folder = FT_select_folder(file_type = &#39;Fictrac experiment&#39;)}else
+{path_folder = &quot;C:\\Users\\jaf54iq\\Documents\\AllTestdata\\dat_folder&quot;}
 path_files = list.files(path = path_folder,
                         pattern = &#39;.dat$&#39;,
                         recursive = T
