@@ -176,7 +176,7 @@ pre code {
 <p><strong>AUTHOR</strong> James Foster 2022 01 12</p>
 </blockquote>
 <blockquote>
-<p><strong>MODIFIED</strong> James Foster 2022 01 28</p>
+<p><strong>MODIFIED</strong> James Foster 2022 02 02</p>
 </blockquote>
 <blockquote>
 <p><strong>DESCRIPTION</strong> Loads all <code>.dat</code> files saved by <code>FicTrac</code> and organises data into speed and angle. These are saved as compressed <code>.csv</code> files and which are then combined into a single <code>.txt</code> file.</p>
@@ -325,8 +325,8 @@ path_files = list.files(path = path_folder,
                     speedup_parallel = use_par, #Use the parallel package to speed up calculations
                     speedup_data.table = FALSE, #Use the data.table package to speed up reading and writing
                     compress_csv = TRUE, #Compress to &quot;.gz&quot; to save space?
-                    verbose = FALSE#, #tell the user what&#39;s going on?
-                    # clust = clt
+                    verbose = FALSE, #tell the user what&#39;s going on?
+                    clust = clt
                     )
   names(path_csv) = path_input
   }
