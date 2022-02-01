@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 24
-#     MODIFIED:	James Foster              DATE: 2022 01 27
+#     MODIFIED:	James Foster              DATE: 2022 02 01
 #
 #  DESCRIPTION: A set of functions to load a set of ".dat" files exported from 
 #               fictrac,export speed and angle and their moving averages, 
@@ -12,6 +12,7 @@
 #
 #	   CHANGES: - Combine within folder
 #             - Find animal and experiment names
+#             - Raster plot
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -30,11 +31,12 @@
 #- Combine folder +
 #- Combine day  +
 #- Combine all  +
-#- Speed up with data.table  ...
-#- Externalise cluster  ...
-#- Raster plot
-#- Add labels in csv
-#- Recursive FT_select_folder
+#- Speed up with data.table  +
+#- Externalise cluster  +
+#- Raster plot  +
+#- Add labels in csv +
+#- Recursive FT_select_folder +
+#- Frequency analysis
 
 # General use -------------------------------------------------------------
 IsWin = function(...)
@@ -346,6 +348,7 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
  invisible(
    { # hide verbose loading messages
     library(circular, quietly = TRUE)
+    if(speedup_data.table){library(data.table, quietly = TRUE)}
     if(speedup_parallel){library(parallel, quietly = TRUE)}
     }
  )
@@ -762,6 +765,15 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                  }
   )
   }
+
+  # . . . Add absolute ------------------------------------------------------
+  adata = within(adata, 
+                 {
+                   abs_turn = abs(ma_turn)
+                   abs_accel = abs(ma_accel)
+                 }
+                )
+  
   #close the parallel cluster
   if(speedup_parallel){ if(missing(clust)){stopCluster(clt)} }#only close internal cluster
   #  Save data --------------------------------------------------------------
@@ -813,6 +825,13 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
                              {null}
                              )
 {
+  # . Required packages -----------------------------------------------------
+  invisible(
+    { # hide verbose loading messages
+      if(speedup_data.table){library(data.table, quietly = TRUE)}
+      if(speedup_parallel){library(parallel, quietly = TRUE)}
+    }
+  )
   file_regex = paste0(file_type, '$')
   # . Find files ---------------------------------------------------------------
   names_files = list.files(path = path_folder,
@@ -1080,8 +1099,9 @@ FT_raster_condition = function(
                         txt_file = FT_select_file(file_type = '_proc.txt.gz'),
                         experiment_length = 2, #minutes
                         condition1_length = 1, #minutes
+                        av_window = 5.0,#number of seconds to smooth over for averaging
                         point_col = "darkblue", # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
-                        save_type ="png",# "pdf"# 
+                        save_type = "pdf",# "png",#
                         quantls = c(0.025, 0.25, 0.5, 0.75, 0.975), # quantiles to use when summarising
                         plette = 'Plasma',#'YlGnBu'#  for options see http://colorspace.r-forge.r-project.org/articles/approximations.html
                         crossval = FALSE, # TRUE, randomise the data to check the analysis
@@ -1089,7 +1109,7 @@ FT_raster_condition = function(
                         speedup_parallel = TRUE, #Use the parallel package to speed up calculations
                         speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
                         verbose = TRUE, #Tell the user what is going on
-                        recursive = TRUE,   #Search in sub folders                          
+                        show_plot = TRUE, #Tell the user what is going on
                         clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                         {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                         {null}
@@ -1104,47 +1124,22 @@ if(sys_win){
 }
 
 
-# . Select files ---------------------------------------------------------
-file_type = '_proc.txt.gz'
-msg = paste0('Please select the "', file_type, '" file')
-# set path to files
-if(sys_win){#choose.files is only available on Windows
-  message('\n\n',msg,'n\n')
-  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-  path_file = choose.files(
-    default = file.path(ltp,
-                        'Documents',
-                        paste0('*', file_type)),#For some reason this is not possible in the "root" user
-    caption = msg
-  )
-}else{
-  message('\n\n',msg,'\n\n')
-  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-  path_file <- file.choose(new=F)
-  if(is.null(path_file)){stop('No file selected.')}
-}
-#show the user the path they have selected
-if(is.null(path_file) | is.na(path_file))
-{stop('No file selected.')}else
-{print(path_file)}
-
-
 # . Read in files ------------------------------------------------------------
-if(verbose){message('\n','Reading in "', basename(path_file), '"\nplease be patient...')}
+if(verbose){message('\n','Reading in "', basename(txt_file), '"\nplease be patient...')}
 tryCatch(#Perform no further analysis if the file doesn't load
   {
     all_data_table = 
       if(speedup_data.table)
       {
       data.table::fread(
-        file = path_file, 
+        file = txt_file, 
         sep = '\t',
         header = TRUE
       )#,#read from user-selected file
       }else
       {
         read.table(
-        file = path_file, 
+        file = txt_file, 
         sep = '\t',
         header = TRUE
       )#,#read from user-selected file
@@ -1154,35 +1149,72 @@ tryCatch(#Perform no further analysis if the file doesn't load
   {
     stop(
       paste0('"',
-             basename(path_file), 
+             basename(txt_file), 
              '" could not be loaded!\n',
              e)
     )
   }
 )
-if(verbose){message('"',basename(path_file), '" loaded successfully')}
+if(verbose){message('"',basename(txt_file), '" loaded successfully')}
 
 # . Check that there is some data to summarise --------------------------
 sample_rate = 1/mean(diff(
   subset(all_data_table, 
-         subset = track == unique(flight)[1] &
+         subset = track == unique(track)[1] &
            date == unique(date)[1] 
   )$experimental_time
 ))
+#set up function to flag full length experiments #N.B. this currently looks quite slow
+FlagExper = function(trackID,
+                     dta,
+                     experiment_length = 2)
+{
+  if(with(dta, length(experimental_time) != length(track)))
+  {stop('timeID and trackID vectors must be the same length')}
+ return( #TODO speed up with data.table
+        with(subset(dta, track %in% trackID), #subset to single track
+             {
+                     rep(x = (max(experimental_time)/60)>
+                             experiment_length,#is the experiment longer than the minimum?
+                         times = length(experimental_time)) #replicate logical
+             }
+                    )
+   )
+}
+if(speedup_parallel)
+{
+  clusterExport(cl = clust,
+                varlist = list('all_data_table',
+                               'FlagExper',
+                               'experiment_length'),
+                envir = environment()
+                )
+}
+#Search for full length experiments
 all_data_table = within(all_data_table,
                         {
                           flag_exp = if(speedup_parallel)
-                          {parSapply(cl = clt,
-                                     X = unique(date),
-                                     FUN = function(dt)
-                                     {
-                                       
-                                     }
-                                     )}
-                            sapply(X = unique(date))
+                            {unlist(
+                              parSapply(cl = clust,
+                                       X = unique(track),
+                                       FUN = FlagExper,
+                                       dta = all_data_table,
+                                       experiment_length = experiment_length
+                                      )
+                              )
+                            }else
+                            {unlist(
+                              sapply(
+                                      X = unique(track),
+                                      FUN = FlagExper,
+                                      dta = all_data_table,
+                                      experiment_length = experiment_length
+                                    )
+                            )
+                            }
                         }
                         )
-
+#Tell the user
 if( with(all_data_table, !any( flag_exp)) )
 {stop('\n',
       "NONE OF THE FILES LOADED WERE ", experiment_length, " min LONG!",
@@ -1199,52 +1231,43 @@ if( with(all_data_table, !any( flag_exp)) )
 }
 
 # Summarise data --------------------------------------------------------
+
+# . Add a user friendly name ----------------------------------------------
+all_data_table = within(all_data_table,
+                        {#randomise each parameter of interest across the dataset
+                          day_anim_cond = paste(bumblebee, '_',
+                                                condition, 
+                                                sub(x = track,
+                                                    pattern = '(.(dat)).*', 
+                                                    replacement = '_')
+                                                )
+                        }
+                        )
+
 # . Cross validation ------------------------------------------------------
 if(crossval)
 {
-  #function to recalc acceleration
-  MAturnspeed <- function(i, #index
-                          dta, #vector
-                          window = 1, # time window in seconds
-                          hz = 100) # sampling rate
-  {
-    n = window*hz
-    winmin = i-round(n/2)+1
-    winmax = i+round(n/2)-1
-    if(winmin<1){return(NA)}#{winmin = 1}
-    if(winmax>length(dta)){return(NA)}#{winmax = length(x)}
-    return(
-      mean(
-        diff(
-          x = dta[winmin:winmax],
-        )
-      )/hz
-    )
-  }
   #randomise data to check the method
   
   all_data_table = within(all_data_table,
                           {#randomise each parameter of interest across the dataset
                             ma_rho = sample(x = ma_rho,
-                                            size = length(moth),
+                                            size = length(bumblebee),
                                             replace = FALSE)
-                            abs_turn = sample(x = abs_turn,
-                                              size = length(moth),
+                            ma_turn = sample(x = ma_turn,
+                                              size = length(bumblebee),
                                               replace = FALSE)
-                            # abs_accel = sample(x = abs_accel,
-                            #               size = length(moth),
-                            #               replace = FALSE)
-                            ## this one was smoothed
+                            abs_turn = abs(ma_turn)
                             abs_accel = abs(
                               sapply(X = 1:length(experimental_time),
                                      FUN = MAturnspeed,
                                      dta = predict(
                                        smooth.spline(
-                                         x = (1:length(experimental_time))[!is.na(abs_turn)],
-                                         y = abs_turn[!is.na(abs_turn)]),
+                                         x = (1:length(experimental_time))[!is.na(ma_turn)],
+                                         y = ma_turn[!is.na(ma_turn)]),
                                        x = 1:length(experimental_time)
                                      )$y,
-                                     window = 10,
+                                     window = av_window,
                                      hz = sample_rate
                               )
                             )
@@ -1253,42 +1276,37 @@ if(crossval)
 }
 
 # . Rank by first condition -----------------------------------------------
-message('Ranking by median value across 1st condition...','\n')
-#make a new ID, combination of flight and date
-all_data_table = within(all_data_table,
-                        {
-                          flight_date = paste0(date, '_', flight)  
-                        }
-)
+if(verbose){message('Ranking by median value across 1st condition...','\n')}
 #summarise 
-flight_rho = aggregate(formula = ma_rho~flight_date,
+track_rho = aggregate(formula = ma_rho~track,
                        data = subset(all_data_table, 
-                                     subset = experimental_time < condition1_length*60),
+                                     subset = experimental_time < experiment_length*60),
                        FUN = quantile,
                        p = quantls)
-flight_abs_turn = aggregate(formula = abs_turn~flight_date,
+track_abs_turn = aggregate(formula = abs_turn~track,
                             data = subset(all_data_table, 
-                                          subset = experimental_time < condition1_length*60),
+                                          subset = experimental_time < experiment_length*60),
                             FUN = quantile,
                             p = quantls)
-flight_abs_accel = aggregate(formula = abs_accel~flight_date,
+track_abs_accel = aggregate(formula = abs_accel~track,
                              data = subset(all_data_table, 
-                                           subset = experimental_time < condition1_length*60),
+                                           subset = experimental_time < experiment_length*60),
                              FUN = quantile,
                              p = quantls)
 ##probably don't need to calculate the rest?
-all_data_table = data.table::merge.data.table(x = 
-                                                data.table::merge.data.table(
-                                                  x = data.table(flight_rho),
-                                                  y = data.table::merge.data.table(
-                                                    x = data.table(flight_abs_turn) ,
-                                                    y = data.table(flight_abs_accel) ),
-                                                  by = c('flight_date')
+all_data_table = data.table::merge.data.table(x = #combine with the rest of the data, adding quantiles that can be used for sorting
+                                                data.table::merge.data.table( #combine rho with turn & accel
+                                                  x = data.table(track_rho),
+                                                  y = data.table::merge.data.table( #combine abs turn & accel
+                                                    x = data.table(track_abs_turn) ,
+                                                    y = data.table(track_abs_accel) ),
+                                                  by = c('track')
                                                 ),
                                               y = subset(all_data_table, 
                                                          subset = experimental_time < experiment_length*60),
-                                              by = c('flight_date')
+                                              by = c('track')
 )
+#find the order of each variable across the dataset
 all_data_table = within(all_data_table,
                         {
                           rank_rho = rank(ma_rho.50.)  
@@ -1297,71 +1315,295 @@ all_data_table = within(all_data_table,
                         }
 )
 
-
-
-
-# . Make matrices of full experiments -------------------------------------
-
+# . Find full experiments -------------------------------------------------
 full_expr = subset(all_data_table,
                    subset = flag_exp &
                      experimental_time < experiment_length*60
 )
-# sample_rate = 1/mean(diff(
-#                           subset(full_expr, 
-#                                  subset = flight_date == 
-#                                            unique(flight_date)[1]
-#                                  )$experimental_time
-#                           ))
-n_flightdates = length(unique(full_expr$flight_date))
-#turning speed
-mtr_turn = with(data.table::setorderv(
-  full_expr,
-  cols = 'rank_turn',
-  order = -1), 
-  matrix(data = abs_turn,
-         ncol = n_flightdates
-  )
-)
-#acceleration
-mtr_accel = with(data.table::setorderv(
-  full_expr,
-  cols = 'rank_accel',
-  order = -1), 
-  matrix(data = abs_accel,
-         ncol = n_flightdates
-  )
-)
-#mean vector
-mtr_rho = with(data.table::setorderv(
-  full_expr,
-  cols = 'rank_rho',
-  order = 1), 
-  matrix(data = ma_rho,
-         ncol = n_flightdates
-  )
-)
+n_tracks = length(unique(full_expr$track))
 
 
+#close the parallel cluster
+if(speedup_parallel){ if(missing(clust)){stopCluster(clust)} }#only close internal cluster
 # Plot Summary ------------------------------------------------------------
-message("Making raster plot")
+if(verbose){message("Making raster plot")}
+
+# . Set up plot functions -------------------------------------------------
+
+#  . . Set up colour scale transforms -------------------------------------
+TurnTrans = function(x)
+{log(x + 1)}
+TurnTransInv = function(x)
+{exp(x) - 1}
+AccelTrans = function(x)
+{log(x + 1)}
+AccelTransInv = function(x)
+{exp(x) - 1}
+RhoTrans = function(x)
+{x^2}
+RhoTransInv = function(x)
+{sqrt(x)}
+
+# . . Main plot function --------------------------------------------------
+
+FT_raster = function(cnd,#condition to subset by
+                     dta,#data to use
+                     ... #other plotting info? 
+                     )
+{
+  
+  # . Subset  just this condition -------------------------------------------
+  cnd_expr = subset(dta, condition %in% cnd)
+  n_tracks = with(cnd_expr, length(unique(track)))
+  
+  # . Make matrices of full experiments -------------------------------------
+  
+  #turning speed
+  mtr_turn = with(data.table::setorderv(#reorder by median turning speed across experiment
+    cnd_expr, #full_expr,#dataset of full experiments
+    cols = 'rank_turn',#order by median turning speed
+    order = -1), #descending order
+    matrix(data = abs_turn, # produce a matrix for plotting
+           ncol = n_tracks # columns are individual tracks
+    )
+  )
+  #acceleration
+  mtr_accel = with(data.table::setorderv(
+    cnd_expr, #full_expr,#dataset of full experiments
+    cols = 'rank_accel',#order by median acceleration
+    order = -1), # descending order
+    matrix(data = abs_accel, # produce a matrix for plotting
+           ncol = n_tracks # columns are individual tracks
+    )
+  )
+  #mean vector
+  mtr_rho = with(data.table::setorderv(
+    cnd_expr, #full_expr,#dataset of full experiments
+    cols = 'rank_rho',#order by median mean vector length
+    order = 1), # descending order
+    matrix(data = ma_rho, # produce a matrix for plotting
+           ncol = n_tracks # columns are individual tracks
+    )
+  )
+
+  # . Plot data -------------------------------------------------------------
+
+  # . . Turning speed -------------------------------------------------------
+  with(cnd_expr, #full_expr,#dataset of full experiments
+       {
+         image(x = TurnTrans(mtr_turn),
+               useRaster = TRUE,
+               zlim = TurnTrans(c(0,360)),
+               xlim = c(0,1.1),
+               # ylim = c(0,1.0),
+               xlab = 'time (s)',
+               ylab = ' ',
+               main = paste0('absolute mean turning speed (°/s: ',av_window,'s)'),
+               axes = F,
+               col = hcl.colors(n = 16,
+                                palette = plette)
+         )
+         axis(side = 1,
+              at = sample_rate*10*(0:(max(experimental_time)/10))/dim(mtr_turn)[1],
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2,
+              at = seq(from = 0, to  = 1, length.out = dim(mtr_turn)[2]),
+              labels = gsub(pattern = '_',
+                            x = unique(
+                              data.table::setorderv(
+                                cnd_expr,
+                                cols = 'rank_turn',
+                                order = 1)$day_anim_cond,
+                            ),
+                            replacement = '\n'
+              ),
+              las = 1,
+              line = -0.5,
+              cex.axis = 0.25
+         )
+         abline(v = sample_rate*60*c(condition1_length)/dim(mtr_turn)[1],
+                col = adjustcolor('white',alpha.f = 200/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+                lwd = 0.5
+         )
+       }
+  )
+  legend(x = 'right',
+         inset=c(0,0),
+         legend = c(
+           round( 
+             TurnTransInv(
+               seq( from = TurnTrans(0), 
+                    to = TurnTrans(360), 
+                    length.out = 5) ) 
+           ),
+           '>360'
+         ),
+         pch = 22,
+         pt.bg = c(
+           hcl.colors(n = 5,
+                      palette = plette),
+           'white'
+         )
+  )
+  
+  # . . Acceleration --------------------------------------------------------
+  with(cnd_expr, #full_expr,#dataset of full experiments
+       {
+         image(x = AccelTrans(mtr_accel),
+               useRaster = TRUE,
+               zlim = AccelTrans(c(0,15)),
+               xlim = c(0,1.1),
+               # ylim = c(1,n_flightdates),
+               xlab = 'time (s)',
+               ylab = ' ',
+               main = paste0('absolute mean acceleration (°/s^2: ',av_window,'s)'),
+               axes = F,
+               col = hcl.colors(n = 16,
+                                palette = plette)
+         )
+         axis(side = 1,
+              at = sample_rate*10*(0:(max(experimental_time)/10))/dim(mtr_accel)[1],
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2,
+              at = seq(from = 0, to  = 1, length.out = dim(mtr_accel)[2]),
+              labels = gsub(pattern = '_',
+                            x = unique(
+                              data.table::setorderv(
+                                cnd_expr,
+                                cols = 'rank_accel',
+                                order = 1)$day_anim_cond,
+                            ),
+                            replacement = '\n'
+              ),
+              las = 1,
+              line = -0.5,
+              cex.axis = 0.25
+         )
+         abline(v = sample_rate*60*c(condition1_length)/dim(mtr_accel)[1],
+                col = adjustcolor('white',alpha.f = 200/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+                lwd = 0.5
+         )
+       }
+  )
+  legend(x = 'right',
+         inset=c(0,0),
+         legend = c(
+           round( 
+             AccelTransInv(
+               seq( from = AccelTrans(0), 
+                    to = AccelTrans(15), 
+                    length.out = 5) )
+           ),
+           '>15'
+         ),
+         pch = 22,
+         pt.bg = c(
+           hcl.colors(n = 5,
+                      palette = plette),
+           'white'
+         )
+  )
+  
+  # . . Mean vector length --------------------------------------------------
+  with(cnd_expr, #full_expr,#dataset of full experiments
+       {
+         image(x = RhoTrans(mtr_rho),
+               useRaster = TRUE,
+               zlim = RhoTrans(c(0,0.99)),
+               xlim = c(0,1.1),
+               xlab = 'time (s)',
+               ylab = 'Test',
+               main = paste0('mean vector length (',av_window,'s)'),
+               axes = F,
+               col = hcl.colors(n = 16,
+                                palette = plette)
+         )
+         axis(side = 1,
+              at = sample_rate*10*(0:(max(experimental_time)/10))/dim(mtr_rho)[1],
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2,
+              at = seq(from = 0, to  = 1, length.out = dim(mtr_rho)[2]),
+              labels = gsub(pattern = '_',
+                            x = unique(
+                              data.table::setorderv(
+                                cnd_expr,
+                                cols = 'rank_rho',
+                                order = -1)$day_anim_cond,
+                            ),
+                            replacement = '\n'
+              ),
+              line = -0.5,
+              las = 1,
+              cex.axis = 0.25
+         )
+         abline(v = sample_rate*60*c(condition1_length)/dim(mtr_rho)[1],
+                col = adjustcolor('white',alpha.f = 200/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+                lwd = 0.5
+         )
+       }
+  )
+  legend(x = 'right',
+         inset=c(0,0),
+         legend = c(
+           round(
+             x = RhoTransInv(seq( from = RhoTrans(0), 
+                                  to = RhoTrans(0.99), 
+                                  length.out = 5)),
+             digits = 2
+           ),
+           '1.0'
+         ),
+         pch = 22,
+         pt.bg = c(
+           hcl.colors(n = 5,
+                      palette = plette),
+           'white'
+         )
+  )
+  mtext(text = 'time (sec)',
+        side = 1,
+        outer = T,
+        cex = par('cex.main')
+  )
+  mtext(text = cnd,
+        side = 4,
+        line = -1.5,
+        outer = T,
+        cex = par('cex.main')
+  )
+  if(crossval)
+  {
+    mtext(text = 'Data were randomised for cross-validation',
+          side = 3,
+          outer = T,
+          cex = par('cex.main')
+    )
+  }
+}
 # . Set up plot area ------------------------------------------------------
-plot_file <- file.path(dirname(path_file),
-                       paste0(basename(path_file),
+plot_file = file.path(dirname(txt_file),
+                       paste0(basename(txt_file),
                               '_rast', ifelse(crossval, '-CROSSVAL',''),
+                              ifelse(save_type == 'pdf', '', with(full_expr, unique(condition))[1]),
                               '.', save_type)
 )
 if(file.exists(plot_file))
 {
   message('A plot called "', basename(plot_file), '" already exists in this folder.')
-  nnm <- readline(prompt = 'New plot name: '
+  nnm = readline(prompt = 'New plot name: '
   )
   
-  plot_file <-  file.path(dirname(path_file),
+  plot_file <-  file.path(dirname(txt_file),
                           paste0(
                             ifelse(test = nchar(nnm),
                                    yes = nnm,
-                                   no = basename(path_file)),
-                            '_rast',ifelse(crossval, '-CROSSVAL',''),'.', save_type)
+                                   no = basename(txt_file)),
+                            '_rast',ifelse(crossval, '-CROSSVAL',''),
+                            ifelse(save_type == 'pdf', '', with(full_expr, unique(condition))[1]),
+                            '.', save_type)
   )
 }
 
@@ -1371,7 +1613,8 @@ switch(save_type,
              paper = 'a4',
              height = 10,
              bg = 'white',
-             useDingbats = F
+             useDingbats = F,
+             onefile = TRUE
          ),
        png = png(file = plot_file,
                  res = 150,
@@ -1399,213 +1642,187 @@ switch(save_type,
 )
 
 # . Plot summarys ---------------------------------------------------------
-
-#  . . Set up colour scale transforms -------------------------------------
-TurnTrans = function(x)
-{log(x + 1)}
-TurnTransInv = function(x)
-{exp(x) - 1}
-AccelTrans = function(x)
-{log(x + 1)}
-AccelTransInv = function(x)
-{exp(x) - 1}
-RhoTrans = function(x)
-{x^2}
-# {suppressWarnings({qlogis(x + 1e-3)})}
-RhoTransInv = function(x)
-{sqrt(x)}
-# {plogis(x) - 1e-3}
-
-# . . Turning speed -------------------------------------------------------
-with(all_data_table,
-     {
-       image(x = TurnTrans(mtr_turn),
-             useRaster = TRUE,
-             zlim = TurnTrans(c(0,360)),
-             xlim = c(0,1.1),
-             # ylim = c(0,1.0),
-             xlab = 'time (s)',
-             ylab = ' ',
-             main = paste0('absolute mean turning speed (°/s: ',av_window,'s)'),
-             axes = F,
-             col = hcl.colors(n = 16,
-                              palette = plette)
-       )
-       axis(side = 1,
-            at = sample_rate*60*(0:(max(experimental_time)/60))/dim(mtr_turn)[1],
-            labels = 1*(0:(max(experimental_time)/60))
-       )
-       axis(side = 2,
-            at = seq(from = 0, to  = 1, length.out = dim(mtr_turn)[2]),
-            labels = gsub(pattern = '_',
-                          x = unique(
-                            data.table::setorderv(
-                              full_expr,
-                              cols = 'rank_turn',
-                              order = 1)$flight_date,
-                          ),
-                          replacement = ' '
-            ),
-            las = 1,
-            cex.axis = 0.25
-       )
-       abline(v = sample_rate*60*c(2,4,6,8,10)/dim(mtr_turn)[1],
-              col = adjustcolor('white',alpha.f = 100/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
-              lwd = 2
-       )
-     }
-)
-legend(x = 'right',
-       inset=c(0,0),
-       legend = c(
-         round( 
-           TurnTransInv(
-             seq( from = TurnTrans(0), 
-                  to = TurnTrans(360), 
-                  length.out = 5) ) 
-         ),
-         '>360'
-       ),
-       pch = 22,
-       pt.bg = c(
-         hcl.colors(n = 5,
-                    palette = plette),
-         'white'
-       )
-)
-
-# . . Acceleration --------------------------------------------------------
-with(all_data_table,
-     {
-       image(x = AccelTrans(mtr_accel),
-             useRaster = TRUE,
-             zlim = AccelTrans(c(0,15)),
-             xlim = c(0,1.1),
-             # ylim = c(1,n_flightdates),
-             xlab = 'time (s)',
-             ylab = ' ',
-             main = paste0('absolute mean acceleration (°/s^2: ',av_window,'s)'),
-             axes = F,
-             col = hcl.colors(n = 16,
-                              palette = plette)
-       )
-       axis(side = 1,
-            at = sample_rate*60*(0:(max(experimental_time)/60))/dim(mtr_accel)[1],
-            labels = 1*(0:(max(experimental_time)/60))
-       )
-       axis(side = 2,
-            at = seq(from = 0, to  = 1, length.out = dim(mtr_accel)[2]),
-            labels = gsub(pattern = '_',
-                          x = unique(
-                            data.table::setorderv(
-                              full_expr,
-                              cols = 'rank_accel',
-                              order = 1)$flight_date,
-                          ),
-                          replacement = ' '
-            ),
-            las = 1,
-            cex.axis = 0.25
-       )
-       abline(v = sample_rate*60*c(2,4,6,8,10)/dim(mtr_accel)[1],
-              col = adjustcolor('white',alpha.f = 100/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
-              lwd = 2
-       )
-     }
-)
-legend(x = 'right',
-       inset=c(0,0),
-       legend = c(
-         round( 
-           AccelTransInv(
-             seq( from = AccelTrans(0), 
-                  to = AccelTrans(15), 
-                  length.out = 5) )
-         ),
-         '>15'
-       ),
-       pch = 22,
-       pt.bg = c(
-         hcl.colors(n = 5,
-                    palette = plette),
-         'white'
-       )
-)
-
-# . . Mean vector length --------------------------------------------------
-with(all_data_table,
-     {
-       image(x = RhoTrans(mtr_rho),
-             useRaster = TRUE,
-             zlim = RhoTrans(c(0,0.99)),
-             xlim = c(0,1.1),
-             # ylim = c(1,n_flightdates),
-             xlab = 'time (s)',
-             ylab = 'Test',
-             main = paste0('mean vector length (',av_window,'s)'),
-             axes = F,
-             col = hcl.colors(n = 16,
-                              palette = plette)
-       )
-       axis(side = 1,
-            at = sample_rate*60*(0:(max(experimental_time)/60))/dim(mtr_accel)[1],
-            labels = 1*(0:(max(experimental_time)/60))
-       )
-       axis(side = 2,
-            at = seq(from = 0, to  = 1, length.out = dim(mtr_rho)[2]),
-            labels = gsub(pattern = '_',
-                          x = unique(
-                            data.table::setorderv(
-                              full_expr,
-                              cols = 'rank_rho',
-                              order = -1)$flight_date,
-                          ),
-                          replacement = ' '
-            ),
-            las = 1,
-            cex.axis = 0.25
-       )
-       abline(v = sample_rate*60*c(2,4,6,8,10)/dim(mtr_rho)[1],
-              col = adjustcolor('white',alpha.f = 150/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
-              lwd = 2
-       )
-     }
-)
-legend(x = 'right',
-       inset=c(0,0),
-       legend = c(
-         round(
-           x = RhoTransInv(seq( from = RhoTrans(0), 
-                                to = RhoTrans(0.99), 
-                                length.out = 5)),
-           digits = 2
-         ),
-         '1.0'
-       ),
-       pch = 22,
-       pt.bg = c(
-         hcl.colors(n = 5,
-                    palette = plette),
-         'white'
-       )
-)
-mtext(text = 'time (min)',
-      side = 1,
-      outer = T,
-      cex = par('cex.main')
-)
-if(crossval)
+u_cond = with(full_expr, unique(condition))
+if(save_type == 'pdf')
 {
-  mtext(text = 'Data were randomised for cross-validation',
-        side = 3,
-        outer = T,
-        cex = par('cex.main')
+  invisible(
+    lapply(X = u_cond,
+           FUN = FT_raster,
+           dta = full_expr
+           )
   )
+  dev.off()
+}else
+{
+  for(cnd in u_cond)
+  {
+    dev.off()
+    plot_file = file.path(dirname(txt_file),
+                          paste0(basename(txt_file),
+                                 '_rast', ifelse(crossval, '-CROSSVAL',''),
+                                 cnd,
+                                 '.', save_type)
+    )
+    switch(save_type,
+           png = png(file = plot_file,
+                     res = 150,
+                     width = 210*10,
+                     height = 297*10,
+                     bg = 'white'
+           ),
+           jpeg(file = paste0(plot_file,'.jpeg'),
+                quality = 100,
+                width = 210*10,
+                height = 297*10,
+                bg = 'white'
+           )
+    )
+    FT_raster(cnd = u_cond,
+              dta = full_expr
+            )
+    dev.off()
+  }
 }
 # . Save plot -------------------------------------------------------------
-dev.off()
-shell.exec.OS(plot_file)
+if(show_plot){
+  if(save_type == 'pdf')
+    {shell.exec.OS(plot_file)}else
+    {
+     for(cnd in u_cond)
+     {
+       shell.exec.OS(
+         file.path(dirname(txt_file),
+                   paste0(basename(txt_file),
+                          '_rast', ifelse(crossval, '-CROSSVAL',''),
+                          cnd,
+                          '.', save_type)
+                   )
+       )
+     }
+    }
+  
+  }
 }
+# Calculate frequency spectrum -----------------------------------------------
+
+FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),#path to the ".dat" file
+                         av_window = 4*10,#number of seconds to smooth over for averaging
+                         csv_sep_load = ',',#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
+                         speedup_parallel = FALSE, #Use the parallel package to speed up calculations
+                         speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                         compress_csv = TRUE, #Compress to ".gz" to save space?
+                         verbose = TRUE, #Tell the user what is going on
+                         validation = FALSE, #Test with the target sine wave
+                         clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
+                         {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                         {null}
+)
+{
+  
+  # . Required packages -----------------------------------------------------
+  invisible(
+    { # hide verbose loading messages
+      library(bspec, quietly = TRUE)#Bayesian Spectral Inference
+      if(speedup_data.table){library(data.table, quietly = TRUE)}
+      if(speedup_parallel){library(parallel, quietly = TRUE)}
+    }
+  )
+  
+  #read in data
+  adata = if(speedup_data.table)
+  {
+    data.table::fread(
+      file = path_file,#read from user-selected file
+      sep = csv_sep_load,#user specified comma separation
+      header = TRUE#These files have headers
+      #other parameters can be added here for troubleshooting
+    )
+  }else
+  {
+    read.table(file = gzfile(path_file),#read from user-selected file
+               sep = csv_sep_load,#user specified comma separation
+               header = TRUE#These files have headers
+               #other parameters can be added here for troubleshooting
+    )
+  }
+  
+  # Conversions -------------------------------------------------------------
+  
+  # . Derive variables ------------------------------------------------------
+  fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
+  
+  # . Convert to time series --------------------------------------------------
+  ts_data = with(adata, 
+                 ts(data = abs_turn[!is.na(abs_turn)], 
+                    frequency = fps,
+                    start = which.min(experimental_time[!is.na(abs_turn)]),
+                    # end = which.max(experimental_time[!is.na(abs_turn)])
+                    )
+                )
+  if(validation)
+  {
+  ts_data = ts(data = ts_data + (sd(ts_data))*cos(
+                        seq(from = tsp(ts_data)[2],
+                            to = 2*pi * tsp(ts_data)[2]/(av_window /4),
+                            length.out = length(ts_data))
+                        ),
+               frequency = fps,
+               start = tsp(ts_data)[1]
+              )
+  }            
+  # . Calculate Welch PSD ---------------------------------------------------
+    emp_data = empiricalSpectrum(ts_data)
+    psd_data = welchPSD(x = ts_data,
+                        seglength = av_window,
+                        windowfun = tukeywindow,
+                        method = "median", 
+                        windowingPsdCorrection = TRUE
+                        )
+  
+  # Plot the outcome --------------------------------------------------------
+ with(emp_data,
+      {
+      plot(frequency,
+           power,
+           log = 'yx',
+           type = 'l',
+           col = adjustcolor('darkblue', alpha.f = 100/255),
+           main = if(validation){paste(av_window/4, 'sec sinusoid')}else
+                   {sub(x = basename(path_file),
+                      pattern = '(.(dat)).*',
+                      replacement = '')
+                   }
+           )  
+      }
+      )
+  abline(v = 1/c(10,60),
+         lty = c(1, 3),
+         col = adjustcolor('gray', alpha.f = 150/255)
+         )
+    with(psd_data,
+         {
+           lines(frequency,
+                 power,
+                 col = adjustcolor('darkred', alpha.f = 150/255),)
+         }
+         )
+    legend(x = 'topright',
+           legend  = c('discrete Fourier transform',
+                       paste0("Welch's power spectral density\n",
+                               av_window," sec window"),
+                       '1/10 s',
+                       '1/60 s'),
+           col = c('darkblue',
+                   'darkred',
+                   'gray',
+                   'gray'
+                   ),
+           cex = 0.5,
+           lty = c(1, 1, 1, 3)
+            )
+}#that's all for now
+
+  
 # # Combine files in one folder ---
 # FT_combine_folder = function(path_folder = FT_select_folder(),
 #                              file_type = '_proc.csv.gz',#N.B. currently only for this type
