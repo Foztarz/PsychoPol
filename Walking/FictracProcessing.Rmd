@@ -8,7 +8,7 @@ author: "James Foster"
 > **AUTHOR**	James Foster               2022 01 12
 
 
-> **MODIFIED**	James Foster            2022 01 28
+> **MODIFIED**	James Foster            2022 02 02
 
 
 > **DESCRIPTION** 
@@ -29,10 +29,10 @@ Results table (.csv) saved in the same place as the data.
 
 
 > **CHANGES** 
-    - Load FictracDat_Functions.R
-    - Speed up with parallel
-    - Speed up with data.table
-    - Read all files directly to single tab sep file
+    * Load FictracDat_Functions.R
+    * Speed up with parallel
+    * Speed up with data.table
+    * Read all files directly to single tab sep file
 
 
 > **REFERENCES** 
@@ -172,8 +172,8 @@ invisible(
                     speedup_parallel = use_par, #Use the parallel package to speed up calculations
                     speedup_data.table = FALSE, #Use the data.table package to speed up reading and writing
                     compress_csv = TRUE, #Compress to ".gz" to save space?
-                    verbose = FALSE#, #tell the user what's going on?
-                    # clust = clt
+                    verbose = FALSE, #tell the user what's going on?
+                    clust = clt
                     )
   names(path_csv) = path_input
   }
