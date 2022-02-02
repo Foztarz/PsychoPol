@@ -514,6 +514,7 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                      speed = speed_movement*ball_radius*fps, #mm/s
                      x_pos = x_int*ball_radius, #mm
                      y_pos = y_int*ball_radius, #mm
+                     z_turn = deg(-z_ball)*fps, #°/s
                      angle_speed = c(0,diff(deg(heading_integrated)))*fps, #deg/s
                      ma_angle = if(speedup_parallel)
                      {
@@ -599,7 +600,8 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                        )
                      },
                      x_speed = c(NA, diff(x_pos))*fps, #forwards speed in mm/s
-                     y_speed = c(NA, diff(y_pos))*fps #sideways speed in mm/s
+                     y_speed = c(NA, diff(y_pos))*fps, #sideways speed in mm/s
+                     z_turn = deg(-z_ball)*fps #°/s
     )
     ]
     adata[, `:=`( #assign from list call
@@ -658,6 +660,7 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
                    speed = speed_movement*ball_radius*fps #mm/s
                    x_pos = x_int*ball_radius #mm
                    y_pos = y_int*ball_radius #mm
+                   z_turn = deg(-z_ball)*fps #°/s
                    angle_speed = c(0,diff(deg(heading_integrated)))*fps #deg/s
                    ma_angle = if(speedup_parallel)
                    {
@@ -767,13 +770,22 @@ FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to t
   }
 
   # . . . Add absolute ------------------------------------------------------
+  if(speedup_data.table)
+  {
+    adata[, `:=`( #assign from list call
+                  abs_turn = abs(ma_turn),
+                  abs_accel = abs(ma_accel)
+                )
+          ]
+  }else
+  {
   adata = within(adata, 
                  {
                    abs_turn = abs(ma_turn)
                    abs_accel = abs(ma_accel)
                  }
                 )
-  
+  }
   #close the parallel cluster
   if(speedup_parallel){ if(missing(clust)){stopCluster(clt)} }#only close internal cluster
   #  Save data --------------------------------------------------------------
@@ -1706,7 +1718,8 @@ if(show_plot){
 # Calculate frequency spectrum -----------------------------------------------
 
 FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),#path to the ".dat" file
-                         av_window = 4*10,#number of seconds to smooth over for averaging
+                         target_freq = 0.1, #Hz 
+                         av_window = 4/target_freq,#number of seconds to use for Welch PSD window
                          csv_sep_load = ',',#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
                          speedup_parallel = FALSE, #Use the parallel package to speed up calculations
                          speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
@@ -1753,17 +1766,17 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
   
   # . Convert to time series --------------------------------------------------
   ts_data = with(adata, 
-                 ts(data = abs_turn[!is.na(abs_turn)], 
+                 ts(data = z_turn[!is.na(z_turn)], 
                     frequency = fps,
-                    start = which.min(experimental_time[!is.na(abs_turn)]),
-                    # end = which.max(experimental_time[!is.na(abs_turn)])
+                    start = which.min(experimental_time[!is.na(z_turn)]),
+                    # end = which.max(experimental_time[!is.na(z_turn)])
                     )
                 )
   if(validation)
   {
   ts_data = ts(data = ts_data + (sd(ts_data))*cos(
                         seq(from = tsp(ts_data)[2],
-                            to = 2*pi * tsp(ts_data)[2]/(av_window /4),
+                            to = tsp(ts_data)[2] * 2*pi/target_freq,
                             length.out = length(ts_data))
                         ),
                frequency = fps,
@@ -1783,10 +1796,13 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
  with(emp_data,
       {
       plot(frequency,
-           power,
-           log = 'yx',
+           sqrt(power),
+           log = 'x',
            type = 'l',
+           xlim = c(1/(fps*1.2), fps*1.2),
+           ylim = sqrt( c(0, max(c(emp_data$power, psd_data$power)) ) ),
            col = adjustcolor('darkblue', alpha.f = 100/255),
+           lwd = 2,
            main = if(validation){paste(av_window/4, 'sec sinusoid')}else
                    {sub(x = basename(path_file),
                       pattern = '(.(dat)).*',
@@ -1795,30 +1811,34 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
            )  
       }
       )
-  abline(v = 1/c(10,60),
+  abline(v = c(target_freq,target_freq/4),
          lty = c(1, 3),
          col = adjustcolor('gray', alpha.f = 150/255)
          )
     with(psd_data,
          {
            lines(frequency,
-                 power,
-                 col = adjustcolor('darkred', alpha.f = 150/255),)
+                 sqrt(power),
+                 lwd = 2,
+                 col = adjustcolor('darkred', alpha.f = 150/255)
+                 )
          }
          )
     legend(x = 'topright',
-           legend  = c('discrete Fourier transform',
-                       paste0("Welch's power spectral density\n",
-                               av_window," sec window"),
-                       '1/10 s',
-                       '1/60 s'),
+           legend  = c('discrete FFT',
+                       paste0("Welch's PSD\n",
+                              av_window," sec window"),
+                       paste(target_freq, 'Hz'),
+                       paste(target_freq/4, 'Hz')
+                       ),
            col = c('darkblue',
                    'darkred',
                    'gray',
                    'gray'
                    ),
-           cex = 0.5,
-           lty = c(1, 1, 1, 3)
+           cex = 0.7,
+           lty = c(1, 1, 1, 3),
+           lwd = c(2,2,1,1)
             )
 }#that's all for now
 
