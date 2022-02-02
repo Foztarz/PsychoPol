@@ -35,6 +35,7 @@ graphics.off()
 #- Save results +
 #- Figure legend +
 #- Fast version ?
+#- Ground truth turn speed with "z_ball"
 
 # Load packages ----------------------------------------------------------
 require(circular)#for handing angles
@@ -329,6 +330,7 @@ adata =
              fileEncoding = ifelse(test = utf8BOM, #If the file contains Byte Order Markers
                                    yes = "UTF-8-BOM",#read in using the appropriate format
                                    no = ""), #if not, R can guess
+             skip = 88,
              col.names = cnames # best to set these here
              #other parameters can be added here for troubleshooting
   )
@@ -471,6 +473,7 @@ adata = within(adata,
                  speed = speed_movement*ball_radius*fps #mm/s
                  x_pos = x_int*ball_radius #mm
                  y_pos = y_int*ball_radius #mm
+                 z_turn = deg(-z_ball)*fps #°/s
                  angle_speed = c(0,diff(deg(heading_integrated)))*fps #deg/s
                  ma_angle = if(speedup_parallel)
                              {
@@ -584,7 +587,6 @@ message('Saving data')
 csv_file = file.path(dirname(path_file),
                       paste0(basename(path_file),
                              '_proc',
-                             '.', 
                              '.csv',
                              ifelse(test = compress_csv,
                                     yes = '.gz',
@@ -604,7 +606,8 @@ message('Plotting data')
 
 # . Set up plot variables -------------------------------------------------
 plt_speed_max = 200
-plt_accel_scale = 1.5
+plt_accel_scale = 5
+plt_turn_ax = 45
 plt_leg_pos = 'topleft'
 plt_leg_inset = c(0,-0.01)
 plt_leg_cex = 0.5
@@ -895,7 +898,7 @@ with(adata,
      {
        plot(x = NULL,
             xlim = range(experimental_time, na.rm = T),
-            ylim = c(-1,1)*max(abs(range(ma_turn, na.rm = T))),
+            ylim = c(-1,1)*max(abs(range(z_turn, na.rm = T))),
             xlab = 'time (s)',
             ylab = paste0('median turning speed (°/s: ',av_window,'s)'),
             axes = F
@@ -905,11 +908,17 @@ with(adata,
             labels = 10*(0:(max(experimental_time)/10))
        )
        axis(side = 2,
-            at = 15*(round(min(ma_turn, na.rm = T)/15):round(max(ma_turn, na.rm = T)/15))
+            at = plt_turn_ax*(round(min(z_turn, na.rm = T)/plt_turn_ax):round(max(z_turn, na.rm = T)/15))
+       )
+       lines(x = experimental_time,
+              y = z_turn,
+              col = adjustcolor(point_col, alpha.f = 50/256),
+              cex = 0.1,
+              pch = 19
        )
        points(x = experimental_time,
               y = ma_turn,
-              col = adjustcolor(point_col, alpha.f = 20/256),
+              col = adjustcolor(trend_col, alpha.f = 10/256),
               cex = 0.5,
               pch = 19
        )
@@ -934,12 +943,12 @@ with(adata,
        )
        axis(side = 4,
             line = -1,
-            at = plt_accel_scale*5*
-              (round(min(ma_accel, na.rm = T)/5):
-                 round(max(ma_accel, na.rm = T)/5)),
-            labels = plt_accel_scale*5*
-              (round(min(ma_accel, na.rm = T)/5):
-                 round(max(ma_accel, na.rm = T)/5)/
+            at = plt_accel_scale*plt_turn_ax*
+              (round(min(ma_accel, na.rm = T)/plt_turn_ax):
+                 round(max(ma_accel, na.rm = T)/plt_turn_ax)),
+            labels = plt_accel_scale*plt_turn_ax*
+              (round(min(ma_accel, na.rm = T)/plt_turn_ax):
+                 round(max(ma_accel, na.rm = T)/plt_turn_ax)/
                  plt_accel_scale),
             col = 'darkred'
        )
@@ -955,12 +964,14 @@ with(adata,
 legend(x = plt_leg_pos,
        inset= plt_leg_inset,
        xpd = TRUE,
-       legend = c(paste0('median ', '(', av_window,'s)'),
+       legend = c('instantaneous',
+                   paste0('median ', '(', av_window,'s)'),
                   'smoothing spline',
                   'acceleration'),
-       lty = c(NA,1, 1),
-       pch = c(19,NA, NA),
+       lty = c(1,NA, 1, 1),
+       pch = c(NA,19, NA, NA),
        col = c(point_col,
+               trend_col,
                trend_col,
                'darkred'),
        cex = plt_leg_cex
