@@ -36,19 +36,13 @@
 #- Raster plot  +
 #- Add labels in csv +
 #- Recursive FT_select_folder +
-#- Frequency analysis
+#- Frequency analysis ...
 
 # General use -------------------------------------------------------------
-IsWin = function(...)
-{
-  #Check the operating system and assign a logical flag (TRUE or FALSE)
-  sys_win = Sys.info()[['sysname']] == 'Windows'
-  return(sys_win)
-}
 
 # . Select files ---------------------------------------------------------
 FT_select_file = function(file_type = ".dat",
-                          sys_win = IsWin())
+                          sys_win = Sys.info()[['sysname']] == 'Windows')
 {
   #On computers set up by JMU Würzburg, use user profile instead of home directory
   if(sys_win){
@@ -89,7 +83,7 @@ FT_select_file = function(file_type = ".dat",
   return(path_file)
 }
 
-FT_select_dat = function(sys_win = IsWin())
+FT_select_dat = function(sys_win = Sys.info()[['sysname']] == 'Windows')
 {
   #On computers set up by JMU Würzburg, use user profile instead of home directory
   if(sys_win){
@@ -329,7 +323,7 @@ MAspeed <- function(i, #index
 
 # Read in, calculate, write -----------------------------------------------
 
-FT_read_write = function(path_file = FT_select_dat(sys_win = IsWin()),#path to the ".dat" file
+FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                          ball_radius = 25,#mm
                          av_window = 5.0,#number of seconds to smooth over for averaging
                          csv_sep_load = ',',#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
@@ -1117,7 +1111,7 @@ FT_raster_condition = function(
                         quantls = c(0.025, 0.25, 0.5, 0.75, 0.975), # quantiles to use when summarising
                         plette = 'Plasma',#'YlGnBu'#  for options see http://colorspace.r-forge.r-project.org/articles/approximations.html
                         crossval = FALSE, # TRUE, randomise the data to check the analysis
-                        sys_win = IsWin(),
+                        sys_win = Sys.info()[['sysname']] == 'Windows',
                         speedup_parallel = TRUE, #Use the parallel package to speed up calculations
                         speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
                         verbose = TRUE, #Tell the user what is going on
@@ -1741,7 +1735,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
     }
   )
   
-  #read in data
+  # . Read in data ----------------------------------------------------------
   adata = if(speedup_data.table)
   {
     data.table::fread(
@@ -1758,6 +1752,8 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
                #other parameters can be added here for troubleshooting
     )
   }
+
+
   
   # Conversions -------------------------------------------------------------
   
@@ -1841,203 +1837,486 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
            lwd = c(2,2,1,1)
             )
 }#that's all for now
+# Plot data for each track -------------------------------------------------
 
+FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),#path to the ".dat" file,
+                         plt_leg_pos = 'topleft', #legend position within plot
+                         plt_leg_inset = c(0,-0.01), # legend xy inset
+                         plt_leg_cex = 0.5, # legend scaling factor relative to plot
+                         plt_speed_max = 200, #y axis maximum for ground speed
+                         plt_turn_ax = 45, #tick interval for turn speed axes
+                         plt_accel_scale = 5, #rescale factor for accelaration to fit turn speed axes
+                         csv_sep_load = ',',#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
+                         speedup_parallel = FALSE, #Use the parallel package to speed up calculations
+                         speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                         verbose = TRUE, #Tell the user what is going on
+                         clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
+                         {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                         {null}
+                         )
+{
+  # . TODO   ---------------------------------------------
+  #TODO   
+  #- Fast version ?
+  #- Frequency plot
   
-# # Combine files in one folder ---
-# FT_combine_folder = function(path_folder = FT_select_folder(),
-#                              file_type = '_proc.csv.gz',#N.B. currently only for this type
-#                              # speedup_parallel = TRUE, #Use the parallel package to speed up calculations
-#                              speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
-#                              compress_txt = TRUE, #Compress to ".gz" to save space?
-#                              verbose = TRUE, #Tell the user what is going on
-#                              recursive = FALSE   #Search in sub folders                          
-#                              # clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-#                              # {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
-#                              # {null}
-#                              )
-# {
-#   file_regex = paste0(file_type, '$')
-#   # . Find files ---
-#   names_files = list.files(path = path_folder,
-#                            pattern = file_regex,
-#                            recursive = recursive
-#                            # recursive = if(file_type %in% #these files are stored in the folder
-#                            #                c('_proc.csv.gz', '_proc.txt.gz')
-#                            #               )
-#                            #             {FALSE}else{TRUE}#other types may be in subfolders
-#                           )
-#   #show the user the path they have selected
-#   if(is.null(names_files)|!length(names_files))
-#   {stop('No "',file_type,'" files found in \n', path_folder)}else
-#   {message('Files found:\n',paste0(names_files,'\n'),
-#            '\n------------------------------------------')}
-# 
-#   # . Read in files ---
-#   if(verbose)
-#   {message('Reading in files from:\t', basename(path_folder), '\nplease be patient...')}
-#   file_paths = file.path(path_folder, names_files)
-#   tryCatch(#Perform no further analysis if the file doesn't load
-#     {
-#       adata = lapply(X = if(speedup_data.table)
-#                           {file_paths}else
-#                           {lapply(file_paths, gzfile)},
-#                      FUN = if(speedup_data.table)
-#                              {data.table::fread}else
-#                              {read.table},
-#                      sep = switch(EXPR = file_type,
-#                                   `_proc.csv.gz` = ',', 
-#                                   `_proc.txt.gz` = '\t',
-#                                   ' '#default output for write.table
-#                                   ),
-#                      header = TRUE
-#       )#,#read from user-selected file
-#     },
-#     error = function(e)
-#     {
-#       stop(
-#         paste0('One or more files in "',
-#                basename(path_folder),
-#                '" could not be loaded!\n',
-#                e)
-#       )
-#     }
-#   )
-#   if(verbose)
-#   {message('All files in "',basename(path_folder), '" loaded successfully')}
-#   names(adata) = names_files
-# 
-#   # . Organise data ---
-#   if(file_type == '_proc.csv.gz')
-#   {
-#   #check sample rates for each
-#   sample_rates = lapply(X = adata,
-#                         FUN = function(x)
-#                         {with(x, 1/mean(diff(experimental_time)))}
-#   )#Hz
-#   if(verbose)
-#   {
-#     if(sum(diff(unlist(sample_rates))))
-#       {
-#         warning('Sample rates differ between recordings\n',
-#                'proceed with caution!')
-#       }else
-#       {
-#        message('All recordings have a sample rate of ',
-#                sample_rates[[1]],
-#                ' Hz\n')
-#       }
-#   }
-#   }
-#   #combine all data into a single data frame
-#   adata_frame = do.call(what = rbind,#N.B. seems to work the same with data.table & data.frame
-#                         args = adata)
-#   #find names for tracks
-#   TrackNamer = function(txt)
-#   {
-#     regmatches(m = regexpr(pattern = '^([^.]+)',
-#                            text = txt),
-#                x = txt)
-#   }
-#   naming_expression = switch(
-#     EXPR = file_type,
-#     `_proc.csv.gz` = 
-#       {
-#   adata_frame$track = TrackNamer(rownames(adata_frame))
-#   if(speedup_data.table)
-#   {#assume works the same with data.table (nothing defined and used in same expr)
-#   adata_frame = within(adata_frame,
-#                        {
-#                          bumblebee = sub(pattern = 'Bumblebee ',
-#                                          x = basename(dirname(path_folder)),
-#                                          replacement = ''
-#                                          )
-#                          condition = regmatches(
-#                                          m = regexpr(pattern = '[^ -][^-]*$',
-#                                                      text = basename(path_folder)
-#                                                     ),
-#                                          x = basename(path_folder)
-#                                          )
-#                          date = regmatches(
-#                                          m = regexpr(pattern = '[^ -][^-]*$',
-#                                                      text = basename(
-#                                                              dirname(dirname(path_folder))
-#                                                            )
-#                                                     ),
-#                                          x = basename(
-#                                            dirname(dirname(path_folder))
-#                                                      )
-#                                          )
-#                        }
-#                       )
-#   }else
-#   {
-#   adata_frame = within(adata_frame,
-#                        {
-#                          bumblebee = sub(pattern = 'Bumblebee ',
-#                                          x = basename(dirname(path_folder)),
-#                                          replacement = ''
-#                                          )
-#                          condition = regmatches(
-#                                          m = regexpr(pattern = '[^ -][^-]*$',
-#                                                      text = basename(path_folder)
-#                                                     ),
-#                                          x = basename(path_folder)
-#                                          )
-#                          date = regmatches(
-#                                          m = regexpr(pattern = '[^ -][^-]*$',
-#                                                      text = basename(
-#                                                              dirname(dirname(path_folder))
-#                                                            )
-#                                                     ),
-#                                          x = basename(
-#                                            dirname(dirname(path_folder))
-#                                                      )
-#                                          )
-#                        }
-#                       )
-#   }
-#       }, #if it is the csv, find track, bumblebee and condition
-#   `_proc.txt.gz` = 
-#     { #If it is the txt, then the date is the rowname
-#       # adata_frame$date = TrackNamer(rownames(adata_frame))
-#     },
-#   {}
-#   )
-#   # .  Save data ---
-#   txt_file = file.path(dirname(path_folder),#store outside this folder
-#                         paste0(basename(path_folder),
-#                                '_proc',
-#                                '.txt',
-#                                if(compress_txt)
-#                                  {'.gz'}else
-#                                  {''}
-#                                )
-#   )
-#   if(verbose)
-#   {
-#     message('Saving data as:\n',
-#             gsub(pattern = '/',
-#                  x = txt_file,
-#                  replacement = '\n')
-#     )
-#   }
-#   if(speedup_data.table)
-#   {
-#   data.table::fwrite(x = adata_frame,
-#               file = txt_file,#N.B. data.table >= 1.12.4 can write to .gz automatically
-#               sep = '\t',
-#               row.names = FALSE
-#   )
-#   }else
-#   {
-#   write.table(x = adata_frame,
-#               file = if(compress_txt)
-#                         {gzfile(txt_file)}else
-#                         {txt_file},
-#               sep = '\t',
-#               row.names = FALSE
-#   )
-#   }
-#   return(txt_file)
-# }
-# 
+  # . Required packages -----------------------------------------------------
+  invisible(
+    { # hide verbose loading messages
+      library(bspec, quietly = TRUE)#Bayesian Spectral Inference
+      if(speedup_data.table){library(data.table, quietly = TRUE)}
+      if(speedup_parallel){library(parallel, quietly = TRUE)}
+    }
+  )
+  
+  # . Read in data ----------------------------------------------------------
+  adata = if(speedup_data.table)
+  {
+    data.table::fread(
+      file = path_file,#read from user-selected file
+      sep = csv_sep_load,#user specified comma separation
+      header = TRUE#These files have headers
+      #other parameters can be added here for troubleshooting
+    )
+  }else
+  {
+    read.table(file = gzfile(path_file),#read from user-selected file
+               sep = csv_sep_load,#user specified comma separation
+               header = TRUE#These files have headers
+               #other parameters can be added here for troubleshooting
+    )
+  }
+  
+  
+  
+  # Conversions -------------------------------------------------------------
+  
+  # . Derive variables ------------------------------------------------------
+  fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
+  # . Set up plot area ------------------------------------------------------
+  plot_file = file.path(dirname(path_file), 
+                        paste0(basename(path_file),'_','.', save_type))
+  if(file.exists(plot_file))
+  {
+    message('A plot called "', basename(plot_file), '" already exists in this folder.')
+    nnm = readline(prompt = 'New plot name: '
+    )
+    
+    plot_file = file.path(dirname(path_file),
+                          paste0(ifelse(nchar(nnm),nnm,basename(path_file)),'_','.', save_type))
+  }
+  switch(save_type,
+         pdf = 
+           pdf(file = plot_file,
+               paper = 'a4',
+               height = 10,
+               bg = 'white',
+               useDingbats = F
+           ),
+         png = png(file = plot_file,
+                   res = 150,
+                   width = 210*10,
+                   height = 297*10,
+                   bg = 'white'
+         ),
+         jpeg(file = paste0(plot_file,'.jpeg'),
+              quality = 100,
+              width = 210*10,
+              height = 297*10,
+              bg = 'white'
+         )
+  )
+  switch(save_type,
+         png = par(mfrow = c(2,1),
+                   mar = c(3,5,0,3),
+                   oma = c(1.5,0,1.5,0),
+                   cex = 1.5
+         ),
+         par(mfrow = c(2,1),
+             mar = c(3,5,0,3),
+             oma = c(1.5,0,1.5,0))
+  )
+  
+  # . Plot raw data ---------------------------------------------------------
+  par(pty = 's',
+      mar = c(3,0,0,0)) # set plot area to square?
+  #trajectory
+  with(adata,
+       {
+         plot(x = y_pos,
+              y = x_pos,
+              xlim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T), 
+              ylim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T), 
+              col = hcl.colors(n = length(frame_counter),
+                               palette = 'viridis',
+                               alpha = 0.5),
+              xlab = 'lateral position (mm)',
+              ylab = 'forwards position (mm)',
+              type = 'o',
+              pch = 19
+         )
+         points(x = y_pos[which.min(abs(experimental_time - 60))],
+                y = x_pos[which.min(abs(experimental_time - 60))],
+                pch = 3,
+                col = 'darkred'
+         )
+         abline(h = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
+                v = pretty(c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)), 
+                col = adjustcolor('black', alpha = 0.5),
+                lwd = 0.25
+         )
+         
+       }
+  )
+  pretty_time = with(adata, paste0(pretty(range(experimental_time)), 's'))
+  legend(x = plt_leg_pos,
+         inset= plt_leg_inset,
+         xpd = TRUE,
+         legend = c(rev(pretty_time), '1 min'),
+         pch = c(rep(x = 15, times = length(pretty_time)),3),
+         col = c(
+           rev(
+             hcl.colors(n = length(pretty_time),
+                        palette = 'viridis',
+                        alpha = 0.5)
+           ),
+           'darkred'
+         ),
+         pt.cex = 1.2,
+         cex = plt_leg_cex
+  )
+  #Circular heading
+  with(adata,
+       {
+         plot.circular(circular(NA,
+                                type = 'angles',
+                                unit = 'degrees',
+                                rotation = 'clock',
+                                zero = pi/2,
+                                modulo = '2pi'
+         ),
+         labels = 0:3*90,
+         xlim = c(-1,1)*max(experimental_time),
+         ylim = c(-1,1)*max(experimental_time),
+         shrink = 1/max(experimental_time)
+         )
+         lines.circular(x = circular(angle-180,
+                                     type = 'angles',
+                                     unit = 'degrees',
+                                     template = 'geographics',
+                                     modulo = '2pi'
+         ),
+         y = experimental_time/max(experimental_time)-1,
+         col = adjustcolor(point_col, alpha.f = 0.5),
+         type = 'p',
+         pch = 19,
+         lty = 2,
+         cex = 0.5
+         )
+         invisible(
+           {
+             lapply(X = 10*(0:(max(experimental_time)/10)),
+                    FUN =function(i)
+                    {
+                      lines.circular(
+                        x = circular(x = seq(from = -pi, 
+                                             to = pi, 
+                                             length.out = 1e3),
+                                     template = 'none'),
+                        y = rep(x = i/max(experimental_time) - 1, 
+                                times = 1e3),
+                        col = gray(level = 0, alpha = 0.5)
+                      )
+                    }
+             )
+           }
+         )
+       }
+  )
+  lines.circular(
+    x = circular(x = seq(from = -pi, 
+                         to = pi, 
+                         length.out = 1e3),
+                 template = 'none'),
+    y = rep(x = 60/max(adata$experimental_time) - 1, 
+            times = 1e3),
+    col = adjustcolor('darkred', alpha.f = 0.5),
+    lwd = 5
+  )
+  with(adata,
+       {
+         axis(side = 1,
+              at = 10*round(-(max(experimental_time/10)):(max(experimental_time/10)))/max(experimental_time),
+              labels = abs(
+                10*round(-(max(experimental_time/10)):(max(experimental_time/10)))
+              ),
+              cex.axis = plt_leg_cex/1.5
+         )
+       }
+  )
+  mtext(text = 'Time (sec)',
+        outer = T,
+        side = 1
+  )
+  # . Plot time series --------------------------------------------------
+  
+  # . . Ground speed --------------------------------------------------------
+  
+  par(pty = 'm',
+      mfrow = c(4, 1),
+      mar = c(3,5,0,3)
+  )
+  #Raw data
+  with(adata,
+       {
+         plot(x = experimental_time,
+              y = ground_speed,
+              xlab = 'time since start',
+              ylab = 'ground speed (mm/s)',
+              ylim = c(0, max(x = c(ma_speed,plt_speed_max), na.rm = T)),
+              type = 'p',
+              pch = 19,
+              cex = 0.1,
+              col = adjustcolor(point_col, alpha.f = 20/256),
+              axes = F
+         )
+         axis(side = 1,
+              at = 10*(0:(max(experimental_time)/10)),
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2
+         )
+         abline(h = 10*(round(min(ground_speed, na.rm = T)/10):round(max(ground_speed, na.rm = T)/10)),
+                v = c(0,60,120),
+                col = rgb(0,0,0,0.1)
+         )
+         
+       }
+  )
+  #Trendline
+  with(adata,
+       {
+         lines(x = experimental_time,
+               y = ma_speed,
+               cex = 0.1,
+               col = trend_col,
+         )
+       }
+  )
+  legend(x = plt_leg_pos,
+         inset= plt_leg_inset,
+         xpd = TRUE,
+         legend = c('instantaneous',
+                    paste0('moving average (median: ',av_window,'s)')),
+         lty = c(NA,1),
+         pch = c(19,NA),
+         col = c(point_col,
+                 trend_col),
+         cex = plt_leg_cex
+  )
+  
+  # . . Fictive direction ---------------------------------------------------
+  #Raw data
+  with(adata,
+       {
+         plot(x = experimental_time,
+              y = Mod360.180(angle),
+              ylim = c(-180,180),
+              xlab = 'time since start',
+              ylab = 'fictive direction',
+              type = 'p',
+              pch = 19,
+              cex = 0.1,
+              col = adjustcolor(point_col, alpha.f = 20/256),
+              axes = F
+         )
+         axis(side = 1,
+              at = 10*(0:(max(experimental_time)/10)),
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2,
+              at = 90*(round(-180/90):round(180/90)),
+              labels = paste0(90*(round(-180/90):round(180/90)),
+                              '°')
+         )
+         abline(h = 90*(round(-180/90):round(180/90)),
+                v = c(0,60,120),
+                col = rgb(0,0,0,0.1)
+         )
+         
+       }
+  )
+  #Trendline
+  with(adata,
+       {
+         lines(x = experimental_time,
+               y = Mod360.180(ma_angle),
+               type = 'p',
+               pch = 19,
+               cex = 0.1,
+               col = adjustcolor(col = trend_col, alpha.f = 0.3),
+         )
+       }
+  )
+  legend(x = plt_leg_pos,
+         inset= plt_leg_inset,
+         xpd = TRUE,
+         legend = c('instantaneous',
+                    paste0('moving average (mean angle: ', av_window,'s)')),
+         lty = c(NA,1),
+         pch = c(19,NA),
+         col = c(point_col,
+                 trend_col),
+         cex = plt_leg_cex
+  )
+  
+  
+  # . . Turning speed -------------------------------------------------------
+  par(pty = 'm',
+      mar = c(3,5,0,3))
+  #Raw data
+  with(adata,
+       {
+         plot(x = NULL,
+              xlim = range(experimental_time, na.rm = T),
+              ylim = c(-1,1)*max(abs(range(z_turn, na.rm = T))),
+              xlab = 'time (s)',
+              ylab = paste0('median turning speed (°/s: ',av_window,'s)'),
+              axes = F
+         )
+         axis(side = 1,
+              at = 10*(0:(max(experimental_time)/10)),
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2,
+              at = plt_turn_ax*(round(min(z_turn, na.rm = T)/plt_turn_ax):round(max(z_turn, na.rm = T)/15))
+         )
+         lines(x = experimental_time,
+               y = z_turn,
+               col = adjustcolor(point_col, alpha.f = 50/256),
+               cex = 0.1,
+               pch = 19
+         )
+         points(x = experimental_time,
+                y = ma_turn,
+                col = adjustcolor(trend_col, alpha.f = 10/256),
+                cex = 0.5,
+                pch = 19
+         )
+         # Trendline
+         lines(x = experimental_time,
+               y = smooth_turn,
+               col = adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0))
+         )
+         abline(h = c(-15, 0, 15),
+                v = c(0,60,120),
+                col = 'black',
+                lwd = 0.25
+         )
+       }
+  )
+  #Acceleration
+  with(adata,
+       {
+         lines(x = experimental_time,
+               y = ma_accel*plt_accel_scale,
+               col = adjustcolor('darkred', alpha.f = 200/256)
+         )
+         axis(side = 4,
+              line = -1,
+              at = plt_accel_scale*plt_turn_ax*
+                (round(min(ma_accel, na.rm = T)/plt_turn_ax):
+                   round(max(ma_accel, na.rm = T)/plt_turn_ax)),
+              labels = plt_accel_scale*plt_turn_ax*
+                (round(min(ma_accel, na.rm = T)/plt_turn_ax):
+                   round(max(ma_accel, na.rm = T)/plt_turn_ax)/
+                   plt_accel_scale),
+              col = 'darkred'
+         )
+         mtext(text = bquote(median ~ acceleration ~
+                               '(°/s'^2 ~ 
+                               .(av_window)*s ~ ")"),
+               side = 4,
+               cex = par('cex.lab')/1.5,
+               line = 2
+         )
+       }
+  )
+  legend(x = plt_leg_pos,
+         inset= plt_leg_inset,
+         xpd = TRUE,
+         legend = c('instantaneous',
+                    paste0('median ', '(', av_window,'s)'),
+                    'smoothing spline',
+                    'acceleration'),
+         lty = c(1,NA, 1, 1),
+         pch = c(NA,19, NA, NA),
+         col = c(point_col,
+                 trend_col,
+                 adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0)),
+                 'darkred'),
+         cex = plt_leg_cex
+  )
+  
+  
+  
+  # . . Mean vector length --------------------------------------------------
+  with(adata,
+       {
+         plot(x = NULL,
+              xlim = range(experimental_time, na.rm = T),
+              ylim = c(0,1),
+              xlab = 'time (s)',
+              ylab = paste0('mean vector length (',av_window,'s)'),
+              axes = F
+         )
+         axis(side = 1,
+              at = 10*(0:(max(experimental_time)/10)),
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2,
+              at = 0:5/5
+         )
+         lines(x = experimental_time,
+               y = ma_rho,
+               col = point_col
+         )
+         abline(h = c(0,1),
+                v = c(0,60,120),
+                col = 'black',
+                lwd = 0.25
+         )
+         abline(h = sqrt(-log(c(0.05, 0.01)))/(av_window*fps),#Mean vector Rayleigh test p
+                col = 'red',
+                lty = c(3,2),
+                lwd = 0.25
+         )
+         
+       }
+  )
+  legend(x = plt_leg_pos,
+         inset= plt_leg_inset,
+         xpd = TRUE,
+         legend = c(paste0('mean vector ', '(', av_window,'s)'),
+                    'Rayleigh (p = 0.05)'),
+         lty = c(1, 3),
+         pch = c(NA, NA),
+         col = c(point_col,
+                 'red'),
+         cex = plt_leg_cex
+  )
+  
+  # . . Outer labels --------------------------------------------------------
+  
+  mtext(text = basename(path_file),
+        outer = T, 
+        side = 3
+  )
+  mtext(text = 'Time (sec)',
+        outer = T,
+        side = 1
+  )
+  # . Save plot -------------------------------------------------------------
+  dev.off()
+  shell.exec.OS(plot_file)
+}
