@@ -35,7 +35,7 @@ graphics.off()
 #- Save results +
 #- Figure legend +
 #- Fast version ?
-#- Ground truth turn speed with "z_ball"
+#- Ground truth turn speed with "z_ball" +
 
 # Load packages ----------------------------------------------------------
 require(circular)#for handing angles
@@ -925,7 +925,7 @@ with(adata,
 # Trendline
        lines(x = experimental_time,
              y = smooth_turn,
-             col = trend_col
+             col = adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0))
        )
        abline(h = c(-15, 0, 15),
               v = c(0,60,120),
@@ -972,7 +972,7 @@ legend(x = plt_leg_pos,
        pch = c(NA,19, NA, NA),
        col = c(point_col,
                trend_col,
-               trend_col,
+               adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0)),
                'darkred'),
        cex = plt_leg_cex
 )
