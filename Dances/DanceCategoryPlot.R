@@ -170,5 +170,5 @@ legend(x = 'topright',
        legend = rev(levels(adata$dance_cat)),
        col = rev(cat_cll),
        pch = 15,
-       cex = 0.5
+       cex = 0.7
        )
