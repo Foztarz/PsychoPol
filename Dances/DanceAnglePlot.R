@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2021 11 24
+#     MODIFIED:	James Foster              DATE: 2022 02 07
 #
 #  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
 #               .
@@ -15,7 +15,7 @@ graphics.off()
 #
 #	   CHANGES: - Suppressed package loading messages (upsetting users)
 #             - Use aggregate to sort and plot
-#             - 
+#             - stimulus orientation label: "orientation" -> "stim_ori"
 #
 #   REFERENCES: Batschelet E (1981).
 #               Graphical presentation, Chap 1.2, p. 4-6
@@ -185,7 +185,6 @@ adata = within(adata,
                {
                raw_angle = angle
                angle = Theta(phi = raw_angle*pi/180,
-                             alpha = tilt_ang*pi/180
                              )*180/pi
                }
 )
@@ -197,7 +196,7 @@ pdf(file = savepath,
     bg = 'white', 
     useDingbats = FALSE
     )
-df_lst = aggregate(formula = angle~orientation*stimulus*dance*bee,
+df_lst = aggregate(formula = angle~stim_ori*stimulus*dance*bee,
           data = adata, 
           FUN = list
           )
@@ -238,7 +237,7 @@ invisible(
                                ', ',
                                stimulus,
                                ', ',
-                               orientation,
+                               stim_ori,
                                '°'),
                   line = -1.5,
                   cex = 3/sq_cond
