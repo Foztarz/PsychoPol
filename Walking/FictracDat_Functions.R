@@ -1719,6 +1719,8 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
                          speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
                          compress_csv = TRUE, #Compress to ".gz" to save space?
                          verbose = TRUE, #Tell the user what is going on
+                         resample = NULL, #Hz Resample to predetermined sampling base
+                         res.method = if(!is.null(resample)){'MAturnspeed'}, #Hz Resample to predetermined sampling base
                          validation = FALSE, #Test with the target sine wave
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                          {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
@@ -1754,6 +1756,13 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
   }
 
 
+  # Check data --------------------------------------------------------------
+  if(with(adata, !exists('z_turn')))
+  {
+    message('z_turn missing from data', 
+           '\n please re-run "FT_read_write" for this ".dat" file')
+    }
+
   
   # Conversions -------------------------------------------------------------
   
@@ -1771,7 +1780,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
   if(validation)
   {
   ts_data = ts(data = ts_data + (sd(ts_data))*cos(
-                        seq(from = tsp(ts_data)[2],
+                        seq(from = tsp(ts_data)[1],
                             to = tsp(ts_data)[2] * 2*pi/target_freq,
                             length.out = length(ts_data))
                         ),
@@ -1779,6 +1788,31 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
                start = tsp(ts_data)[1]
               )
   }            
+
+  # . Resample if necessary ---------------------------------------------------
+  if(!is.null(resample))
+  {
+    if(res.method %in% 'linear')
+    { 
+      new_time = seq(from = tsp(ts_data)[1],
+                     to = tsp(ts_data)[2],
+                     length.out = tsp(ts_data)[2]*resample
+                    )
+      lin = approx(x = time(ts_data),
+                   y = ts_data,
+                   xout = new_time
+                   )
+      ts_data = ts(data = lin,
+                   start = tsp(ts_data)[1],
+                   frequency = resample
+                   )
+    }
+    if(res.method %in% 'MAturnspeed')
+    { 
+      ###
+    }
+  }  
+  
   # . Calculate Welch PSD ---------------------------------------------------
     emp_data = empiricalSpectrum(ts_data)
     psd_data = welchPSD(x = ts_data,
