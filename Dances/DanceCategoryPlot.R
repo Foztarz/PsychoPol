@@ -127,22 +127,66 @@ with(cat_agg,
 #         main = paste0('All dances\n', basename(path_file))
 #         )
 
-WeirdProp = function(x){1 - mean(x == 'normal')}
+WeirdProp = function(x)
+  {
+  c(prop = 1 - mean(x == 'normal'),
+    n_normal = sum(x == 'normal'),
+    n_weird = sum(x != 'normal')
+    )
+  }
 stim_agg = aggregate(formula = dance_cat ~ stim_cat,
                      data = adata,
                      FUN = WeirdProp)
+spa = 0.2
+wdt = 1.0
+stim_seq = seq(from = spa+1-wdt/2,
+               to =  length(levels(adata$stim_cat))*(1+spa)-wdt/2,
+               length.out =  length(levels(adata$stim_cat)) )
+lab_seq = lapply(X = 1:dim(stim_agg)[1],
+                 FUN = function(i)
+                        { 
+                          bquote(
+                            frac(.(stim_agg[i,]$dance_cat[,'n_weird']),
+                                 .(stim_agg[i,]$dance_cat[,'n_normal'])
+                            )
+                          )
+                         }
+                 )
+stim_cll = hcl.colors(n = length(levels(adata$stim_cat)),
+                      palette = 'dark3'
+                      )
 
-barplot(formula = dance_cat ~ stim_cat,
+barplot(formula = dance_cat[,'prop'] ~ stim_cat,
                 data = stim_agg,
                 las = 3,
                 col = hcl.colors(n = length(levels(adata$stim_cat)),
                                  palette = 'dark3'
                                  ),
                 xlab = '',
-                ylab = 'Proportion of wierd dances',
+                ylab = 'Proportion of weird dances',
                 ylim = c(0,1),
                 main = paste0('By stimulus\n', basename(path_file))
                 )
+
+with(stim_agg,
+     {
+       invisible(
+         {
+           lapply(X = 1:length(stim_seq),
+                  FUN = function(i)
+                  {
+                    text(x = stim_seq[i],
+                         y = dance_cat[i,'prop']+0.05, 
+                         labels = as.expression(lab_seq[i]),
+                         cex = 0.5,
+                         col = stim_cll[i]
+                        )
+                  }
+                 )
+         }
+       )
+     }
+)
 
 cat_stim_agg = aggregate( dance_cat ~ bee*stim_cat,
                           data = adata,
@@ -153,10 +197,12 @@ cat_cll = c('gray',
                        palette = 'dark3'
                       )
             )
+par(mar = c(5,3,3,0))
 with(cat_stim_agg,
      {
       barplot(height = t(dance_cat),
               names.arg = paste(stim_cat,bee),
+              xlim = c(0,length(bee))*1.4,
               las = 3,
               col = cat_cll,
               xlab = '',
@@ -167,8 +213,9 @@ with(cat_stim_agg,
      }
 )
 legend(x = 'topright',
+       inset = c(0,0),
        legend = rev(levels(adata$dance_cat)),
        col = rev(cat_cll),
        pch = 15,
-       cex = 0.7
+       cex = 0.6
        )
