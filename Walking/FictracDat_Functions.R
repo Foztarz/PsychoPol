@@ -333,7 +333,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                          verbose = TRUE, #Tell the user what is going on
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                            {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
-                           {null},
+                           {NULL},
                          folder_labels = TRUE #read date, animal and experiment from the containing folder
 )
 {
@@ -828,7 +828,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
                              recursive = TRUE,   #Search in sub folders                          
                              clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                              {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
-                             {null}
+                             {NULL}
                              )
 {
   # . Required packages -----------------------------------------------------
@@ -1118,7 +1118,7 @@ FT_raster_condition = function(
                         show_plot = TRUE, #Tell the user what is going on
                         clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                         {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
-                        {null}
+                        {NULL}
                         )
   {
 #On computers set up by JMU Würzburg, use user profile instead of home directory
@@ -1724,7 +1724,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
                          validation = FALSE, #Test with the target sine wave
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                          {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
-                         {null}
+                         {NULL}
 )
 {
   
@@ -1734,6 +1734,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
       library(bspec, quietly = TRUE)#Bayesian Spectral Inference
       if(speedup_data.table){library(data.table, quietly = TRUE)}
       if(speedup_parallel){library(parallel, quietly = TRUE)}
+      if(res.method == 'MAturnspeed'){library(circular, quietly = TRUE)}
     }
   )
   
@@ -1792,26 +1793,84 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
   # . Resample if necessary ---------------------------------------------------
   if(!is.null(resample))
   {
+  new_time = seq(from = tsp(ts_data)[1],
+                 to = tsp(ts_data)[2],
+                 length.out = tsp(ts_data)[2]*resample
+                )
+  # . . Linear interpolation ------------------------------------------------
     if(res.method %in% 'linear')
     { 
-      new_time = seq(from = tsp(ts_data)[1],
-                     to = tsp(ts_data)[2],
-                     length.out = tsp(ts_data)[2]*resample
-                    )
-      lin = approx(x = time(ts_data),
+      res_data = approx(x = time(ts_data),
                    y = ts_data,
                    xout = new_time
                    )
-      ts_data = ts(data = lin,
-                   start = tsp(ts_data)[1],
-                   frequency = resample
-                   )
     }
+
+    
+
+# . . Moving average method -----------------------------------------------
     if(res.method %in% 'MAturnspeed')
     { 
-      ###
+      if(speedup_data.table){
+        adata[, `:=`( #assign from list call
+                      res_turn = if(speedup_parallel)
+                      {
+                        parSapply(cl = clt,
+                                  X = 1:length(angle),#all indices in angle
+                                  FUN = MAturnspeed,#the mean angle function
+                                  dta = angle,#all angles observed
+                                  window = resample,#window size (s)
+                                  hz = fps #original sample rate (Hz)
+                        )
+                      }else
+                      {
+                        sapply(X = 1:length(angle),#all indices in angle
+                               FUN = MAturnspeed,#the mean angle function
+                               dta = angle,#all angles observed
+                               window = resample,#window size (s)
+                               hz = fps #original sample rate (Hz)
+                              )
+                      }
+                    )
+        ]
+      }else
+      {
+        adata = within(adata,
+                       {
+                        res_turn = if(speedup_parallel)
+                                        {
+                                          parSapply(cl = clt,
+                                                    X = 1:length(angle),#all indices in angle
+                                                    FUN = MAturnspeed,#the mean angle function
+                                                    dta = angle,#all angles observed
+                                                    window = resample,#window size (s)
+                                                    hz = fps #original sample rate (Hz)
+                                          )
+                                        }else
+                                        {
+                                          sapply(X = 1:length(angle),#all indices in angle
+                                                 FUN = MAturnspeed,#the mean angle function
+                                                 dta = angle,#all angles observed
+                                                 window = resample,#window size (s)
+                                                 hz = fps #original sample rate (Hz)
+                                          )
+                                        }
+                       }
+                      )
+      }  
+      res_data = c(0,
+                   subset(adata, round(experimental_time*fps/resample) %in% 
+                                  round(new_time*fps/resample)
+                           )$res_turn
+                  )
     }
-  }  
+  }
+
+  # . . Overwrite time series -----------------------------------------------
+  ts_data = ts(data = res_data,
+             start = tsp(ts_data)[1],
+             frequency = resample
+             )
   
   # . Calculate Welch PSD ---------------------------------------------------
     emp_data = empiricalSpectrum(ts_data)
@@ -1871,6 +1930,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
            lwd = c(2,2,1,1)
             )
 }#that's all for now
+  
 # Plot data for each track -------------------------------------------------
 
 FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),#path to the ".dat" file,
@@ -1886,7 +1946,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                          verbose = TRUE, #Tell the user what is going on
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                          {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
-                         {null}
+                         {NULL}
                          )
 {
   # . TODO   ---------------------------------------------
