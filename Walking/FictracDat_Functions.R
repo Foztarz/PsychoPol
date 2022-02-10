@@ -1774,7 +1774,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
   ts_data = with(adata, 
                  ts(data = z_turn[!is.na(z_turn)], 
                     frequency = fps,
-                    start = which.min(experimental_time[!is.na(z_turn)]),
+                    start = which.min(experimental_time[!is.na(z_turn)])
                     # end = which.max(experimental_time[!is.na(z_turn)])
                     )
                 )
@@ -1803,7 +1803,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
       res_data = approx(x = time(ts_data),
                    y = ts_data,
                    xout = new_time
-                   )
+                   )$y
     }
 
     
@@ -1867,8 +1867,8 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
   }
 
   # . . Overwrite time series -----------------------------------------------
-  ts_data = ts(data = res_data,
-             start = tsp(ts_data)[1],
+  ts_data = ts(data = res_data[!is.na(res_data)],
+             start = with(adata, {which.min(experimental_time[!is.na(z_turn)])}),
              frequency = resample
              )
   
