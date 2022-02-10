@@ -88,9 +88,13 @@ adata = within(adata,
                                    ref = 'normal' 
                                   ) 
                stim_cat = factor(x = stimulus,
-                                 levels = c('dark',
-                                            'p0u1',
+                                 levels = c(#"p7u0"   "p5u0"   "p5u5"   "p1u0"   "p1u1"   NA       "dark"   "p0.5u1" "p2.5u0"
+                                             NA,
+                                             'dark',
+                                            # 'p0u1',
+                                             "p0.5u1",
                                             'p1u1', 
+                                             "p5u5",
                                             'p1u0', 
                                             'p2.5u0', 
                                             'p5u0', 
@@ -129,19 +133,21 @@ with(cat_agg,
 
 WeirdProp = function(x)
   {
-  c(prop = 1 - mean(x == 'normal'),
-    n_normal = sum(x == 'normal'),
-    n_weird = sum(x != 'normal')
+  c(prop = 1 - mean(x == 'normal', na.rm = T),
+    n_normal = sum(x == 'normal', na.rm = T),
+    n_weird = sum(x != 'normal', na.rm = T)
     )
   }
 stim_agg = aggregate(formula = dance_cat ~ stim_cat,
                      data = adata,
-                     FUN = WeirdProp)
+                     FUN = WeirdProp,
+                     na.action = na.pass)
+nlvl = sum(!is.na(levels(adata$stim_cat)))
 spa = 0.2
 wdt = 1.0
 stim_seq = seq(from = spa+1-wdt/2,
-               to =  length(levels(adata$stim_cat))*(1+spa)-wdt/2,
-               length.out =  length(levels(adata$stim_cat)) )
+               to =  nlvl*(1+spa)-wdt/2,
+               length.out =  nlvl )
 lab_seq = lapply(X = 1:dim(stim_agg)[1],
                  FUN = function(i)
                         { 
@@ -152,14 +158,14 @@ lab_seq = lapply(X = 1:dim(stim_agg)[1],
                           )
                          }
                  )
-stim_cll = hcl.colors(n = length(levels(adata$stim_cat)),
+stim_cll = hcl.colors(n = nlvl,
                       palette = 'dark3'
                       )
 
 barplot(formula = dance_cat[,'prop'] ~ stim_cat,
                 data = stim_agg,
                 las = 3,
-                col = hcl.colors(n = length(levels(adata$stim_cat)),
+                col = hcl.colors(n = nlvl,
                                  palette = 'dark3'
                                  ),
                 xlab = '',
@@ -172,11 +178,11 @@ with(stim_agg,
      {
        invisible(
          {
-           lapply(X = 1:length(stim_seq),
+           lapply(X = 1:(length(stim_seq)),
                   FUN = function(i)
                   {
                     text(x = stim_seq[i],
-                         y = dance_cat[i,'prop']+0.05, 
+                         y = dance_cat[i,'prop']+0.07, 
                          labels = as.expression(lab_seq[i]),
                          cex = 0.5,
                          col = stim_cll[i]
