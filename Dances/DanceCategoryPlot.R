@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 02 07
-#     MODIFIED:	James Foster              DATE: 2022 02 07
+#     MODIFIED:	James Foster              DATE: 2022 02 11
 #
 #  DESCRIPTION: Loads a text file and plots relative frequencies of different 
 #               dance typdes.
@@ -88,17 +88,20 @@ adata = within(adata,
                                    ref = 'normal' 
                                   ) 
                stim_cat = factor(x = stimulus,
-                                 levels = c(#"p7u0"   "p5u0"   "p5u5"   "p1u0"   "p1u1"   NA       "dark"   "p0.5u1" "p2.5u0"
-                                             NA,
-                                             'dark',
-                                            # 'p0u1',
+                                 levels = c(
+                                             NA,        
+                                             "dark",    
+                                             "p0u1",
                                              "p0.5u1",
-                                            'p1u1', 
-                                             "p5u5",
-                                            'p1u0', 
-                                            'p2.5u0', 
-                                            'p5u0', 
-                                            'p7u0' 
+                                             "p0.75u1",
+                                             "p1u1",
+                                             "p5u5", 
+                                             "p1.5u1",
+                                             "p1u0",
+                                             "p1.5u0",
+                                             "p2.5u0",
+                                             "p5u0",  
+                                             "p7u0"
                                             )
                                  )
                }
@@ -123,25 +126,21 @@ with(cat_agg,
               )
      }
 )
-# barplot(formula = number ~ dance_cat,
-#         data = cat_agg,
-#         las = 3,
-#         col = cll,
-#         xlab = '',
-#         main = paste0('All dances\n', basename(path_file))
-#         )
+
 
 WeirdProp = function(x)
   {
   c(prop = 1 - mean(x == 'normal', na.rm = T),
     n_normal = sum(x == 'normal', na.rm = T),
-    n_weird = sum(x != 'normal', na.rm = T)
+    n_weird = sum(x != 'normal', na.rm = T),
+    n_total = sum(!is.na(x))
     )
   }
 stim_agg = aggregate(formula = dance_cat ~ stim_cat,
                      data = adata,
-                     FUN = WeirdProp,
-                     na.action = na.pass)
+                     FUN = WeirdProp#,
+                     # na.action = na.pass
+                     )
 nlvl = sum(!is.na(levels(adata$stim_cat)))
 spa = 0.2
 wdt = 1.0
@@ -153,7 +152,7 @@ lab_seq = lapply(X = 1:dim(stim_agg)[1],
                         { 
                           bquote(
                             frac(.(stim_agg[i,]$dance_cat[,'n_weird']),
-                                 .(stim_agg[i,]$dance_cat[,'n_normal'])
+                                 .(stim_agg[i,]$dance_cat[,'n_total'])
                             )
                           )
                          }
@@ -173,6 +172,12 @@ barplot(formula = dance_cat[,'prop'] ~ stim_cat,
                 ylim = c(0,1),
                 main = paste0('By stimulus\n', basename(path_file))
                 )
+segments( x0 = 0,
+          x1 = nlvl+2,
+          y0 = WeirdProp(adata$weird_dances)['prop'],
+         lty = 3,
+         col = 'orange'
+         )
 
 with(stim_agg,
      {
@@ -193,6 +198,13 @@ with(stim_agg,
        )
      }
 )
+legend(x = 'topright',
+       legend = c('average occurence'),
+       col = 'orange',
+       lty = 3,
+       cex = 0.7,
+       bty = 'n'
+       )
 
 cat_stim_agg = aggregate( dance_cat ~ bee*stim_cat,
                           data = adata,
