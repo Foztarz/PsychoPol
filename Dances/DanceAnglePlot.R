@@ -1,8 +1,7 @@
 #FOR A 'CLEAN' RUN, RESTART Rstudio
-graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2022 02 07
+#     MODIFIED:	James Foster              DATE: 2022 02 15
 #
 #  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
 #               .
@@ -23,7 +22,7 @@ graphics.off()
 #               In: Circular Statistics in Biology
 #               Academic Press (London)
 #
-#    EXAMPLES:  Fill out user input (lines 80-86), then press ctrl+shift+s to run
+#    EXAMPLES:  Fill out user input (lines 80-87), then press ctrl+shift+s to run
 #
 # 
 #TODO   ---------------------------------------------
@@ -33,46 +32,47 @@ graphics.off()
 #- Subset by bee & day  +  
 #- Neat plot  +
 #- Save results + 
+#- Reorganise functions +
+#- Include dates in organisation
+#- Separate weird dances
 #- Bimodal mean vector 
 
-# Useful functions --------------------------------------------------------
-# . Load package ----------------------------------------------------------
-#needs installing before first use (in Rstudio, see automatic message)
-suppressMessages(#these are disturbing users unnecessarily
-  {
-    require(circular)#package for handling cirular data
-    require(CircStats)#package for circular hypothesis tests
-  }
+# Find relevant functions -----------------------------------------------
+fun_file = "DanceAnalysis_Functions.R" #Name of that functions file
+fun_path = tryCatch(expr = #Search in the folder containing this script
+                      {file.path(dirname(sys.frame(1)$ofile), fun_file)},
+                    error = function(e){fun_file}
 )
-#Open file with default program on any OS
-# https://stackoverflow.com/a/35044209/3745353
-shell.exec.OS  <- function(x){
-  # replacement for shell.exec (doesn't exist on MAC)
-  if (exists("shell.exec",where = "package:base"))
-  {return(base::shell.exec(x))}else
-  {comm <- paste0('open "',x,'"')
-  return(system(comm))}
-}
-#convert from angle to trapezoid-distorted angle
-Phi = function(theta,#original angle, radians
-               alpha)#angle between trapezoid and vertical, radians
+if(!file.exists(fun_path))#If not found, ask the user
 {
-  return(
-    atan2(y = sin(theta)*(1-cos(alpha)*cos(theta)),
-          x = cos(theta)*sin(alpha) )
-  )
+  msg = paste0('Please select "',fun_file,'"')
+  # ask user to find data
+  if( Sys.info()[['sysname']] == 'Windows' ){#choose.files is only available on Windows
+    message('\n\n',msg,'\n\n')
+    Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+    fun_path = choose.files(
+      default = file.path(gsub(pattern = '\\\\',
+                               replacement = '/', 
+                               x = Sys.getenv('USERPROFILE')),#user
+                          'Documents'),#For some reason this is not possible in the "root" user
+      caption = msg
+    )
+  }else
+  { #on OS where "choose.files" is not available
+    message('\n\n',msg,'\n\n')
+    Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+    fun_path = file.choose(new=FALSE)
+  }
 }
-#estimate inverse of trapezoid distortion to get original angles
-Theta = function(phi,#distorted angle, radians
-                 alpha)#angle between trapezoid and vertical, radians
-{
-  aa = seq(from = -pi,
-           to = pi,
-           length.out = 1e4)
-  ss = smooth.spline(x = Phi(theta = aa, alpha = alpha),
-                     y = aa)
-  return(predict(ss, x = phi)$y)
-}
+#read in relevant functions
+source(file = fun_path, 
+       encoding = 'UTF-8')
+
+
+
+
+
+
 
 # Input Variables ----------------------------------------------------------
 
@@ -84,88 +84,82 @@ angle_unit = "degrees" # "degrees" or "radians"
 angle_rot = 'clock' # counter' # 'counter' for anticlockwise (imageJ) 'clock' for clockwise
 angle_zero = pi/2 # 0 # angle start point: _0_ for right along x axis (imageJ) _pi/2_ for up along y axis (e.g. geographic North)
 point_col = 'darkblue' #colour for plot points
+speedup_data.table = TRUE #data.table handles Excel's CSV export issues better 
+
+# . Load packages ----------------------------------------------------------
+#needs installing before first use (in Rstudio, see automatic message)
+suppressMessages(#these are disturbing users unnecessarily
+  {
+    require(circular)#package for handling cirular data
+    require(CircStats)#package for circular hypothesis tests
+  }
+)
 
 #Check the operating system and assign a logical flag (T or F)
-sys_win <- Sys.info()[['sysname']] == 'Windows'
+sys_win = Sys.info()[['sysname']] == 'Windows'
 #On computers set up by JMU Würzburg, use user profile instead of home directory
 if(sys_win){
   #get rid of all the backslashes
-  ltp <- gsub('\\\\', '/', Sys.getenv('USERPROFILE'))#Why does windows have to make this so difficult
+  ltp = gsub('\\\\', '/', Sys.getenv('USERPROFILE'))#Why does windows have to make this so difficult
 }else{#Root directory should be the "HOME" directory on a Mac (or Linux?)
-  ltp <- Sys.getenv('HOME')#Life was easier on Mac
+  ltp = Sys.getenv('HOME')#Life was easier on Mac
 }
 
 
 # . Select files ---------------------------------------------------------
 
 
-# . . Select measured angles ----------------------------------------------
+# . . Select measured dance angles ---------------------------------------
 
 # set path to files
-if(sys_win){#choose.files is only available on Windows
-  message('\n\nPlease select the ".csv" file\n\n')
-  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-  path_file  <- choose.files(
-    default = file.path(ltp,'Documents', "*.csv"),#For some reason this is not possible in the "root" user
-    caption = 'Please select the ".csv" file'
-  )
-}else{
-  message('\n\nPlease select the ".csv" file\n\n')
-  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-  path_file <- file.choose(new=F)
-}
+path_file = DA_select_file()#expects a ".csv" file
+
+
+# . . Select measured distortion field -----------------------------------
+tilt_list = list.files(path = dirname(path_file),
+                       pattern = 'Tilt.*csv$'
+                       )
+if(length(tilt_list) == 1)
+  { #if there is exactly one tilt file in the same directory, use that one
+    tilt_file = tilt_list[1]
+  }else
+  { #otherwise ask the user to find one
+    message('\n\nPlease select the distortion ".csv" file\n\n')
+    suppressMessages(
+      {tilt_file = DA_select_file()}#expects a ".csv" file
+    )
+  }
 #show the user the path they have selected
-if(is.null(path_file))
-{stop('No file selected.')}else
-{print(path_file)}
-
-
-# . . Select measured distortion ------------------------------------------
-
-# set path to files
-if(sys_win){#choose.files is only available on Windows
-  message('\n\nPlease select the distortion ".csv" file\n\n')
-  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-  tilt_file  <- choose.files(
-    default = file.path(ltp,'Documents', "*.csv"),#For some reason this is not possible in the "root" user
-    caption = 'Please select the distortion ".csv" file'
-  )
-}else{
-  message('\n\nPlease select the distortion ".csv" file\n\n')
-  Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-  tilt_file <- file.choose(new=F)
-}
-#show the user the path they have selected
-if(is.null(tilt_file))
+if(!length(tilt_file))
 {stop('No distortion file selected.')}else
 {print(tilt_file)}
 
-
-# Read in file ------------------------------------------------------------
-adata = read.table(file = path_file,#read from user-selected file
-                   header = T,#read the file header to use for variable names
-                   sep = csv_sep#,#values are separated by the user-specified character
-                   #other parameters can be added here for troubleshooting
+# Read in data ------------------------------------------------------------
+if(speedup_data.table)
+{ #N.B. Excel creates CSV files that can be difficult to read, fread works best
+  adata = data.table::fread(file = path_file,#read from user-selected file
+                            header = T,#read the file header to use for variable names
+                            sep = csv_sep#,#values are separated by the user-specified character
+                            #other parameters can be added here for troubleshooting
+  )
+}else
+{ #TODO 20220215 find out why this is not working
+  adata = read.table(file = path_file,#read from user-selected file
+                     header = T,#read the file header to use for variable names
+                     sep = csv_sep#,#values are separated by the user-specified character
+                     #other parameters can be added here for troubleshooting
+  )
+}
+#Excel makes empty rows, trim them
+adata = subset(x = adata, 
+               subset = !(is.na(angle)) # angle is an empty number, i.e. no data
 )
 
 View(adata)#show the user the data that was
-Cformat <- function(angles)
-{
-  circular(x = angles,
-          units = angle_unit,
-          zero = angle_zero,
-          rotation = angle_rot,
-          )
-}
 
 # Basic plot --------------------------------------------------------------
 par(mar = c(0,0,0,0))
 plot.circular(x = Cformat(adata[,angle_name]),
-                # circular(x = adata[,angle_name],
-                #            units = angle_unit,
-                #            zero = angle_zero,
-                #            rotation = angle_rot,
-                #            ),
                stack = T,
               sep = 0.1,
               col = point_col,
@@ -180,7 +174,9 @@ ddata = read.table(file = tilt_file,#read from user-selected file
                    sep = csv_sep#,#values are separated by the user-specified character
                    #other parameters can be added here for troubleshooting
 )
+#suggested tilt angle
 tilt_ang = 90 - median(range(abs(ddata$Angle-90)))#mean(diff(ddata$Angle))
+#perform correction
 adata = within(adata,
                {
                raw_angle = angle
@@ -190,22 +186,23 @@ adata = within(adata,
 )
 
 # Plot for each phase -----------------------------------------------------
-savepath <- paste0(path_file, '-byBDSO-corrected.pdf')
+
+# . Set up plot file ------------------------------------------------------
+#file to save to in the same location as the original
+savepath = paste0(path_file, '-byBDSOD-corrected.pdf')
+#open the file
 pdf(file = savepath,
     paper = 'a4r',
     bg = 'white', 
     useDingbats = FALSE
     )
-df_lst = aggregate(formula = angle~stim_ori*stimulus*dance*bee,
+
+# . Set up plot parameters ------------------------------------------------
+#make a set of angles for each combinatino of stimulus, orientation, dance and bee
+df_lst = aggregate(formula = angle~stim_ori*stimulus*dance*bee*date,
           data = adata, 
           FUN = list
           )
-            # FUN = function(x, ...){plot.circular(Cformat(x), ...)},
-            # template = 'geographics',
-            # stack = TRUE, 
-            # sep  = 0.1,
-            # bins = 360/5-1
-            # )
 dim(df_lst)
 nms = names(df_lst)
 ucond = dim(df_lst)[1]#prod(lul)
