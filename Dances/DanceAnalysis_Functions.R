@@ -124,6 +124,8 @@ DA_select_folder = function(file_type = ".csv.gz",
 }
 
 
+# . System ------------------------------------------------------------------
+
 #Open file with default program on any OS
 # https://stackoverflow.com/a/35044209/3745353
 shell.exec.OS  <- function(x){
@@ -133,6 +135,21 @@ shell.exec.OS  <- function(x){
   {comm <- paste0('open "',x,'"')
   return(system(comm))}
 }
+
+# . Plotting ---------------------------------------------------------------
+
+#Match default spacing in barplot()
+BarPlotSpacing = function(n, # number of items
+                          spa = 0.2, #spacing factor 
+                          wdt = 1.0) # bar width
+{
+  return(
+    seq( from = spa+1-wdt/2,
+         to =  n*(1+spa)-wdt/2,
+         length.out =  n )
+  )
+}
+
 
 # Camera correction -------------------------------------------------------
 
