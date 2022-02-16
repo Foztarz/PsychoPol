@@ -1,7 +1,7 @@
 #FOR A 'CLEAN' RUN, RESTART Rstudio
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2022 02 15
+#     MODIFIED:	James Foster              DATE: 2022 02 16
 #
 #  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
 #               .
@@ -79,7 +79,7 @@ source(file = fun_path,
 #  .  User input -----------------------------------------------------------
 csv_sep = ','#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
 group_factor = "stimulus" #The title of the column; NO SPACES PLEASE
-angle_name = "angle" #The title of the column with angles; NO SPACES PLEASE
+# angle_name = "angle" #The title of the column with angles; NO SPACES PLEASE
 angle_unit = "degrees" # "degrees" or "radians"
 angle_rot = 'clock' # counter' # 'counter' for anticlockwise (imageJ) 'clock' for clockwise
 angle_zero = pi/2 # 0 # angle start point: _0_ for right along x axis (imageJ) _pi/2_ for up along y axis (e.g. geographic North)
@@ -121,7 +121,9 @@ tilt_list = list.files(path = dirname(path_file),
                        )
 if(length(tilt_list) == 1)
   { #if there is exactly one tilt file in the same directory, use that one
-    tilt_file = tilt_list[1]
+    tilt_file = file.path(dirname(path_file),
+                          tilt_list[1]
+                          )
   }else
   { #otherwise ask the user to find one
     message('\n\nPlease select the distortion ".csv" file\n\n')
@@ -150,6 +152,12 @@ if(speedup_data.table)
                      #other parameters can be added here for troubleshooting
   )
 }
+#Distortion data
+ddata = read.table(file = tilt_file,#read from user-selected file
+                   header = T,#read the file header to use for variable names
+                   sep = csv_sep#,#values are separated by the user-specified character
+                   #other parameters can be added here for troubleshooting
+)
 #Excel makes empty rows, trim them
 adata = subset(x = adata, 
                subset = !(is.na(angle)) # angle is an empty number, i.e. no data
@@ -158,31 +166,77 @@ adata = subset(x = adata,
 View(adata)#show the user the data that was
 
 # Basic plot --------------------------------------------------------------
+shrink_val = sqrt(dim(adata)[1])/4
 par(mar = c(0,0,0,0))
-plot.circular(x = Cformat(adata[,angle_name]),
-               stack = T,
-              sep = 0.1,
-              col = point_col,
-              pch = 19,
-              shrink = sqrt(length(adata[,angle_name]))/4,
-              bins = 360/5-1
+with(adata, 
+  plot.circular(x = Cformat(angle),
+                 stack = T,
+                sep = 0.1,
+                col = point_col,
+                pch = 19,
+                shrink = shrink_val,
+                bins = 360/5-1
+  )
 )
 
 # Correct for distortion --------------------------------------------------
-ddata = read.table(file = tilt_file,#read from user-selected file
-                   header = T,#read the file header to use for variable names
-                   sep = csv_sep#,#values are separated by the user-specified character
-                   #other parameters can be added here for troubleshooting
-)
+with(ddata,
+      points(x = shrink_val*sin(rad(90-Angle)),
+             y = shrink_val*cos(rad(90-Angle)),
+             col = 2,
+             pch = paste(1:length(Angle))
+               )
+    )
 #suggested tilt angle
-tilt_ang = 90 - median(range(abs(ddata$Angle-90)))#mean(diff(ddata$Angle))
+#TODO derive the tilt angle correctly
+#360 - ddata$Angle[8] + ddata$Angle[6]
+#ddata$Angle[4] - ddata$Angle[2] 
+tilt_ang = 90-median(range(abs(ddata$Angle)))#mean(diff(ddata$Angle))
+# tilt_ang = 90 - ddata$Angle[1]
 #perform correction
 adata = within(adata,
                {
                raw_angle = angle
-               angle = Theta(phi = raw_angle*pi/180,
-                             )*180/pi
+               angle = deg(
+                         Theta(phi = rad(raw_angle),
+                               alpha = rad(tilt_ang))
+                           )
                }
+)
+
+ddata = within(ddata,
+               {
+               raw_angle = 90-Angle
+               angle = deg(
+                         Theta(phi = rad(raw_angle),
+                               alpha = rad(tilt_ang))
+                           )
+               }
+)
+
+with(adata, 
+     plot.circular(x = Cformat(angle),
+                   stack = T,
+                   sep = 0.1,
+                   col = point_col,
+                   pch = 19,
+                   shrink = shrink_val,
+                   bins = 360/5-1
+     )
+)
+with(ddata,
+     {
+     points(x = shrink_val*sin(rad(raw_angle)),
+            y = shrink_val*cos(rad(raw_angle)),
+            col = 2,
+            pch = paste(1:length(raw_angle))
+     )
+     points(x = shrink_val*sin(rad(angle)),
+            y = shrink_val*cos(rad(angle)),
+            col = 3,
+            pch = paste(1:length(angle))
+     )
+     }
 )
 
 # Plot for each phase -----------------------------------------------------
