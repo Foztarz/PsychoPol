@@ -1,7 +1,7 @@
 #FOR A 'CLEAN' RUN, RESTART Rstudio
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2022 02 16
+#     MODIFIED:	James Foster              DATE: 2022 02 17
 #
 #  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
 #               .
@@ -15,6 +15,7 @@
 #	   CHANGES: - Suppressed package loading messages (upsetting users)
 #             - Use aggregate to sort and plot
 #             - stimulus orientation label: "orientation" -> "stim_ori"
+#             - correct for tilt and rotation
 #
 #   REFERENCES: Batschelet E (1981).
 #               Graphical presentation, Chap 1.2, p. 4-6
@@ -33,6 +34,7 @@
 #- Neat plot  +
 #- Save results + 
 #- Reorganise functions +
+#- Perspective correction +
 #- Include dates in organisation
 #- Separate weird dances
 #- Bimodal mean vector 
@@ -67,8 +69,6 @@ if(!file.exists(fun_path))#If not found, ask the user
 #read in relevant functions
 source(file = fun_path, 
        encoding = 'UTF-8')
-
-
 
 
 
@@ -158,6 +158,14 @@ ddata = read.table(file = tilt_file,#read from user-selected file
                    sep = csv_sep#,#values are separated by the user-specified character
                    #other parameters can be added here for troubleshooting
 )
+ddata = within(ddata,
+               {
+               raw_angle = 90-Angle
+               ground_truth = seq(from = 0,
+                                  by = 45,
+                                  length.out = length(Angle))
+               }
+               )
 #Excel makes empty rows, trim them
 adata = subset(x = adata, 
                subset = !(is.na(angle)) # angle is an empty number, i.e. no data
@@ -181,35 +189,45 @@ with(adata,
 
 # Correct for distortion --------------------------------------------------
 with(ddata,
+     {
       points(x = shrink_val*sin(rad(90-Angle)),
              y = shrink_val*cos(rad(90-Angle)),
              col = 2,
-             pch = paste(1:length(Angle))
+             pch = 3
                )
+       text(x = 1.1*shrink_val*sin(rad(90-Angle)),
+            y = 1.1*shrink_val*cos(rad(90-Angle)),
+            labels = ground_truth,
+            cex = 0.7,
+            col = 2)
+     }
     )
 #suggested tilt angle
 #TODO derive the tilt angle correctly
 #360 - ddata$Angle[8] + ddata$Angle[6]
 #ddata$Angle[4] - ddata$Angle[2] 
-tilt_ang = 90-median(range(abs(ddata$Angle)))#mean(diff(ddata$Angle))
-# tilt_ang = 90 - ddata$Angle[1]
+# tilt_ang = 90-median(range(abs(ddata$Angle)))#mean(diff(ddata$Angle))
+tilt_rot = with(ddata,
+                PhiTheta_AlphaDelta(phi = rad(raw_angle),
+                              theta = rad(ground_truth)
+                              )
+                )
 #perform correction
 adata = within(adata,
                {
                raw_angle = angle
                angle = deg(
                          Theta(phi = rad(raw_angle),
-                               alpha = rad(tilt_ang))
+                               alpha = tilt_rot['alpha']) + tilt_rot['delta']
                            )
                }
 )
 
 ddata = within(ddata,
                {
-               raw_angle = 90-Angle
                angle = deg(
                          Theta(phi = rad(raw_angle),
-                               alpha = rad(tilt_ang))
+                               alpha = tilt_rot['alpha']) + tilt_rot['delta']
                            )
                }
 )
