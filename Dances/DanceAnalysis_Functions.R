@@ -173,6 +173,74 @@ Theta = function(phi,#distorted angle, radians
                      y = aa)
   return(predict(ss, x = phi)$y)
 }
+#sd(deg(Theta(Phi(crd, 0.1),0.1))- deg(crd) ) #for just 6deg tilt from x axis
+# Use a set of known angles to calculate tilt angle 
+PhiTheta_Alpha = function(phi,
+                          theta
+)
+{ #I'm not sure what the mathematical relationship is, but it can be estimated
+  if(diff(sapply(list(phi,theta),  length)))
+  {stop('phi and theta must be the same length')}
+  if(length(phi)<3)
+  {warning('A minumum of 3 angle pairs is strongly recommended')}
+  #Find it by minimising prediction error
+  ErrFun = function(alpha, #tilt angle
+                    phi_theta # pairs of distorted and known angles
+  )
+  { #would sum of squares be quicker?
+    sd(x = Theta(phi = phi_theta[,1],alpha = alpha) - phi_theta[,2] )
+  }
+  opt = optimize(f = ErrFun,
+                 interval = c(0,pi/2),
+                 phi_theta = cbind(phi, theta)
+  )
+  if(opt$objective > 1){warning('Distortion estimate has an error >1 degree')}
+  if(opt$objective > 1){warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}
+  return(opt$minimum)
+}
+PhiTheta_AlphaDelta = function(phi,
+                               theta
+)
+{ #I'm not sure what the mathematical relationship is, but it can be estimated
+  if(diff(sapply(list(phi,theta),  length)))
+  {stop('phi and theta must be the same length')}
+  if(length(phi)<3)
+  {warning('A minumum of 3 angle pairs is strongly recommended')}
+  #Find it by minimising prediction error
+  ErrFun = function(alpha_delta, #tilt angle
+                    phi_theta # pairs of distorted and known angles
+  )
+  { #would sum of squares be quicker?
+    mean(
+      sin(
+        abs(
+          alpha_delta[2] +
+            Theta(phi = phi_theta[,1],
+                  alpha = alpha_delta[1]) -
+            phi_theta[,2] )
+      )
+    )
+  }
+  opt = optim(par = c(alpha = pi/2,
+                      delta = 0),
+              fn = ErrFun,
+              method = 'L-BFGS-B',
+              lower = c(alpha = 0,
+                        delta = -pi),
+              upper = c(alpha = pi,
+                        delta = pi),
+              phi_theta = cbind(phi, theta),
+              control = list(maxit = 1e6,
+                             pgtol = 1e-16)
+  )
+  if( sqrt(-2*log(1-opt$value))*180/pi > 5) # ?sd.circular
+  {warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}else{
+    if( sqrt(-2*log(1-opt$value))*180/pi > 1){warning('Distortion estimate has an error >1 degree')}
+  }
+  return(
+    opt$par
+  )
+}
 
 # Circular data -----------------------------------------------------------
 
