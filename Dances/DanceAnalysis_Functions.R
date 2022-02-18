@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 02 07
-#     MODIFIED:	James Foster              DATE: 2022 02 07
+#     MODIFIED:	James Foster              DATE: 2022 02 18
 #
 #  DESCRIPTION: A set of functions for analysing honeybee waggle dances.
 #               
@@ -9,7 +9,7 @@
 #               
 #      OUTPUTS: 
 #
-#	   CHANGES: - 
+#	   CHANGES: - Perspective correction
 #             - 
 #             - 
 #
@@ -174,6 +174,26 @@ Theta = function(phi,#distorted angle, radians
   return(predict(ss, x = phi)$y)
 }
 #sd(deg(Theta(Phi(crd, 0.1),0.1))- deg(crd) ) #for just 6deg tilt from x axis
+
+
+Stre = function(theta,#a series of angles
+                stc)#the stretch factor
+{ #N.B. 0 is vertical, rotation is clockwise, units are radians 
+  return(
+    atan2(y = sin(theta) ,
+          x = stc*cos(theta)     )
+  )
+}
+
+UnStre = function(phi,#a series of angles
+                  stc)#the stretch factor
+{ #N.B. 0 is vertical, rotation is clockwise, units are radians 
+  return(
+    atan2(y = sin(phi) ,
+          x = cos(phi)/stc     )
+  )
+}
+
 # Use a set of known angles to calculate tilt angle 
 PhiTheta_Alpha = function(phi,
                           theta
@@ -198,6 +218,7 @@ PhiTheta_Alpha = function(phi,
   if(opt$objective > 1){warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}
   return(opt$minimum)
 }
+
 PhiTheta_AlphaDelta = function(phi,
                                theta
 )
@@ -212,12 +233,12 @@ PhiTheta_AlphaDelta = function(phi,
   )
   { #would sum of squares be quicker?
     mean(
+      abs(
       sin(
-        abs(
           alpha_delta[2] +
             Theta(phi = phi_theta[,1],
                   alpha = alpha_delta[1]) -
-            phi_theta[,2] )
+            phi_theta[,2] )/2 # this should be equivalent to 1 - length of 2 angle mean vector
       )
     )
   }
@@ -233,14 +254,126 @@ PhiTheta_AlphaDelta = function(phi,
               control = list(maxit = 1e6,
                              pgtol = 1e-16)
   )
-  if( sqrt(-2*log(1-opt$value))*180/pi > 5) # ?sd.circular
+  opt_sd = sqrt(-2*log(1-opt$value))*180/pi #standard deviation in degrees
+  if( opt_sd > 5) # ?sd.circular
   {warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}else{
-    if( sqrt(-2*log(1-opt$value))*180/pi > 1){warning('Distortion estimate has an error >1 degree')}
+    if( opt_sd > 1){warning('Distortion estimate has an error >1 degree')}
   }
   return(
-    opt$par
+    c(opt$par,
+      sd = opt_sd)   
   )
 }
+
+# Use a set of known angles to calculate stretch, tilt angle, and rotation
+
+PhiTheta_AlphaDeltaStretch = 
+  function(phi,
+           theta
+  )
+  { #I'm not sure what the mathematical relationship is, but it can be estimated
+    if(diff(sapply(list(phi,theta),  length)))
+    {stop('phi and theta must be the same length')}
+    if(length(phi)<3)
+    {warning('A minumum of 3 angle pairs is strongly recommended')}
+    #Find it by minimising prediction error
+    ErrFun = function(alpha_delta_stretch, #tilt angle
+                      phi_theta # pairs of distorted and known angles
+    )
+    { #would sum of squares be quicker?
+      mean(
+        abs(
+        sin(
+          
+            alpha_delta_stretch[2] +
+              Theta(phi = UnStre( phi = phi_theta[,1],
+                                  stc = alpha_delta_stretch[3] ),
+                    alpha = alpha_delta_stretch[1]) -
+              phi_theta[,2] )/2 # this should be equivalent to 1 - length of 2 angle mean vector
+        )
+      )
+    }
+    opt = optim(par = c(alpha = pi/2,
+                        delta = 0,
+                        stc = 1),
+                fn = ErrFun,
+                method = 'L-BFGS-B',
+                lower = c(alpha = 0,
+                          delta = -pi,
+                          stc = 1e-3),
+                upper = c(alpha = pi,
+                          delta = pi,
+                          stc = 1),
+                phi_theta = cbind(phi, theta),
+                control = list(maxit = 1e6,
+                               pgtol = 1e-16#,
+                               # trace = 1,
+                               # REPORT = 1
+                               )
+    )
+    opt_sd = sqrt(-2*log(1-opt$value))*180/pi #standard deviation in degrees
+    if( opt_sd > 5) # ?sd.circular
+    {warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}else{
+      if( opt_sd > 1){warning('Distortion estimate has an error >1 degree')}
+    }
+    return(
+      c(opt$par,
+        sd = opt_sd)   
+    )
+  }
+
+# Use a set of known angles to calculate stretch, tilt angle, and rotation
+
+DeltaStretch = 
+  function(phi,
+           theta
+  )
+  { #I'm not sure what the mathematical relationship is, but it can be estimated
+    if(diff(sapply(list(phi,theta),  length)))
+    {stop('phi and theta must be the same length')}
+    if(length(phi)<3)
+    {warning('A minumum of 3 angle pairs is strongly recommended')}
+    #Find it by minimising prediction error
+    ErrFun = function(delta_stretch, #tilt angle
+                      phi_theta # pairs of distorted and known angles
+    )
+    { #would sum of squares be quicker?
+      mean(
+        abs(
+        sin(
+          
+            delta_stretch[2] +
+              UnStre( phi = phi_theta[,1],
+                      stc = delta_stretch[2] ) -
+              phi_theta[,2] )/2 # this should be equivalent to 1 - length of 2 angle mean vector
+        )
+      )
+    }
+    opt = optim(par = c(delta = 0,
+                        stc = 1),
+                fn = ErrFun,
+                method = 'L-BFGS-B',
+                lower = c(delta = -pi,
+                          stc = 1e-3),
+                upper = c(delta = pi,
+                          stc = 1),
+                phi_theta = cbind(phi, theta),
+                control = list(maxit = 1e6,
+                               pgtol = 1e-16#,
+                               # trace = 1,
+                               # REPORT = 1
+                               )
+    )
+    opt_sd = sqrt(-2*log(1-opt$value))*180/pi #standard deviation in degrees
+    if( opt_sd > 5) # ?sd.circular
+    {warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}else{
+      if( opt_sd > 1){warning('Distortion estimate has an error >1 degree')}
+    }
+    return(
+      c(opt$par,
+        sd = opt_sd)   
+    )
+  }
 
 # Circular data -----------------------------------------------------------
 
