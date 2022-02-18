@@ -34,8 +34,8 @@
 #- Neat plot  +
 #- Save results + 
 #- Reorganise functions +
-#- Perspective correction +
-#- Include dates in organisation
+#- Perspective correction ++
+#- Include dates in organisation +
 #- Separate weird dances
 #- Bimodal mean vector 
 
@@ -170,12 +170,19 @@ ddata = within(ddata,
 adata = subset(x = adata, 
                subset = !(is.na(angle)) # angle is an empty number, i.e. no data
 )
+#Convert date to character
+adata = within(adata,
+               {
+               date = as.character(date)
+               }
+               )
 
-View(adata)#show the user the data that was
+# View(adata)#show the user the data that was
 
 # Basic plot --------------------------------------------------------------
 shrink_val = sqrt(dim(adata)[1])/4
-par(mar = c(0,0,0,0))
+par(mar = c(0,0,0,0),
+    pty = 's')
 with(adata, 
   plot.circular(x = Cformat(angle),
                  stack = T,
@@ -183,7 +190,8 @@ with(adata,
                 col = point_col,
                 pch = 19,
                 shrink = shrink_val,
-                bins = 360/5-1
+                bins = 360/5-1,
+                axes = FALSE
   )
 )
 
@@ -208,26 +216,37 @@ with(ddata,
 #ddata$Angle[4] - ddata$Angle[2] 
 # tilt_ang = 90-median(range(abs(ddata$Angle)))#mean(diff(ddata$Angle))
 tilt_rot = with(ddata,
-                PhiTheta_AlphaDelta(phi = rad(raw_angle),
+                PhiTheta_AlphaDeltaStretch(phi = rad(raw_angle),
                               theta = rad(ground_truth)
                               )
                 )
+# tilt_rot = with(ddata,
+#                 DeltaStretch(phi = rad(raw_angle),
+#                               theta = rad(ground_truth)
+#                               )
+#                 )
+message(round(tilt_rot['sd'], 1))
 #perform correction
 adata = within(adata,
                {
                raw_angle = angle
                angle = deg(
-                         Theta(phi = rad(raw_angle),
-                               alpha = tilt_rot['alpha']) + tilt_rot['delta']
-                           )
+                 Theta(phi = 
+                           UnStre( phi = rad(raw_angle),
+                                   stc = tilt_rot['stc'] ),
+                       alpha = tilt_rot['alpha']) #+ tilt_rot['delta']
+                         )
                }
 )
 
 ddata = within(ddata,
                {
                angle = deg(
-                         Theta(phi = rad(raw_angle),
-                               alpha = tilt_rot['alpha']) + tilt_rot['delta']
+                         Theta(phi = 
+                             UnStre( phi = rad(raw_angle),
+                                     stc = tilt_rot['stc']),
+                             alpha = tilt_rot['alpha']
+                             ) + tilt_rot['delta']
                            )
                }
 )
@@ -239,23 +258,47 @@ with(adata,
                    col = point_col,
                    pch = 19,
                    shrink = shrink_val,
-                   bins = 360/5-1
+                   bins = 360/5-1,
+                   axes = FALSE
      )
 )
+abline(a = 0,
+       b = 1,
+       lty = 3,
+       col = 'cyan'
+       )
+abline(a = 0,
+       b = -1,
+       lty = 3,
+       col = 'cyan'
+       )
+abline(h = 0,
+       v = 0,
+       lty = 3,
+       col = 'cyan'
+       )
 with(ddata,
      {
      points(x = shrink_val*sin(rad(raw_angle)),
             y = shrink_val*cos(rad(raw_angle)),
             col = 2,
-            pch = paste(1:length(raw_angle))
+            pch = paste(1:8)#paste(1:length(raw_angle))
      )
      points(x = shrink_val*sin(rad(angle)),
             y = shrink_val*cos(rad(angle)),
             col = 3,
-            pch = paste(1:length(angle))
+            pch = paste(1:8)#paste(1:length(angle))
      )
      }
 )
+legend(x = 'topright',
+       legend = c('Measured compass points',
+         'Corrected compass points',
+         'All corrected waggle dances'),
+       col = c(2,3,point_col),
+       pch = c(19,19,19),
+       cex = 0.7
+       )
 
 # Plot for each phase -----------------------------------------------------
 
@@ -266,7 +309,8 @@ savepath = paste0(path_file, '-byBDSOD-corrected.pdf')
 pdf(file = savepath,
     paper = 'a4r',
     bg = 'white', 
-    useDingbats = FALSE
+    useDingbats = FALSE,
+    onefile = TRUE
     )
 
 # . Set up plot parameters ------------------------------------------------
@@ -278,10 +322,11 @@ df_lst = aggregate(formula = angle~stim_ori*stimulus*dance*bee*date,
 dim(df_lst)
 nms = names(df_lst)
 ucond = dim(df_lst)[1]#prod(lul)
-sq_cond = ceiling(sqrt(ucond))
-shrk = 1+sqrt(length(adata[,angle_name]))/ucond
+sq_cond = min( c( ceiling(sqrt(ucond)), 5) )
+shrk = 1+sqrt(dim(adata)[1])/ucond
 par(mfrow = c(sq_cond, sq_cond),
-    mar = c(0,0,0,0)
+    mar = c(0,0,0,0),
+    pty = 's'
     )
 invisible(
   apply(X = df_lst,
@@ -299,17 +344,24 @@ invisible(
             pch = 19,
             shrink = shrk
             )
-            mtext(text = paste0('bee ',
+            mtext(text = paste0(as.character(date),
+                                '\n',
+                                'bee ',
                                bee,
                                ', dance ',
                                dance, 
-                               ', ',
+                               '\n',
                                stimulus,
                                ', ',
                                stim_ori,
                                '°'),
                   line = -1.5,
-                  cex = 3/sq_cond
+                  cex = 2/sq_cond,#3/sq_cond,
+                  col = switch (as.character(stim_ori),
+                                `0` = 'red',
+                                `90` = 'cyan3',
+                                'gray'
+                                )
                   )
            arrows.circular(x = mean.circular(Cformat( angle )),
                            shrink = rho.circular(Cformat( angle )),
