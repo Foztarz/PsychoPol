@@ -403,9 +403,7 @@ Cformat = function(angles,
 }
 
 # Plotting functions ------------------------------------------------------
-# apply(X = df_lst,
-#       MARGIN = 1,
-#       FUN
+
 DA_BimodPlot  = function(dat)
       {
         with(dat,
@@ -452,23 +450,217 @@ DA_BimodPlot  = function(dat)
                arrows.circular(x = circular(m1),
                                shrink = A1(k1),
                                col = 2,
-                               lwd = 3/lb,
+                               lwd = lb/0.3,
                                length = 0.05
                )
                arrows.circular(x = circular(m2),
                                shrink = A1(k2),
                                col = 2,
-                               lwd = 3/(1-lb),
+                               lwd = (1-lb)/0.3,
                                length = 0.05
                )
-               # arrows.circular(x = mean.circular(Cformat( angle )),
-               #                 shrink = rho.circular(Cformat( angle )),
-               #                 col = 2,
-               #                 length = 0.05
-               # )
              }
         )
       }
-# )
 
+# Analysis functions ------------------------------------------------------
+DA_MLpars = function(dat,
+                     ...)
+{
+  with(dat,
+       {
+        suppressWarnings(
+          {
+            mlmod = CircMLE::circ_mle(data = Cformat( angle ),
+                                      ...)
+          }
+        )
+        selmod = mlmod$results[1, ]
+        # m1 = pi/2-selmod$q1
+        # m2 = pi/2-selmod$q2
+        m1 = selmod$q1
+        m2 = selmod$q2
+        k1 = selmod$k1
+        k2 = selmod$k2
+        lb = selmod$lamda
+        return( 
+          data.frame(m1 = circular::deg(m1),
+                     m2 = circular::deg(m2),
+                     k1 = k1,
+                     k2 = k2,
+                     lb1 = lb,
+                     lb2 = 1-lb
+                           )
+        )
+      }
+    )
+}
+  M4A_uvec = function(data,
+                      BadStart = 1e9,
+                      nchains = 5,
+                      method = "BFGS",
+                      niter = 5e3,
+                      lambda.min = 0.25){
+    
+    if(BadStart < 0)
+      {stop("The value for starting parameters outside the preset limits must be >0")}
+    if (nchains < 1)
+      {stop("Must set the number of chains to an integer >=1")}
+    if(niter < 1000)
+      {
+      warning("At least 1000 iterations are recommended but not required.
+                 Check ?optim for details.")
+      }
+    if(method != "Nelder-Mead" &
+        BadStart == Inf)
+      {
+      stop("Except for Nelder-Mead, all other optimization algorithms require finite starting parameters")
+      }
+    
+    lambda.max = 1 - lambda.min
+    lambda = stats::runif(n = nchains, 
+                          min = lambda.min, 
+                          max = lambda.max)
+    
+    m4a_uvec = function(params)
+      {
+      if (params[1] <= -1 | params[1] >= 1 | #cosine
+          params[2] <= -1 | params[2] >= 1 | #sine
+          sqrt(params[2]^2 + params[1]^2) != 1 | #must be a unit vector!
+          params[3] <= 0 | params[3] > 227 | #kappa
+          params[4] < lambda.min | params[4] > lambda.max) #lambda
+        {
+        R = BadStart
+        return(R)
+      }
+      else {
+        P = circularp(data)
+        m1 = atan2(y = params[2], x = params[1])
+        R = dmixedvonmises(x = data,
+                           mu1 = as.circular(x = m1, 
+                                             control.circular = P),
+                           mu2 = as.circular(x = m1+pi, 
+                                             control.circular = P), 
+                           kappa1 = params[3], 
+                           kappa2 = params[3], 
+                           prop = params[4])
+        R = -sum(log(R))
+        return(R)
+      }
+    }
+    
+    # Randomize starting parameters for the optimization
+    q1 = as.numeric(x =
+            rcircularuniform(n = nchains, 
+                             control.circular = list(modulo = "2pi")
+                             )
+            )
+    k1 = as.numeric(x = 
+            sample(x = 1:5, 
+                   size = nchains, 
+                   replace = T)
+            )
+    q1_cos = cos(q1)
+    q1_sin = sin(q1)
+    # Run optimization
+    m4a.out = list()
+    for (i in 1:nchains)
+      {
+      chain.out = suppressWarnings(
+        {
+        stats::optim(par = c(q1_cos[i],
+                             q1_sin[i],
+                             k1[i], 
+                             lambda[i]), 
+                     fn = m4a_uvec, 
+                     method = method, 
+                     control = list(maxit = niter), 
+                     hessian = T)
+        }
+        )
+      names(chain.out)[2] = "lik"
+      m4a.out[[i]] = chain.out
+    }
+    min = which.min(sapply(m4a.out,function(x){x[2]}))
+    return(m4a.out[[min]])
+  }
 
+BootM4A = function(angles,
+                   speedup_parallel = TRUE, #Use the parallel package to speed up calculations
+                   clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
+                   {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                   {NULL},
+                   style = 'M4A',
+                   ...)
+{
+  if(speedup_parallel)
+  {
+    clusterExport(cl = clust,#the cluster needs some variables&functions outside parLapply
+                  list('DA_MLpars',
+                       'Cformat',
+                       'circ_mle',
+                       'M4A',
+                       "M4A_uvec",
+                       'circular',
+                       "as.circular",
+                       "circularp",
+                       "dmixedvonmises",
+                       "rcircularuniform",
+                       'deg',
+                       'rad'),
+                  environment()#needs to be reminded to use function environment, NOT global environment
+    )
+  }
+  ReturnPar = function(x)
+  {
+    mod = switch(EXPR = style, 
+                 M4A_uvec = M4A_uvec(data = x, 
+                                      BadStart = 1e9, 
+                                      nchains = 4, 
+                                      method = 'BFGS', 
+                                      niter = 1000, 
+                                      lambda.min = 0.25),
+                 M4A = M4A(data = x, 
+                            BadStart = 1e9, 
+                            nchains = 4, 
+                            method = 'BFGS', 
+                            niter = 1000, 
+                            lambda.min = 0.25),
+                 circ_mle(data = x, 
+                      BadStart = 1e9, 
+                      nchains = 4, 
+                      method = 'BFGS', 
+                      niter = 1000, 
+                      lambda.min = 0.25)$result[1,-1]
+                  )
+     if(style %in% 'M4A_uvec')
+     {
+      prm = with(mod, 
+                 c(mu1 = atan2(y = par[2], x = par[1]),
+                   kappa1 = par[3],
+                   lambda = par[4])
+                )
+     }else
+     {
+       if(names(mod) %in% 'par')
+       {prm = mod$par}else
+       {prm = mod}
+     }
+    return(prm)
+  }
+  mean_bs = boot(data = Cformat(angles),
+                  statistic = ReturnPar, 
+                  R = 1e3, 
+                  stype = "i", 
+                  sim = 'parametric', 
+                  parallel = if(speedup_parallel)
+                    {
+                    if(Sys.info()[['sysname']] == 'Windows')
+                              {'snow'}else
+                              {'multicore'}
+                    }else
+                      {NULL},
+                  cl = if(speedup_parallel){clust}else{NULL},
+                  ncpus = parallel::detectCores() - 1
+                 )
+}
