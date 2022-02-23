@@ -36,8 +36,9 @@
 #- Reorganise functions +
 #- Perspective correction ++
 #- Include dates in organisation +
+#- Bimodal mean vector +
+#- Speedup parallel
 #- Separate weird dances
-#- Bimodal mean vector 
 
 # Find relevant functions -----------------------------------------------
 fun_file = "DanceAnalysis_Functions.R" #Name of that functions file
@@ -73,7 +74,6 @@ source(file = fun_path,
 
 
 
-
 # Input Variables ----------------------------------------------------------
 
 #  .  User input -----------------------------------------------------------
@@ -92,6 +92,7 @@ suppressMessages(#these are disturbing users unnecessarily
   {
     require(circular)#package for handling cirular data
     require(CircStats)#package for circular hypothesis tests
+    require(parallel)#package for parallel processing
   }
 )
 
@@ -320,6 +321,30 @@ df_lst = aggregate(formula = angle~stim_ori*stimulus*dance*bee*date,
           FUN = list
           )
 dim(df_lst)
+
+# . . Set up parallel processing ------------------------------------------
+
+#circ_mle is painfully slow
+avail.cores = parallel::detectCores() - 1
+clt = makeCluster(avail.cores,# run as many as possible
+                  type="SOCK")
+clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
+              list('df_lst',
+                   'DA_MLpars',
+                   'Cformat',
+                   'circ_mle',
+                   'circular',
+                   'deg',
+                   'rad'),
+              environment()#needs to be reminded to use function environment, NOT global environment
+)
+
+ml_par =   parApply(cl = clt,
+                    X = df_lst,
+                    MARGIN = 1,
+                    FUN = DA_MLpars)
+stopCluster(clt)
+
 nms = names(df_lst)
 ucond = dim(df_lst)[1]#prod(lul)
 sq_cond = min( c( ceiling(sqrt(ucond)), 5) )
