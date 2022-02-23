@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 02 07
-#     MODIFIED:	James Foster              DATE: 2022 02 18
+#     MODIFIED:	James Foster              DATE: 2022 02 22
 #
 #  DESCRIPTION: A set of functions for analysing honeybee waggle dances.
 #               
@@ -24,7 +24,8 @@
 # 
 #TODO   ---------------------------------------------
 #TODO   
-#- Bimodal mean vector 
+#- Bimodal mean vector +
+#- Parallel speedup for circ_mle
 
 # General use -------------------------------------------------------------
 
@@ -400,4 +401,74 @@ Cformat = function(angles,
            zero = angle_zero
           )
 }
+
+# Plotting functions ------------------------------------------------------
+# apply(X = df_lst,
+#       MARGIN = 1,
+#       FUN
+DA_BimodPlot  = function(dat)
+      {
+        with(dat,
+             {
+               plot.circular(
+                 x = Cformat(  angle ),
+                 bins = 360/5-1,
+                 stack = T,
+                 sep = 0.07,
+                 col = point_col,
+                 pch = 19,
+                 shrink = shrk
+               )
+               mtext(text = paste0(as.character(date),
+                                   '\n',
+                                   'bee ',
+                                   bee,
+                                   ', dance ',
+                                   dance, 
+                                   '\n',
+                                   stimulus,
+                                   ', ',
+                                   stim_ori,
+                                   '°'),
+                     line = -1.5,
+                     cex = 1.5/sq_cond,#3/sq_cond,
+                     col = switch (as.character(stim_ori),
+                                   `0` = 'red',
+                                   `90` = 'cyan3',
+                                   'gray'
+                     )
+               )
+               suppressWarnings(
+                 {
+               mlmod = CircMLE::circ_mle(data = Cformat( angle ) )
+                 }
+               )
+               selmod = mlmod$results[1, ]
+               m1 = pi/2-selmod$q1
+               m2 = pi/2-selmod$q2
+               k1 = selmod$k1
+               k2 = selmod$k2
+               lb = selmod$lamda
+               arrows.circular(x = circular(m1),
+                               shrink = A1(k1),
+                               col = 2,
+                               lwd = 3/lb,
+                               length = 0.05
+               )
+               arrows.circular(x = circular(m2),
+                               shrink = A1(k2),
+                               col = 2,
+                               lwd = 3/(1-lb),
+                               length = 0.05
+               )
+               # arrows.circular(x = mean.circular(Cformat( angle )),
+               #                 shrink = rho.circular(Cformat( angle )),
+               #                 col = 2,
+               #                 length = 0.05
+               # )
+             }
+        )
+      }
+# )
+
 

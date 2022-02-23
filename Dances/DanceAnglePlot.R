@@ -304,7 +304,7 @@ legend(x = 'topright',
 
 # . Set up plot file ------------------------------------------------------
 #file to save to in the same location as the original
-savepath = paste0(path_file, '-byBDSOD-corrected.pdf')
+savepath = paste0(path_file, '-byBDSOD-corrected-MLE.pdf')
 #open the file
 pdf(file = savepath,
     paper = 'a4r',
@@ -331,46 +331,47 @@ par(mfrow = c(sq_cond, sq_cond),
 invisible(
   apply(X = df_lst,
         MARGIN = 1,
-       FUN = function(dat)
-         {
-         with(dat,
-              {
-            plot.circular(
-              x = Cformat(  angle ),
-            bins = 360/5-1,
-            stack = T,
-            sep = 0.07,
-            col = point_col,
-            pch = 19,
-            shrink = shrk
-            )
-            mtext(text = paste0(as.character(date),
-                                '\n',
-                                'bee ',
-                               bee,
-                               ', dance ',
-                               dance, 
-                               '\n',
-                               stimulus,
-                               ', ',
-                               stim_ori,
-                               '°'),
-                  line = -1.5,
-                  cex = 2/sq_cond,#3/sq_cond,
-                  col = switch (as.character(stim_ori),
-                                `0` = 'red',
-                                `90` = 'cyan3',
-                                'gray'
-                                )
-                  )
-           arrows.circular(x = mean.circular(Cformat( angle )),
-                           shrink = rho.circular(Cformat( angle )),
-                           col = 2,
-                           length = 0.05
-                           )
-              }
-         )
-       }
+       FUN = DA_BimodPlot
+       # FUN = function(dat)
+       #   {
+       #   with(dat,
+       #        {
+       #      plot.circular(
+       #        x = Cformat(  angle ),
+       #      bins = 360/5-1,
+       #      stack = T,
+       #      sep = 0.07,
+       #      col = point_col,
+       #      pch = 19,
+       #      shrink = shrk
+       #      )
+       #      mtext(text = paste0(as.character(date),
+       #                          '\n',
+       #                          'bee ',
+       #                         bee,
+       #                         ', dance ',
+       #                         dance, 
+       #                         '\n',
+       #                         stimulus,
+       #                         ', ',
+       #                         stim_ori,
+       #                         '°'),
+       #            line = -1.5,
+       #            cex = 2/sq_cond,#3/sq_cond,
+       #            col = switch (as.character(stim_ori),
+       #                          `0` = 'red',
+       #                          `90` = 'cyan3',
+       #                          'gray'
+       #                          )
+       #            )
+       #     arrows.circular(x = mean.circular(Cformat( angle )),
+       #                     shrink = rho.circular(Cformat( angle )),
+       #                     col = 2,
+       #                     length = 0.05
+       #                     )
+       #        }
+       #   )
+       # }
   )
 )
 #save plot
