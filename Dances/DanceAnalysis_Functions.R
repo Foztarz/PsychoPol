@@ -740,6 +740,7 @@ BootM4A = function(angles,
                    {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                    {NULL},
                    style = 'M4A',
+                   type_start = if(style == 'M4A_uvec'){'spaced'}else{'random'},
                    ...)
 {
   if(speedup_parallel)
