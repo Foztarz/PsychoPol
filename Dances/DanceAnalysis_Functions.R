@@ -799,7 +799,7 @@ BootM4A = function(angles,
                 )
      }else
      {
-       if(names(mod) %in% 'par')
+       if(any(names(mod) %in% 'par'))
        {prm = mod$par}else
        {prm = mod}
      }
@@ -808,8 +808,13 @@ BootM4A = function(angles,
   mean_bs = boot(data = Cformat(angles),
                   statistic = ReturnPar, 
                   R = 1e3, 
-                  stype = "i", 
-                  sim = 'parametric', 
+                 sim = 'parametric',
+                 ran.gen = function(d, p)
+                 {
+                   sample(x = d, 
+                          size = length(d), 
+                          replace = T)
+                 },
                   parallel = if(speedup_parallel)
                     {
                     if(Sys.info()[['sysname']] == 'Windows')
