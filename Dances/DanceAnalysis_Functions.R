@@ -735,12 +735,18 @@ m4a_uvec = function(params,
   }
 
 BootM4A = function(angles,
-                   speedup_parallel = TRUE, #Use the parallel package to speed up calculations
+                   speedup_parallel = TRUE, #Use the parallel package to speed up calculations,
+                   nrep = 1e3,
                    clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                    {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                    {NULL},
                    style = 'M4A',
                    type_start = if(style == 'M4A_uvec'){'spaced'}else{'random'},
+                   n_chains = switch(style,
+                                    M4A_uvec = 36,
+                                    M4A = 36,
+                                    Rayleigh_double = 0,
+                                    5),
                    ...)
 {
   if(speedup_parallel)
@@ -768,14 +774,14 @@ BootM4A = function(angles,
     mod = switch(EXPR = style, 
                  M4A_uvec = M4A_uvec(data = x, 
                                       BadStart = 1e9, 
-                                      nchains = 4, 
+                                      nchains = n_chains, 
                                       # method = 'BFGS', 
                                       niter = 1e4, 
                                       lambda.min = 0.25,
                                       start_type = type_start),
                  M4A = M4A(data = x, 
                             BadStart = 1e9, 
-                            nchains = 4, 
+                            nchains = n_chains, 
                             method = 'BFGS', 
                             niter = 1e4, 
                             lambda.min = 0.25),
@@ -785,7 +791,7 @@ BootM4A = function(angles,
                             niter = 1e4),
                  circ_mle(data = x, 
                       BadStart = 1e9, 
-                      nchains = 4, 
+                      nchains = n_chains, 
                       method = 'BFGS', 
                       niter = 1e4, 
                       lambda.min = 0.25)$result[1,-1]
