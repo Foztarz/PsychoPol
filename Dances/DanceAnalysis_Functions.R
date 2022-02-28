@@ -495,73 +495,202 @@ DA_MLpars = function(dat,
       }
     )
 }
-  M4A_uvec = function(data,
-                      BadStart = 1e9,
-                      nchains = 5,
-                      method = "BFGS",
-                      niter = 5e3,
-                      lambda.min = 0.25){
-    
-    if(BadStart < 0)
-      {stop("The value for starting parameters outside the preset limits must be >0")}
-    if (nchains < 1)
-      {stop("Must set the number of chains to an integer >=1")}
-    if(niter < 1000)
-      {
-      warning("At least 1000 iterations are recommended but not required.
-                 Check ?optim for details.")
-      }
-    if(method != "Nelder-Mead" &
-        BadStart == Inf)
-      {
-      stop("Except for Nelder-Mead, all other optimization algorithms require finite starting parameters")
-      }
-    
-    lambda.max = 1 - lambda.min
-    lambda = stats::runif(n = nchains, 
-                          min = lambda.min, 
-                          max = lambda.max)
-    
-    m4a_uvec = function(params)
-      {
-      if (params[1] <= -1 | params[1] >= 1 | #cosine
-          params[2] <= -1 | params[2] >= 1 | #sine
-          sqrt(params[2]^2 + params[1]^2) != 1 | #must be a unit vector!
-          params[3] <= 0 | params[3] > 227 | #kappa
-          params[4] < lambda.min | params[4] > lambda.max) #lambda
-        {
-        R = BadStart
-        return(R)
-      }
-      else {
-        P = circularp(data)
-        m1 = atan2(y = params[2], x = params[1])
-        R = dmixedvonmises(x = data,
-                           mu1 = as.circular(x = m1, 
-                                             control.circular = P),
-                           mu2 = as.circular(x = m1+pi, 
-                                             control.circular = P), 
-                           kappa1 = params[3], 
-                           kappa2 = params[3], 
-                           prop = params[4])
-        R = -sum(log(R))
-        return(R)
-      }
+Rayleigh_double = function(data,
+                           out_format = 'list')
+{
+  if(is.circular(data))
+  {cp = circularp(data)}else
+  {
+    cp = list(units = "degrees",
+              rotation = "clock",
+              zero = pi/2,
+              )
+    data = as.circular(x = data, 
+                         control.circular = cp)
+  }
+  
+  with(
+    circular::mle.vonmises(x = data*2, 
+                           control.circular = cp),
+       {
+         switch(EXPR = out_format,
+                list = list(par = c(mu = as.numeric(mu)/2, 
+                                    kappa = kappa) ),
+                vector = c(mu = as.numeric(mu)/2, 
+                           kappa = kappa),
+                list(par = c(mu = as.numeric(mu)/2, 
+                             kappa = kappa) )
+               )
+       }
+  )
+}
+Ray_doub = function(data,
+                    method = "BFGS",
+                    BadStart = 1e9, 
+                    nchains = 4,
+                    niter = 5e3)
+{
+  ray_doub = function(params)
+  {
+    if(params[1] <= -pi | params[1] >= pi | #cosine
+       params[2] <= 0 | params[2] > 227 ) #kappa)
+    {
+      return(BadStart)
+    }else
+    {
+    P = circularp(data)
+    doub_data = data*2
+    R = dvonmises(x = doub_data,
+                       mu = as.circular(x = params[1]*2, 
+                                         control.circular = P),
+                       kappa = params[2])
+    R = -sum(log(R))
     }
+  }
+  # Randomize starting parameters for the optimization
+  q1 = as.numeric(x =
+                    rcircularuniform(n = nchains, 
+                                     control.circular = list(modulo = "2pi")
+                    )
+  )
+  k1 = as.numeric(x = 
+                    sample(x = 1:5, 
+                           size = nchains, 
+                           replace = T)
+  )
+  ray.out = list()
+  for (i in 1:nchains)
+  {
+    chain.out = suppressWarnings(
+      {
+      stats::optim(par = c(q1[i],
+                           k1[i]), 
+                   fn = ray_doub, 
+                   method = method, 
+                   control = list(maxit = niter), 
+                   hessian = T)
+      }
+    )
+    names(chain.out)[2] = "lik"
+    ray.out[[i]] = chain.out
+  }
+  min = which.min(sapply(ray.out,function(x){x[2]}))
+  return(ray.out[[min]])
+}
+
+M4A_uvec = function(data,
+                  BadStart = 1e9,
+                  nchains = 5,
+                  # method = "BFGS", #N.B. requires "L-BFGS-B"!
+                  niter = 5e3,
+                  lambda.min = 0.25,
+                  start_type = 'random' # or spaced
+                  )
+  {
+
+if(BadStart < 0)
+  {stop("The value for starting parameters outside the preset limits must be >0")}
+if (nchains < 1)
+  {stop("Must set the number of chains to an integer >=1")}
+if(niter < 1000)
+  {
+  warning("At least 1000 iterations are recommended but not required.
+             Check ?optim for details.")
+  }
+# if(method != "Nelder-Mead" &
+#     BadStart == Inf)
+#   {
+#   stop("Except for Nelder-Mead, all other optimization algorithms require finite starting parameters")
+#   }
+
+lambda.max = 1 - lambda.min
+lambda = switch(EXPR = start_type,
+                random = stats::runif(n = nchains, 
+                              min = lambda.min, 
+                              max = lambda.max),
+                spaced = seq(from = lambda.min,
+                             to = lambda.max,
+                             length.out = nchains),
+                stats::runif(n = nchains, 
+                             min = lambda.min, 
+                             max = lambda.max)
+                )
+m4a_uvec = function(params,
+                    BadStart = 1e9,
+                    lambda.min = 0.25)
+  {
+  if (
+      #params[1] <= -1 | params[1] >= 1 | #cosine
+      # params[2] <= -1 | params[2] >= 1 | #sine
+      sqrt(params[2]^2 + params[1]^2) != 1 #| #must be a unit vector!
+      # params[3] <= 0 | params[3] > 227 | #kappa
+      # params[4] < lambda.min | params[4] > lambda.max #lambda
+      ) 
+    {
+    R = BadStart
+    return(R)
+  }
+  else {
+    P = circularp(data)
+    m1 = atan2(y = params[2], x = params[1])
+    R = dmixedvonmises(x = data,
+                       mu1 = as.circular(x = m1, 
+                                         control.circular = P),
+                       mu2 = as.circular(x = m1+pi, 
+                                         control.circular = P), 
+                       kappa1 = exp(params[3]), #safer on a log scale, no chance of negatives
+                       kappa2 = exp(params[3]), 
+                       prop = params[4])
+    R = -sum(log(R))
+    if(is.infinite(R)){return(BadStart)}
+    if(R < -.Machine$double.xmax){return(BadStart)}
+    return(R)
+  }
+}
     
     # Randomize starting parameters for the optimization
+    c_extent = ifelse(test = circularp(data)$units == 'radians',
+                      yes = pi,
+                      no = 180)
     q1 = as.numeric(x =
-            rcircularuniform(n = nchains, 
-                             control.circular = list(modulo = "2pi")
-                             )
+                      switch(EXPR = start_type,
+                            random = rcircularuniform(
+                                             n = nchains, 
+                                             control.circular = circularp(data)#list(modulo = "2pi")
+                                             ),
+                            spaced = seq(from = -c_extent,
+                                         to = -c_extent+2*c_extent*(nchains-1)/nchains,
+                                         length.out = nchains)+
+                                      runif(n = 1)*c_extent,
+                            seq(from = -c_extent,
+                                 to = -c_extent+2*c_extent*(nchains-1)/nchains,
+                                 length.out = nchains)
+                      )
             )
     k1 = as.numeric(x = 
-            sample(x = 1:5, 
-                   size = nchains, 
-                   replace = T)
+                      switch(EXPR = start_type,
+                             random = log(
+                                      sample(x = 1:5, 
+                                             size = nchains, 
+                                             replace = T)
+                                      )
+                             ,
+                             spaced = # #exp(
+                                         # seq(from = -2,# rho = 0.07
+                                         #     to = 2, # rho = 0.93
+                                         #  length.out = nchains)
+                                        # #)
+                                       rep(x = 1, times = nchains)
+                            )
             )
-    q1_cos = cos(q1)
-    q1_sin = sin(q1)
+    q1_cos = cos(
+                if(circularp(data)$units == 'radians')
+                           {q1}else{rad(q1)}
+              )
+    q1_sin = sin(
+                if(circularp(data)$units == 'radians')
+                 {q1}else{rad(q1)}
+                )
     # Run optimization
     m4a.out = list()
     for (i in 1:nchains)
