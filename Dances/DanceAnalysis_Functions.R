@@ -832,3 +832,64 @@ BootM4A = function(angles,
                   ncpus = parallel::detectCores() - 1
                  )
 }
+
+# Replicate calls ---------------------------------------------------------
+
+ReplCollapse = function(call,
+                        n = 1e3,
+                        extractPar = FALSE,
+                        clust = NULL,
+                        ...)
+{
+  # rr = replicate(n = integer(n), 
+  #                expr = call,
+  #                simplify = !extractPar
+  #               )
+  #replicate is just a wrapper for sapply (and not a great one)
+  if(!is.null(clust))
+  {
+    rr = parSapply(cl = clust,
+                   X = integer(n), 
+                   FUN = function(i)
+                   {
+                     do.call(what = call,
+                             args = list(...)
+                     )
+                   },
+                   simplify = !extractPar
+    )  
+  }else
+  {
+    rr = sapply(X = integer(n), 
+                FUN = function(i)
+                {
+                  do.call(what = call,
+                          args = list(...)
+                  )
+                },
+                simplify = !extractPar
+    )
+  }
+  if(is.list(rr))
+  {
+    if(extractPar)
+    {
+      rr = lapply(X = rr,
+                  FUN = function(lst)
+                  {
+                    c(lst$par)
+                  }
+      )
+    }
+    return(
+      data.frame(
+        do.call(what = rbind,
+                args = rr
+        )
+      )
+    )
+  }else
+  {
+    return(data.frame(rr))
+  }
+}
