@@ -25,6 +25,7 @@
 #TODO   ---------------------------------------------
 #TODO   
 #- Bimodal mean vector +
+#- Fix M4A convergence
 #- Parallel speedup for circ_mle
 
 # General use -------------------------------------------------------------
