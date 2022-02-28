@@ -703,16 +703,35 @@ m4a_uvec = function(params,
                              k1[i], 
                              lambda[i]), 
                      fn = m4a_uvec, 
-                     method = method, 
+                     method = "L-BFGS-B", 
+                     lower = c(-1,
+                               -1,
+                               0,
+                               lambda.min),
+                     upper = c(1,
+                               1,
+                               log(227),
+                               lambda.max),
                      control = list(maxit = niter), 
-                     hessian = T)
+                     hessian = T,
+                     BadStart = 1e9,
+                     lambda.min = 0.25
+                     )
         }
         )
       names(chain.out)[2] = "lik"
       m4a.out[[i]] = chain.out
     }
-    min = which.min(sapply(m4a.out,function(x){x[2]}))
-    return(m4a.out[[min]])
+    min_ll = which.min(sapply(m4a.out,function(x){x[2]}))
+    m4a.out = lapply(X = m4a.out,#recover exponentiated log kappa 
+                     FUN = function(x)
+                     {
+                      xx = x
+                      xx[[1]][3] = exp(xx[[1]][3])
+                      return(xx)
+                      }
+                     )
+    return(m4a.out[[min_ll]])
   }
 
 BootM4A = function(angles,
