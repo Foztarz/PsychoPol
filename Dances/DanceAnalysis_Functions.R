@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 02 07
-#     MODIFIED:	James Foster              DATE: 2022 02 22
+#     MODIFIED:	James Foster              DATE: 2022 03 01
 #
 #  DESCRIPTION: A set of functions for analysing honeybee waggle dances.
 #               
@@ -196,77 +196,6 @@ UnStre = function(phi,#a series of angles
   )
 }
 
-# Use a set of known angles to calculate tilt angle 
-PhiTheta_Alpha = function(phi,
-                          theta
-)
-{ #I'm not sure what the mathematical relationship is, but it can be estimated
-  if(diff(sapply(list(phi,theta),  length)))
-  {stop('phi and theta must be the same length')}
-  if(length(phi)<3)
-  {warning('A minumum of 3 angle pairs is strongly recommended')}
-  #Find it by minimising prediction error
-  ErrFun = function(alpha, #tilt angle
-                    phi_theta # pairs of distorted and known angles
-  )
-  { #would sum of squares be quicker?
-    sd(x = Theta(phi = phi_theta[,1],alpha = alpha) - phi_theta[,2] )
-  }
-  opt = optimize(f = ErrFun,
-                 interval = c(0,pi/2),
-                 phi_theta = cbind(phi, theta)
-  )
-  if(opt$objective > 1){warning('Distortion estimate has an error >1 degree')}
-  if(opt$objective > 1){warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}
-  return(opt$minimum)
-}
-
-PhiTheta_AlphaDelta = function(phi,
-                               theta
-)
-{ #I'm not sure what the mathematical relationship is, but it can be estimated
-  if(diff(sapply(list(phi,theta),  length)))
-  {stop('phi and theta must be the same length')}
-  if(length(phi)<3)
-  {warning('A minumum of 3 angle pairs is strongly recommended')}
-  #Find it by minimising prediction error
-  ErrFun = function(alpha_delta, #tilt angle
-                    phi_theta # pairs of distorted and known angles
-  )
-  { #would sum of squares be quicker?
-    mean(
-      abs(
-      sin(
-          alpha_delta[2] +
-            Theta(phi = phi_theta[,1],
-                  alpha = alpha_delta[1]) -
-            phi_theta[,2] )/2 # this should be equivalent to 1 - length of 2 angle mean vector
-      )
-    )
-  }
-  opt = optim(par = c(alpha = pi/2,
-                      delta = 0),
-              fn = ErrFun,
-              method = 'L-BFGS-B',
-              lower = c(alpha = 0,
-                        delta = -pi),
-              upper = c(alpha = pi,
-                        delta = pi),
-              phi_theta = cbind(phi, theta),
-              control = list(maxit = 1e6,
-                             pgtol = 1e-16)
-  )
-  opt_sd = sqrt(-2*log(1-opt$value))*180/pi #standard deviation in degrees
-  if( opt_sd > 5) # ?sd.circular
-  {warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}else{
-    if( opt_sd > 1){warning('Distortion estimate has an error >1 degree')}
-  }
-  return(
-    c(opt$par,
-      sd = opt_sd)   
-  )
-}
-
 # Use a set of known angles to calculate stretch, tilt angle, and rotation
 
 PhiTheta_AlphaDeltaStretch = 
@@ -326,56 +255,6 @@ PhiTheta_AlphaDeltaStretch =
 
 # Use a set of known angles to calculate stretch, tilt angle, and rotation
 
-DeltaStretch = 
-  function(phi,
-           theta
-  )
-  { #I'm not sure what the mathematical relationship is, but it can be estimated
-    if(diff(sapply(list(phi,theta),  length)))
-    {stop('phi and theta must be the same length')}
-    if(length(phi)<3)
-    {warning('A minumum of 3 angle pairs is strongly recommended')}
-    #Find it by minimising prediction error
-    ErrFun = function(delta_stretch, #tilt angle
-                      phi_theta # pairs of distorted and known angles
-    )
-    { #would sum of squares be quicker?
-      mean(
-        abs(
-        sin(
-          
-            delta_stretch[2] +
-              UnStre( phi = phi_theta[,1],
-                      stc = delta_stretch[2] ) -
-              phi_theta[,2] )/2 # this should be equivalent to 1 - length of 2 angle mean vector
-        )
-      )
-    }
-    opt = optim(par = c(delta = 0,
-                        stc = 1),
-                fn = ErrFun,
-                method = 'L-BFGS-B',
-                lower = c(delta = -pi,
-                          stc = 1e-3),
-                upper = c(delta = pi,
-                          stc = 1),
-                phi_theta = cbind(phi, theta),
-                control = list(maxit = 1e6,
-                               pgtol = 1e-16#,
-                               # trace = 1,
-                               # REPORT = 1
-                               )
-    )
-    opt_sd = sqrt(-2*log(1-opt$value))*180/pi #standard deviation in degrees
-    if( opt_sd > 5) # ?sd.circular
-    {warning('DISTORTION ESTIMATE HAS AN ERROR >5 degrees!')}else{
-      if( opt_sd > 1){warning('Distortion estimate has an error >1 degree')}
-    }
-    return(
-      c(opt$par,
-        sd = opt_sd)   
-    )
-  }
 
 # Circular data -----------------------------------------------------------
 
@@ -525,65 +404,12 @@ Rayleigh_double = function(data,
        }
   )
 }
-Ray_doub = function(data,
-                    method = "BFGS",
-                    BadStart = 1e9, 
-                    nchains = 4,
-                    niter = 5e3)
-{
-  ray_doub = function(params)
-  {
-    if(params[1] <= -pi | params[1] >= pi | #cosine
-       params[2] <= 0 | params[2] > 227 ) #kappa)
-    {
-      return(BadStart)
-    }else
-    {
-    P = circularp(data)
-    doub_data = data*2
-    R = dvonmises(x = doub_data,
-                       mu = as.circular(x = params[1]*2, 
-                                         control.circular = P),
-                       kappa = params[2])
-    R = -sum(log(R))
-    }
-  }
-  # Randomize starting parameters for the optimization
-  q1 = as.numeric(x =
-                    rcircularuniform(n = nchains, 
-                                     control.circular = list(modulo = "2pi")
-                    )
-  )
-  k1 = as.numeric(x = 
-                    sample(x = 1:5, 
-                           size = nchains, 
-                           replace = T)
-  )
-  ray.out = list()
-  for (i in 1:nchains)
-  {
-    chain.out = suppressWarnings(
-      {
-      stats::optim(par = c(q1[i],
-                           k1[i]), 
-                   fn = ray_doub, 
-                   method = method, 
-                   control = list(maxit = niter), 
-                   hessian = T)
-      }
-    )
-    names(chain.out)[2] = "lik"
-    ray.out[[i]] = chain.out
-  }
-  min = which.min(sapply(ray.out,function(x){x[2]}))
-  return(ray.out[[min]])
-}
 
 M4A_uvec = function(data,
                   BadStart = 1e9,
-                  nchains = 5,
+                  nchains = 36,# better to have a lot of starting positions
                   # method = "BFGS", #N.B. requires "L-BFGS-B"!
-                  niter = 5e3,
+                  niter = 1e3,
                   lambda.min = 0.25,
                   start_type = 'random' # or spaced
                   )
