@@ -10,7 +10,7 @@
 #      OUTPUTS: 
 #
 #	   CHANGES: - Perspective correction
-#             - 
+#             - Fixed mistaken degree conversion in BootM4A
 #             - 
 #
 #   REFERENCES: Batschelet E (1981).
@@ -443,8 +443,10 @@ lambda = switch(EXPR = start_type,
                              max = lambda.max)
                 )
 m4a_uvec = function(params,
+                    data,
                     BadStart = 1e9,
-                    lambda.min = 0.25)
+                    lambda.min = 0.25
+                    )
   {
   if (
       #params[1] <= -1 | params[1] >= 1 | #cosine
@@ -529,6 +531,7 @@ m4a_uvec = function(params,
                              k1[i], 
                              lambda[i]), 
                      fn = m4a_uvec, 
+                     data = data,
                      method = "L-BFGS-B", 
                      lower = c(-1,
                                -1,
@@ -558,7 +561,14 @@ m4a_uvec = function(params,
                       }
                      )
     return(m4a.out[[min_ll]])
-  }
+}
+
+BootSample = function(d, p)
+{
+  sample(x = d, 
+         size = length(d), 
+         replace = T)
+}
 
 BootM4A = function(angles,
                    speedup_parallel = TRUE, #Use the parallel package to speed up calculations,
@@ -567,6 +577,7 @@ BootM4A = function(angles,
                    {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                    {NULL},
                    style = 'M4A',
+                   niter = 1e3,
                    type_start = if(style == 'M4A_uvec'){'spaced'}else{'random'},
                    n_chains = switch(style,
                                     M4A_uvec = 36,
@@ -583,7 +594,7 @@ BootM4A = function(angles,
                        'circ_mle',
                        'M4A',
                        "M4A_uvec",
-                       "Ray_doub",
+                       "Rayleigh_double",
                        'circular',
                        "as.circular",
                        "circularp",
@@ -602,24 +613,24 @@ BootM4A = function(angles,
                                       BadStart = 1e9, 
                                       nchains = n_chains, 
                                       # method = 'BFGS', 
-                                      niter = 1e4, 
+                                      niter = niter, 
                                       lambda.min = 0.25,
                                       start_type = type_start),
                  M4A = M4A(data = x, 
                             BadStart = 1e9, 
                             nchains = n_chains, 
                             method = 'BFGS', 
-                            niter = 1e4, 
+                            niter = niter, 
                             lambda.min = 0.25),
-                 Ray_doub = Ray_doub(data = x, 
-                            BadStart = 1e9, 
-                            method = 'BFGS', 
-                            niter = 1e4),
+                 # Ray_doub = Ray_doub(data = x, 
+                 #            BadStart = 1e9, 
+                 #            method = 'BFGS', 
+                 #            niter = niter),
                  circ_mle(data = x, 
                       BadStart = 1e9, 
                       nchains = n_chains, 
                       method = 'BFGS', 
-                      niter = 1e4, 
+                      niter = niter, 
                       lambda.min = 0.25)$result[1,-1]
                   )
      if(style %in% 'M4A_uvec')
@@ -637,25 +648,21 @@ BootM4A = function(angles,
      }
     return(prm)
   }
-  mean_bs = boot(data = Cformat(angles),
-                  statistic = ReturnPar, 
-                  R = 1e3, 
+  mean_bs = boot(#data = Cformat(angles),
+                 data = angles,
+                 statistic = ReturnPar, 
+                 R = nrep, 
                  sim = 'parametric',
-                 ran.gen = function(d, p)
-                 {
-                   sample(x = d, 
-                          size = length(d), 
-                          replace = T)
-                 },
-                  parallel = if(speedup_parallel)
+                 ran.gen = BootSample,
+                 parallel = if(speedup_parallel)
                     {
                     if(Sys.info()[['sysname']] == 'Windows')
                               {'snow'}else
                               {'multicore'}
                     }else
                       {NULL},
-                  cl = if(speedup_parallel){clust}else{NULL},
-                  ncpus = parallel::detectCores() - 1
+                 cl = if(speedup_parallel){clust}else{NULL},
+                 ncpus = parallel::detectCores() - 1
                  )
 }
 
