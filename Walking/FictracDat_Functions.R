@@ -320,12 +320,34 @@ MAspeed <- function(i, #index
   )
 }
 
+MA_stop_flag = function(i, #index
+                        dta, #vector of data
+                        window = 1, # time window in seconds
+                        hz = 100,  # sampling rate
+                        method = 'median' # mean between frames or distance across interval
+)
+{
+  n = window*hz # number of samples to use
+  winmin = i-round(n/2)+1 #index of window start 
+  winmax = i+round(n/2)-1 #index of window end
+  if(winmin<1){return(NA)}#if window starts outside data, don't calculate
+  if(winmax>length(dta)){return(NA)}#if window ends outside data, don't calculate
+  return(
+    all(
+        x = dta[winmin:winmax],
+        na.rm = FALSE # large NA regions at the start don't count
+        )
+    )
+}
+
 
 # Read in, calculate, write -----------------------------------------------
 
 FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                          ball_radius = 25,#mm
                          av_window = 5.0,#number of seconds to smooth over for averaging
+                         stop_speed = 30,#mm/s minimum walking speed
+                         stop_length = 0.5,#number of seconds to identify a stop
                          csv_sep_load = ',',#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
                          speedup_parallel = TRUE, #Use the parallel package to speed up calculations
                          speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
@@ -509,6 +531,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                      x_pos = x_int*ball_radius, #mm
                      y_pos = y_int*ball_radius, #mm
                      z_turn = deg(-z_ball)*fps, #°/s
+                     forward_speed = y_ball*ball_radius*fps, #mm/s
                      angle_speed = c(0,diff(deg(heading_integrated)))*fps, #deg/s
                      ma_angle = if(speedup_parallel)
                      {
@@ -595,7 +618,8 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                      },
                      x_speed = c(NA, diff(x_pos))*fps, #forwards speed in mm/s
                      y_speed = c(NA, diff(y_pos))*fps, #sideways speed in mm/s
-                     z_turn = deg(-z_ball)*fps #°/s
+                     z_turn = deg(-z_ball)*fps, #°/s,
+                     forward_speed = y_ball*ball_radius*fps #mm/s
     )
     ]
     adata[, `:=`( #assign from list call
@@ -655,6 +679,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                    x_pos = x_int*ball_radius #mm
                    y_pos = y_int*ball_radius #mm
                    z_turn = deg(-z_ball)*fps #°/s
+                   forward_speed = y_ball*ball_radius*fps #mm/s
                    angle_speed = c(0,diff(deg(heading_integrated)))*fps #deg/s
                    ma_angle = if(speedup_parallel)
                    {
@@ -777,6 +802,32 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                  {
                    abs_turn = abs(ma_turn)
                    abs_accel = abs(ma_accel)
+                 }
+                )
+  }
+  # . . . Find stops --------------------------------------------------------
+  if(speedup_data.table)
+  {
+    adata[, `:=`( #assign from list call
+                  low_forward = forward_speed < stop_speed
+                )
+          ] 
+    adata[, `:=`( #assign from list call
+                  stop_flag = sapply(X = 1:length(forward_speed),
+                                     dta = low_forward,
+                                     FUN = MA_stop_flag,
+                                     window = stop_length)
+                )
+          ]
+  }else
+  {
+  adata = within(adata, 
+                 {
+                   low_forward = forward_speed < stop_speed
+                   stop_flag = sapply(X = 1:length(forward_speed),
+                                      dta = low_forward,
+                                      FUN = MA_stop_flag,
+                                      window = stop_length)
                  }
                 )
   }
@@ -1734,7 +1785,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
       library(bspec, quietly = TRUE)#Bayesian Spectral Inference
       if(speedup_data.table){library(data.table, quietly = TRUE)}
       if(speedup_parallel){library(parallel, quietly = TRUE)}
-      if(res.method == 'MAturnspeed'){library(circular, quietly = TRUE)}
+      if(res.method == 'MAturnspeed'){library(circular, quietly = TRUE)}#actually always needed!
     }
   )
   
@@ -1934,6 +1985,9 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
 # Plot data for each track -------------------------------------------------
 
 FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),#path to the ".dat" file,
+                         point_col = "darkblue", # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
+                         trend_col = "darkgreen", # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
+                         av_window = 5.0, #number of seconds to smooth over for averaging
                          plt_leg_pos = 'topleft', #legend position within plot
                          plt_leg_inset = c(0,-0.01), # legend xy inset
                          plt_leg_cex = 0.5, # legend scaling factor relative to plot
@@ -1941,6 +1995,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                          plt_turn_ax = 45, #tick interval for turn speed axes
                          plt_accel_scale = 5, #rescale factor for accelaration to fit turn speed axes
                          csv_sep_load = ',',#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
+                         save_type = 'pdf',#Save as PDF or PNG
                          speedup_parallel = FALSE, #Use the parallel package to speed up calculations
                          speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
                          verbose = TRUE, #Tell the user what is going on
@@ -2082,7 +2137,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   #Circular heading
   with(adata,
        {
-         plot.circular(circular(NA,
+         circular::plot.circular(
+             circular::circular(NA,
                                 type = 'angles',
                                 unit = 'degrees',
                                 rotation = 'clock',
@@ -2094,7 +2150,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          ylim = c(-1,1)*max(experimental_time),
          shrink = 1/max(experimental_time)
          )
-         lines.circular(x = circular(angle-180,
+         circular::lines.circular(x = 
+                  circular::circular(angle-180,
                                      type = 'angles',
                                      unit = 'degrees',
                                      template = 'geographics',
@@ -2112,8 +2169,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
              lapply(X = 10*(0:(max(experimental_time)/10)),
                     FUN =function(i)
                     {
-                      lines.circular(
-                        x = circular(x = seq(from = -pi, 
+                      circular::lines.circular(
+                        x = circular::circular(x = seq(from = -pi, 
                                              to = pi, 
                                              length.out = 1e3),
                                      template = 'none'),
@@ -2127,8 +2184,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          )
        }
   )
-  lines.circular(
-    x = circular(x = seq(from = -pi, 
+  circular::lines.circular(
+    x = circular::circular(x = seq(from = -pi, 
                          to = pi, 
                          length.out = 1e3),
                  template = 'none'),
@@ -2174,6 +2231,11 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
               col = adjustcolor(point_col, alpha.f = 20/256),
               axes = F
          )
+         lines(x = experimental_time,
+               y = forward_speed,
+               col = adjustcolor('orange', alpha.f = 100/256),
+               cex = 0.1,
+               pch = 19)
          axis(side = 1,
               at = 10*(0:(max(experimental_time)/10)),
               labels = 10*(0:(max(experimental_time)/10))
@@ -2184,7 +2246,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                 v = c(0,60,120),
                 col = rgb(0,0,0,0.1)
          )
-         
+         abline(h = 0,
+                col = 1)
        }
   )
   #Trendline
@@ -2197,15 +2260,29 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          )
        }
   )
+  #label stops
+  with(adata,
+       {
+        abline(v = experimental_time[stop_flag],
+               col = adjustcolor(col = 'red',
+                                 alpha.f = 20/256),
+               lwd = 1
+               )
+       }
+  )
   legend(x = plt_leg_pos,
          inset= plt_leg_inset,
          xpd = TRUE,
          legend = c('instantaneous',
-                    paste0('moving average (median: ',av_window,'s)')),
-         lty = c(NA,1),
-         pch = c(19,NA),
+                    paste0('moving average (median: ',av_window,'s)'),
+                    'forward speed',
+                    'stop'),
+         lty = c(NA,1,1,NA),
+         pch = c(19,NA,NA,15),
          col = c(point_col,
-                 trend_col),
+                 trend_col,
+                 'orange',
+                 'red'),
          cex = plt_leg_cex
   )
   

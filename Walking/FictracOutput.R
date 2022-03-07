@@ -186,6 +186,27 @@ MAspeed <- function(i, #index
   )
 }
 
+MA_stop_flag = function(i, #index
+                        dta, #vector of data
+                        window = 1, # time window in seconds
+                        hz = 100,  # sampling rate
+                        method = 'median' # mean between frames or distance across interval
+)
+{
+  n = window*hz # number of samples to use
+  winmin = i-round(n/2)+1 #index of window start 
+  winmax = i+round(n/2)-1 #index of window end
+  if(winmin<1){return(NA)}#if window starts outside data, don't calculate
+  if(winmax>length(dta)){return(NA)}#if window ends outside data, don't calculate
+  return(
+    all(
+      x = dta[winmin:winmax],
+      na.rm = FALSE # large NA regions at the start don't count
+    )
+  )
+}
+
+
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
 ball_radius = 25#mm
@@ -198,6 +219,8 @@ csv_sep_load = ','#Is the csv comma separated or semicolon separated? For tab se
 csv_sep_write = ','#Results in a comma separated or semicolon separated csv? For tab sep, use "\t"
 compress_csv = TRUE #Compress to ".gz" to save space?
 speedup_parallel = TRUE #Use the parallel package to speed up calculations
+stop_speed = 30 #mm/s minimum walking speed
+stop_length = 0.5 #number of seconds to identify a stop
 
 #Check the operating system and assign a logical flag (TRUE or FALSE)
 sys_win = Sys.info()[['sysname']] == 'Windows'
@@ -474,6 +497,7 @@ adata = within(adata,
                  x_pos = x_int*ball_radius #mm
                  y_pos = y_int*ball_radius #mm
                  z_turn = deg(-z_ball)*fps #°/s
+                 forward_speed = y_ball*ball_radius*fps #mm/s
                  angle_speed = c(0,diff(deg(heading_integrated)))*fps #deg/s
                  ma_angle = if(speedup_parallel)
                              {
@@ -578,6 +602,20 @@ adata = within(adata,
                                     method = 'mean' #average between frame
                                    )
                              }
+                 low_forward = forward_speed < stop_speed
+                   stop_flag = if(speedup_parallel){
+                                 parSapply(cl = clt,
+                                           X = 1:length(forward_speed),
+                                          dta = low_forward,
+                                          FUN = MA_stop_flag,
+                                          window = stop_length)
+                               }else
+                               {
+                                 sapply(X = 1:length(forward_speed),
+                                                  dta = low_forward,
+                                                  FUN = MA_stop_flag,
+                                                  window = stop_length)
+                               }
                }
                )
 #close the parallel cluster
@@ -799,6 +837,11 @@ with(adata,
             col = adjustcolor(point_col, alpha.f = 20/256),
             axes = F
        )
+       lines(x = experimental_time,
+             y = forward_speed,
+             col = adjustcolor('orange', alpha.f = 100/256),
+             cex = 0.1,
+             pch = 19)
        axis(side = 1,
             at = 10*(0:(max(experimental_time)/10)),
             labels = 10*(0:(max(experimental_time)/10))
@@ -809,7 +852,19 @@ with(adata,
               v = c(0,60,120),
               col = rgb(0,0,0,0.1)
        )
+       abline(h = 0,
+              col = 1)
        
+     }
+)
+#label stops
+with(adata,
+     {
+       abline(v = experimental_time[stop_flag],
+              col = adjustcolor(col = 'red',
+                                alpha.f = 20/256),
+              lwd = 1
+       )
      }
 )
 #Trendline
@@ -826,13 +881,18 @@ legend(x = plt_leg_pos,
        inset= plt_leg_inset,
        xpd = TRUE,
        legend = c('instantaneous',
-                  paste0('moving average (median: ',av_window,'s)')),
-       lty = c(NA,1),
-       pch = c(19,NA),
+                  paste0('moving average (median: ',av_window,'s)'),
+                  'forward speed',
+                  paste0('stop (fwd speed <', stop_speed, ' mm/s for ', stop_length, ' s)')
+                  ),
+       lty = c(NA,1,1,NA),
+       pch = c(19,NA,NA,15),
        col = c(point_col,
-               trend_col),
+               trend_col,
+               'orange',
+               'red'),
        cex = plt_leg_cex
-       )
+)
 
 # . . Fictive direction ---------------------------------------------------
 #Raw data
