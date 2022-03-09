@@ -1,52 +1,65 @@
 ---
 title: "Fictrac Batch Processing"
-output: html_document
 author: "James Foster"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
 ---
 ## Details ---------------------------------------------------------------
 
-> **AUTHOR**	James Foster               2022 01 12
+> **AUTHOR**	
+> 
+  James Foster               2022 01 12
 
 
-> **MODIFIED**	James Foster            2022 02 02
+> **MODIFIED**
+>
+  James Foster            2022 03 09
 
 
 > **DESCRIPTION** 
-Loads all `.dat` files saved by `FicTrac` and organises data into
-speed and angle. These are saved as compressed `.csv` files and 
-which are then combined into a single `.txt` file.
+>
+  Loads all `.dat` files saved by `FicTrac` and organises data into
+  speed and angle. These are saved as compressed `.csv` files and 
+  which are then combined into a single `.txt` file.
 
 
 > **INPUTS** 
-A `.dat` csv file with 23 columns specified in : 
-https://github.com/rjdmoore/fictrac/blob/master/doc/data_header.txt             
-The user should specify analysis details (line 70).
-
+>
+  A `.dat` csv file with 23 columns specified in : 
+  https://github.com/rjdmoore/fictrac/blob/master/doc/data_header.txt             
+  The user should specify analysis details in the ['User Input'](#user) section.
 
 
 > **OUTPUTS** 
-Results table (.csv) saved in the same place as the data.
+>
+  Results table (.csv) saved in the same place as the data.
 
 
 > **CHANGES** 
-    * Load FictracDat_Functions.R
-    * Speed up with parallel
-    * Speed up with data.table
-    * Read all files directly to single tab sep file
+>
+>    * Load FictracDat_Functions.R
+>    * Speed up with parallel
+>    * Speed up with data.table
+>    * Read all files directly to single tab sep file
+>    * Nicer looking HTML with ```prettydoc```
 
 
 > **REFERENCES** 
-Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
-Srinivasan MV (2014). 
-FicTrac: a visual method for tracking spherical motion and 
-generating fictive animal paths. 
-*Journal of neuroscience methods* 225, 106–19. 
-https://doi.org/10.1016/j.jneumeth.2014.01.010                                  
-https://github.com/rjdmoore/fictrac
+>
+  Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
+  Srinivasan MV (2014). 
+  FicTrac: a visual method for tracking spherical motion and 
+  generating fictive animal paths. 
+  *Journal of neuroscience methods* 225, 106–19. 
+  https://doi.org/10.1016/j.jneumeth.2014.01.010                                  
+  https://github.com/rjdmoore/fictrac
 
 
 > **USAGE**  
-Fill out user input (lines 70-75)
+>
+  Fill out [User Input](#user) and then run all sections sequentially.
 
 
 
@@ -57,16 +70,17 @@ knitr::opts_chunk$set(echo = TRUE)
 Find out everything R needs to know to process the `.dat` files.
 
 
-### - User input
+### - User input{#user}
 Note that the size of the averaging window an have a big effect on time-averaged parameters: too short and it is biased by small fluctuations, too large and it  may not reflect structures in the data at shorter temporal scales (see: https://en.wikipedia.org/wiki/Aliasing).
 
 
 I recommend using both `data.table` & `parallel` to speed up processing.
-`data.table` is a tool for rapid reading, writing and calculations with large text datasets, and can reduce time by approx. 10%
+`data.table` is a tool for rapid reading, writing and calculations with large text datasets, and can reduce time by approx. *10%*
 `parallel` allows processes to be split between different CPUs to be run separately in parallel.
 
 
-Adding `parallel` to `data.table` can reduce time by a further 55%
+Adding `parallel` to `data.table` can reduce time by a further *55%*.
+
 On 20220127 a test on AG Pfeiffer laptop 5 (`wbz2084`: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz   2.30 GHz) with 28 files took 6min 9sec.
 ```{r User input}
 ball_radius = 25#mm
