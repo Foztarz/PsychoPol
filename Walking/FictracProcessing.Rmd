@@ -15,7 +15,7 @@ output:
 
 > **MODIFIED**
 >
-  James Foster            2022 03 09
+  James Foster            2022 03 10
 
 
 > **DESCRIPTION** 
@@ -44,6 +44,8 @@ output:
 >    * Speed up with data.table
 >    * Read all files directly to single tab sep file
 >    * Nicer looking HTML with ```prettydoc```
+>    * Averaging across phases
+>    * Benchmarking (see ```Benchmark_FictracProcessing.R```)
 
 
 > **REFERENCES** 
@@ -64,7 +66,9 @@ output:
 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, 
+                      tidy.opts = list(width.cutoff = 35, 
+                                       tidy = TRUE))
 ```
 ## Input variables
 Find out everything R needs to know to process the `.dat` files.
@@ -75,16 +79,19 @@ Note that the size of the averaging window an have a big effect on time-averaged
 
 
 I recommend using both `data.table` & `parallel` to speed up processing.
-`data.table` is a tool for rapid reading, writing and calculations with large text datasets, and can reduce time by approx. *10%*
-`parallel` allows processes to be split between different CPUs to be run separately in parallel.
+`data.table` is a tool for rapid reading, writing and calculations with large text datasets, and can reduce time taken by approx. *10%*.
+`parallel` allows processes to be split between different CPUs to be run separately, in parallel.
 
 
 Adding `parallel` to `data.table` can reduce time by a further *55%*.
 
-On 20220127 a test on AG Pfeiffer laptop 5 (`wbz2084`: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz   2.30 GHz) with 28 files took 6min 9sec.
+On 20220310 a test on AG Pfeiffer laptop 5 (`wbz2084`: Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz   2.30 GHz) with 28 files took 6min 33sec.
 ```{r User input}
 ball_radius = 25#mm
+exper_leng = 2 #minutes
+cond_leng = 1 #minutes
 av_window = 5.0#number of seconds to smooth over for averaging
+phase_window = 10.0#number of seconds to average over for each phase
 csv_sep_load = ','#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
 use_dt = TRUE # whether or not to use data.table for reading, converting & writing
 use_par = TRUE # whether or not to use parallel processing
@@ -108,22 +115,26 @@ fun_path = tryCatch(expr = #Search in the folder containing this script
                       {file.path(dirname(sys.frame(1)$ofile), fun_file)},
                     error = function(e){fun_file}
 )
-if(!file.exists(fun_path))#If not foud, ask the user
+if(!file.exists(fun_path))#If not found, ask the user
 {
   msg = paste0('Please select "',fun_file,'"')
   # ask user to find data
   if( Sys.info()[['sysname']] == 'Windows' ){#choose.files is only available on Windows
     message('\n\n',msg,'\n\n')
     Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-    fun_path  <- choose.files(
-      default = file.path(gsub('\\\\', '/', Sys.getenv('USERPROFILE')),#user
-                          'Documents'),#For some reason this is not possible in the "root" user
-      caption = msg
-    )
-  }else{
+    fun_path = choose.files(#For some reason not possible in the "root" user
+                          default = file.path(
+                                      gsub(pattern = '\\\\', 
+                                           replacement = '/', 
+                                           x = Sys.getenv('USERPROFILE')),#user
+                                      'Documents'),
+                          caption = msg
+                          )
+}else
+{
     message('\n\n',msg,'\n\n')
     Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-    fun_path <- file.choose(new=F)
+    fun_path = file.choose(new = FALSE)
   }
 }
 #read in relevant functions
@@ -161,16 +172,28 @@ path_files = list.files(path = path_folder,
 )
 ```
 ## Set up the parallel cluster
-If the user input indicated that the user would like to use parallel processing, `R` will open a "cluster" of processors to use.
-It detects how many processors are available and uses all except one (leaving some power for other processes happening on the computer).
-In combination with `data.table`, this utilises most of the computer's available resources.
+If the user input indicated that they would like to use parallel processing, 
+`R` will open a "cluster" of processors to use.
+It detects how many processors are available and uses all except one
+(leaving some power for other processes happening on the computer).
+In combination with `data.table`, this utilises most of the computer's CPU.
 ```{r Set up parallel processing, echo=TRUE}
-if(use_par){clt = makeCluster(parallel::detectCores() - 1,type="SOCK")}
+if(use_par)
+  {
+  clt = parallel::makeCluster(spec = parallel::detectCores() - 1,
+                              type="SOCK")
+  }
 ```
 ## Process all files
-Open each `.dat` file, perform some additional calculations (convert to real-world units of distance, calculate moving averages across time) and then save as a compressed `.csv` file with headers in the same folder. These files can then be opened for plotting (`R` or `Excel`)
+Open each `.dat` file, perform some additional calculations 
+(convert to real-world units of distance, calculate moving averages across time)
+and then save as a compressed `.csv` file with headers in the same folder. 
+These files can then be opened for plotting (`R` or `Excel`)
 ```{r Process ".dat" files, echo=TRUE}
-message(length(path_files),' files found:\n', paste0(path_files,'\n'), '\nProcessing files.',
+message(length(path_files),
+        ' files found:\n', 
+        paste0(path_files,'\n'), 
+        '\nProcessing files.',
         '\n------------------------------------------')
 invisible(
   {
@@ -181,10 +204,10 @@ invisible(
                     X = path_input,
                     FUN = FT_read_write,
                     ball_radius = ball_radius,#mm
-                    av_window = av_window,#number of seconds to smooth over for averaging
-                    csv_sep_load = csv_sep_load,#Is the csv comma separated or semicolon separated? For tab sep, use "\t"
-                    speedup_parallel = use_par, #Use the parallel package to speed up calculations
-                    speedup_data.table = FALSE, #Use the data.table package to speed up reading and writing
+                    av_window = av_window,#seconds to smooth over for averaging
+                    csv_sep_load = csv_sep_load,#Is the csv comma or semicolon separated?
+                    speedup_parallel = use_par, #Use parallel to speed up calculations
+                    speedup_data.table = FALSE, #Don't use data.table inside the loop
                     compress_csv = TRUE, #Compress to ".gz" to save space?
                     verbose = FALSE, #tell the user what's going on?
                     clust = clt
@@ -201,7 +224,11 @@ if(all(!is.na(path_csv)))
 }
 ```
 ## Combine all files
-Read in each of the saved `.csv` files in each folder, and combine the data into a single table including the name of the original file, the condition, the animal and the date. This is then saved as a `.txt` file with the same headers as the `.csv` file, plus headers for condition, bumblebee name, date and `.dat` file.
+Read in each of the saved `.csv` files in each folder, 
+and combine the data into a single table including the name of the original file,
+the condition, the animal and the date. 
+This is then saved as a `.txt` file with the same headers as the `.csv` file, 
+plus headers for condition, bumblebee name, date and `.dat` file.
 ```{r Combine across all trials, echo=TRUE}
 message('Combining data from all trials.',
         '\n------------------------------------------')
@@ -210,8 +237,8 @@ message('Combining data from all trials.',
       path_txt = FT_combine_folders(
                   path_folder = path_folder,
                   file_type = '_proc.csv.gz',#N.B. currently only for this type
-                  speedup_parallel = TRUE, #Use the parallel package to speed up calculations
-                  speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                  speedup_parallel = use_dt, #Use the parallel package to speed up calculations
+                  speedup_data.table = use_par, #Use the data.table package to speed up reading and writing
                   compress_txt = TRUE, #Compress to ".gz" to save space?
                   verbose = TRUE, #Tell the user what is going on
                   recursive = TRUE,   #Search in sub folders                          
@@ -225,6 +252,37 @@ if(all(!is.na(path_txt)))
 }else
 {
   warning('\nCombining failed!')
+}
+```
+## Average across files
+Read in the saved `.txt` file, and, in each track,
+average across specified time-windows (phases). 
+This data is saved as an uncompressed `.csv`,
+containing a single table with most of the same headers as the `.txt` file.
+```{r Average across phases, echo=TRUE}
+message('Averaging data across phases.',
+        '\n------------------------------------------')
+  invisible(
+    {
+      path_av = FT_TimeAverage_all(
+                  path_file = path_txt,
+                  experiment_length = exper_leng, #minutes
+                  med_window = 10.0,#seconds phase length
+                  speedup_parallel = use_par, #Use parallel processing
+                  speedup_data.table = use_dt, #Use data.table to read & write
+                  verbose = TRUE, #Tell the user what is going on
+                  show_plot = FALSE, #Tell the user what is going on
+                  show_csv = FALSE, #Open the output table after saving
+                  clust = clt
+                  )
+    }
+  )
+if(all(!is.na(path_av)))
+{
+  message('\n','Files averaged','\n')
+}else
+{
+  warning('\nAveraging failed!')
 }
 stopCluster(clt)
 ```
