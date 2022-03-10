@@ -137,7 +137,7 @@ FT_select_folder = function(file_type = "_proc.csv.gz",
   }
   msg = if(sys_win)
     {
-    paste0('Please a folder containing ',#message to display
+    paste0('Please select a folder containing ',#message to display
               '"',file_type,'"',
               ' files')
     }else
@@ -2850,6 +2850,7 @@ FT_summarise_all = function(
   }
   if(show_plot)
   {FT_plot_summary(csv_file = summ_file)}
+  return(summ_file)
 }
 
 FT_plot_summary = function(
@@ -3123,7 +3124,7 @@ FT_TimeAverage_all = function(
     experiment_length = 2, #minutes
     condition1_length = 1, #minutes
     av_window = 5.0,#number of seconds to smooth over for averaging
-    med_window = 10.0,#number of seconds to smooth over for averaging
+    med_window = 10.0,#number of seconds phase length to average over
     point_col = "darkblue", # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
     save_type = "png",# "pdf",# 
     quantls = c(0.025, 0.25, 0.5, 0.75, 0.975), # quantiles to use when summarising
@@ -3420,6 +3421,7 @@ FT_TimeAverage_all = function(
     FT_plot_average(path_file = av_file,
                     show_plot = show_plot)
   }
+  return(av_file)
 }
 
 FT_plot_average = function(path_file = FT_select_file('_average.csv'),
