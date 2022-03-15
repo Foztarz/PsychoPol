@@ -15,7 +15,7 @@ output:
 
 > **MODIFIED**
 >
-  James Foster            2022 03 10
+  James Foster            2022 03 15
 
 
 > **DESCRIPTION** 
@@ -165,7 +165,7 @@ This folder should have the structure:
 ```{r Find the files, echo=TRUE}
 if(interactive())#for knitting, it is not possible to ask the user
 {path_folder = FT_select_folder(file_type = 'Fictrac experiment')}else
-{path_folder = "C:\\Users\\jaf54iq\\Documents\\AllTestdata\\dat_folder"}
+{path_folder = "C:\\Users\\jaf54iq\\Documents\\AllTestdata\\TestFolder\\dat_folder"}
 path_files = list.files(path = path_folder,
                         pattern = '.dat$',
                         recursive = T
@@ -284,5 +284,109 @@ if(all(!is.na(path_av)))
 {
   warning('\nAveraging failed!')
 }
-stopCluster(clt)
+```
+## Plot data
+Open each processed `.csv` file, and plot as a PDF.
+
+_**N.B**_ Any PDF files already existing within the folder will be deleted at this stage to avoid conflicts.
+```{r Plot ".csv" files, echo=TRUE}
+#Remove any pre-existing PDFs the user might have generated to avoid conflicts.
+message('WARNING: ',
+        ' deleting existing PDFs in the folder','\n', 
+        '\n------------------------------------------')
+#find the PDFs
+pre_pdfs = list.files(path = path_folder,
+                      pattern = '.pdf$',#ends in PDF
+                      recursive = TRUE)
+invisible({#delete each one without echoing to command window
+lapply(X = file.path(path_folder,
+                     pre_pdfs
+                     ),
+       FUN = file.remove
+       )
+})
+#Plot all
+message('Plotting ',
+        length(path_csv),
+        ' files:\n', 
+        paste0(lapply(X=path_csv, FUN=basename),'\n'), 
+        '\nProcessing files.',
+        '\n------------------------------------------')
+invisible(
+  {
+  path_pdf = lapply(
+                    X = path_csv,
+                    FUN = FT_plot_track,
+                    show_plot = FALSE, #don't open the plot immediately
+                    av_window = 5.0, #seconds to smooth over for averaging
+                    plt_speed_max = 200, #y axis maximum speed
+                    save_type = 'pdf',#Save as PDF or PNG
+                    speedup_parallel = use_par, #Use parallel processing
+                    speedup_data.table = use_dt, #Speed up reading and writing
+                    verbose = TRUE, #Tell the user what is going on
+                    clust =clt
+                    )
+  names(path_pdf) = path_csv
+  }
+  )
+if(all(!is.na(path_pdf)))
+{
+  message('\n','Files processed','\n')
+}else
+{
+  warning(basename(path_csv[is.na(path_pdf)]), '\nnot processed!')
+}
+#select and plot an example
+example_csv = file.path(path_csv[!is.na(path_pdf)][1]) #first converted file
+example_png = FT_plot_track(
+                path_file = example_csv,
+                save_type = 'png',#Save as PDF or PNG
+                show_plot = FALSE, #don't open the plot immediately
+                av_window = av_window, #seconds to smooth over for averaging
+                plt_speed_max = 200, #y axis maximum speed
+                speedup_parallel = use_par, #Use parallel processing
+                speedup_data.table = use_dt, #Speed up reading and writing
+                verbose = TRUE, #Tell the user what is going on
+                clust =clt
+                )
+knitr::include_graphics(path = example_png)
+```
+## Raster plot
+```{r Show all raw data as a Raster plot}
+rast_plot = FT_raster_condition(
+                        txt_file = path_txt,
+                        experiment_length = exper_leng, #minutes
+                        condition1_length = cond_leng, #minutes
+                        av_window = av_window,#number of seconds to smooth over for averaging
+                        save_type = "png",#
+                        crossval = FALSE, # TRUE, randomise the data to check the analysis
+                        speedup_parallel = use_par, #Use the parallel package to speed up calculations
+                        speedup_data.table = use_dt, #Use the data.table package to speed up reading and writing
+                        verbose = TRUE, #Tell the user what is going on
+                        show_plot = FALSE, #Tell the user what is going on
+                        clust = clt                        )
+ignore = lapply(X = rast_plot,
+        FUN = knitr::include_graphics
+       )
+```
+## Plot Averages
+```{r Plot averaged data for each phase}
+av_plot = FT_plot_average(path_file = path_av,
+                           experiment_length = exper_leng, #minutes
+                           condition1_length = cond_leng, #minutes
+                           av_window = av_window,#number of seconds to smooth over for averaging
+                           med_window = phase_window,#number of seconds to smooth over for averaging
+                           save_type = "png",# "pdf",# 
+                           crossval = FALSE, # TRUE, data were randomised to check the analysis
+                           speedup_data.table = use_dt, #Use the data.table package to speed up reading and writing
+                           verbose = TRUE, #Tell the user what is going on
+                           show_plot = FALSE #Don't open plot immediately
+)
+ignore = lapply(X = av_plot,
+        FUN = knitr::include_graphics
+       )
+```
+
+```{r Stop the parallel cluster}
+parallel::stopCluster(clt)
 ```
