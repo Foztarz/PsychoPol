@@ -2,19 +2,20 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 12
-#     MODIFIED:	James Foster              DATE: 2022 01 24
+#     MODIFIED:	James Foster              DATE: 2022 03 07
 #
 #  DESCRIPTION: Loads a ".dat" file saved by fictrac and organises data into
 #               speed and angle.
 #               
 #       INPUTS: A ".dat" csv file with 23 columns specified in : 
 #               https://github.com/rjdmoore/fictrac/blob/master/doc/data_header.txt
-#               User should specify analysis details (line 190).
+#               User should specify analysis details (line 210).
 #               
 #      OUTPUTS: Results table (.csv) saved (.gz compression) in original folder.
 #
 #	   CHANGES: - Compression
 #             - Legends
+#             - Label stops
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -24,7 +25,7 @@ graphics.off()
 #              https://doi.org/10.1016/j.jneumeth.2014.01.010
 #              https://github.com/rjdmoore/fictrac
 # 
-#       USAGE:  Fill out user input (lines 190-200), then press ctrl+shift+s to run
+#       USAGE:  Fill out user input (lines 210-220), then press ctrl+shift+s to run
 #TODO   ---------------------------------------------
 #TODO   
 #- Read in data   +
@@ -205,7 +206,6 @@ MA_stop_flag = function(i, #index
     )
   )
 }
-
 
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
