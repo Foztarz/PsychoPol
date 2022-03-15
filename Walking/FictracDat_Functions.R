@@ -1240,7 +1240,7 @@ FlagExper = function(trackID,
 }
 if(speedup_parallel)
 {
-  clusterExport(cl = clust,
+  parallel::clusterExport(cl = clust,
                 varlist = list('all_data_table',
                                'FlagExper',
                                'experiment_length'),
@@ -1252,7 +1252,7 @@ all_data_table = within(all_data_table,
                         {
                           flag_exp = if(speedup_parallel)
                             {unlist(
-                              parSapply(cl = clust,
+                              parallel::parSapply(cl = clust,
                                        X = unique(track),
                                        FUN = FlagExper,
                                        dta = all_data_table,
@@ -1711,9 +1711,10 @@ if(save_type == 'pdf')
   dev.off()
 }else
 {
-  for(cnd in u_cond)
+png_files = list()
+for(cnd in u_cond)
   {
-    dev.off()
+    # dev.off()
     plot_file = file.path(dirname(txt_file),
                           paste0(basename(txt_file),
                                  '_rast', ifelse(crossval, '-CROSSVAL',''),
@@ -1734,31 +1735,37 @@ if(save_type == 'pdf')
                 bg = 'white'
            )
     )
-    FT_raster(cnd = u_cond,
+    par(mfrow = c(3,1),
+        mar = c(2,3,2,5),
+        oma = c(1.5,0,1.5,0),
+        cex = 1.5
+    )
+    FT_raster(cnd = cnd,
               dta = full_expr
             )
     dev.off()
+    png_files[cnd] = plot_file
   }
 }
 # . Save plot -------------------------------------------------------------
-if(show_plot){
-  if(save_type == 'pdf')
-    {shell.exec.OS(plot_file)}else
-    {
-     for(cnd in u_cond)
-     {
-       shell.exec.OS(
-         file.path(dirname(txt_file),
-                   paste0(basename(txt_file),
-                          '_rast', ifelse(crossval, '-CROSSVAL',''),
-                          cnd,
-                          '.', save_type)
-                   )
-       )
-     }
-    }
-  
+  if(show_plot){
+    if(save_type == 'pdf')
+      {shell.exec.OS(plot_file)}else
+      {
+       for(cnd in u_cond)
+       {
+         shell.exec.OS(
+           file.path(dirname(txt_file),
+                     paste0(basename(txt_file),
+                            '_rast', ifelse(crossval, '-CROSSVAL',''),
+                            cnd,
+                            '.', save_type)
+                     )
+         )
+       }
+      }
   }
+return(if(save_type == 'png'){png_files}else{plot_file})
 }
 # Calculate frequency spectrum -----------------------------------------------
 
@@ -1985,6 +1992,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
 # Plot data for each track -------------------------------------------------
 
 FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),#path to the ".dat" file,
+                         show_plot = TRUE, #Show the user the completed plot
                          point_col = "darkblue", # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
                          trend_col = "darkgreen", # try "red", "blue", "green" or any of these: https://htmlcolorcodes.com/color-names/
                          av_window = 5.0, #number of seconds to smooth over for averaging
@@ -2489,7 +2497,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   )
   # . Save plot -------------------------------------------------------------
   dev.off()
-  shell.exec.OS(plot_file)
+  if(show_plot){shell.exec.OS(plot_file)}#open the plot in the OS native program
+  return(plot_file)
 }
 
 # Summarise data ----------------------------------------------------------
@@ -3752,4 +3761,22 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       }
     }
   }
+  return(
+    if(save_type %in% 'pdf'){plot_file}else
+    {
+      lapply(X = with(day_data_table, unique(condition)),
+             FUN = function(cnd)
+             {
+               sub(pattern = paste0('..',save_type,'$'),
+                   replacement = paste0(
+                     which( 
+                       with(day_data_table, unique(condition)) %in% cnd
+                     ),
+                     '.',save_type),
+                   x =  plot_file
+               )
+             }
+             )
+    }
+  )
 }
