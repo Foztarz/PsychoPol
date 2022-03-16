@@ -1112,7 +1112,8 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
   adata_frame = do.call(what = rbind,#N.B. seems to work the same with data.table & data.frame
                         args = adata)
   # .  Save data --------------------------------------------------------------
-  txt_file = file.path(dirname(path_folder),#store outside this folder
+  txt_file = file.path(#dirname(path_folder),#store outside this folder
+                       path_folder,#store INSIDE this folder
                         paste0(basename(path_folder),
                                '_proc',
                                '.txt',
@@ -3552,7 +3553,8 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
   )
   
   # . Plot summarys ---------------------------------------------------------
-  
+  if(!(save_type %in% 'pdf'))
+  {png_files = list()}
   # . . Loop through experiments --------------------------------------------
   for(cnd in with(day_data_table, unique(condition)))
   {  
@@ -3691,6 +3693,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       )
     )
     {
+      png_files[cnd] = plot_file
       dev.off()
       # . . . Set up plot area ------------------------------------------------
       save_base =  paste0('_average',
@@ -3698,7 +3701,11 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                                  yes = '-CROSSVAL',
                                  no = ''),
                           '-',
-                          which(with(day_data_table, unique(condition)) %in% cnd)+1, # new page number
+                          paste0(
+                            # which( 
+                            #   with(day_data_table, unique(condition)) %in% cnd
+                            cnd,
+                            '.',save_type),
                           '.', 
                           save_type)
       plot_file = file.path(dirname(path_file), 
@@ -3744,7 +3751,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       )
       
     }
-  }
+  }#loop through conditions
   # . Save plot -------------------------------------------------------------
   dev.off()
   if(show_plot)
@@ -3754,36 +3761,65 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       shell.exec.OS(plot_file)
     }else
     {
-      for(cnd in with(day_data_table, unique(condition)) )
+      for(fl in png_files )
       {
-        open_plot = sub(pattern = paste0('..',save_type,'$'),
-                        replacement = paste0(
-                          which( 
-                            with(day_data_table, unique(condition)) %in% cnd
-                          ),
-                          '.',save_type),
-                        x =  plot_file
-        )
-        shell.exec.OS(open_plot)
+        # open_plot = paste0(sub(pattern = paste0('....',save_type,'$'),
+        #                 replacement = paste0(
+        #                   # which( 
+        #                   #   with(day_data_table, unique(condition)) %in% cnd
+        #                   '-',cnd,
+        #                   '.',save_type),
+        #                 x =  plot_file
+        # )
+        shell.exec.OS(fl)
       }
     }
   }
   return(
     if(save_type %in% 'pdf'){plot_file}else
     {
-      lapply(X = with(day_data_table, unique(condition)),
-             FUN = function(cnd)
-             {
-               sub(pattern = paste0('..',save_type,'$'),
-                   replacement = paste0(
-                     which( 
-                       with(day_data_table, unique(condition)) %in% cnd
-                     ),
-                     '.',save_type),
-                   x =  plot_file
-               )
-             }
-             )
+      png_files
+      # lapply(X = with(day_data_table, unique(condition)),
+      #        FUN = function(cnd)
+      #        {
+      #          sub(pattern = paste0('..',save_type,'$'),
+      #              replacement = paste0(
+      #                # which( 
+      #                #   with(day_data_table, unique(condition)) %in% cnd
+      #                '-',cnd,
+      #                '.',save_type),
+      #              x =  plot_file
+      #          )
+      #        }
+      #        )
     }
   )
 }
+
+FT_delete_processed = function(path_folder = FT_select_folder())
+{
+  #Find processed files compressed to '.gz'
+  pre_gzs = list.files(path = path_folder,
+                       pattern = '.gz$',#ends in GZ
+                       recursive = TRUE)
+  #Find figures saved to '.png'
+  pre_pngs = list.files(path = path_folder,
+                        pattern = '.png$',#ends in PNG
+                        recursive = TRUE)
+  #Find figures saved to '.pdf'
+  pre_pdfs = list.files(path = path_folder,
+                        pattern = '.pdf$',#ends in PDF
+                        recursive = TRUE)
+  delete_list = file.path(path_folder,
+                          c(pre_gzs,
+                            pre_pngs,
+                            pre_pdfs)
+  )
+  dlt = lapply(X = delete_list,
+               FUN = file.remove # delete each file
+  )
+  names(dlt) = basename(delete_list)
+  message('DELETED:\n',paste0(names(dlt[unlist(dlt)]),'\n') )#TRUE indicates these files were deleted
+}
+
+
