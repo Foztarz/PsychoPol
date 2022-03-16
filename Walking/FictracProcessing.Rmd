@@ -47,6 +47,7 @@ output:
 >    * Averaging across phases
 >    * Inline graphics with ```include_graphics```
 >    * Benchmarking (see ```Benchmark_FictracProcessing.R```)
+>    * [Clean up method](#cleanup)
 
 
 > **REFERENCES** 
@@ -75,34 +76,10 @@ knitr::opts_chunk$set(echo = TRUE,
 ## Input variables
 Find out everything R needs to know to process the `.dat` files.
 
-### - Clean up
+### - Clean up{#cleanup}
 If this script, or any of its functions, has been run on this data before, you might consider deleting the output files to ensure all data are processed in the same way.
 
-This can be done as follows:
-```
-#Find processed files compressed to '.gz'
-pre_gzs = list.files(path = path_folder,
-                      pattern = '.gz$',#ends in GZ
-                      recursive = TRUE)
-#Find figures saved to '.png'
-pre_pngs = list.files(path = path_folder,
-                      pattern = '.png$',#ends in PNG
-                      recursive = TRUE)
-#Find figures saved to '.pdf'
-pre_pdfs = list.files(path = path_folder,
-                      pattern = '.pdf$',#ends in PDF
-                      recursive = TRUE)
-delete_list = file.path(path_folder,
-                         c(pre_gzs,
-                           pre_pngs,
-                           pre_pdfs)
-                       )
-dlt = lapply(X = delete_list,
-       FUN = file.remove # delete each file
-       )
-names(dlt) = basename(delete_list)
-print(dlt) #TRUE indicates these files were deleted
-```
+This can be done using `FT_delete_processed()` from `FictracDat_Functions.R`.
 
 ### - User input{#user}
 Note that the size of the averaging window an have a big effect on time-averaged parameters: too short and it is biased by small fluctuations, too large and it  may not reflect structures in the data at shorter temporal scales (see: https://en.wikipedia.org/wiki/Aliasing).
@@ -136,6 +113,20 @@ Load the packages required to run the analysis. If these packages are not alread
 require(circular)#for handing angles
 if(use_dt){require(data.table)}#for fast data handling
 if(use_par){require(parallel)}#for parallel processing
+```
+
+### - Set up the parallel cluster
+If the user input indicated that they would like to use parallel processing, 
+`R` will open a "cluster" of processors to use.
+It detects how many processors are available and uses all except one
+(leaving some power for other processes happening on the computer).
+In combination with `data.table`, this utilises most of the computer's CPU.
+```{r Set up parallel processing, echo=TRUE}
+if(use_par)
+  {
+  clt = parallel::makeCluster(spec = parallel::detectCores() - 1,
+                              type="SOCK")
+  }
 ```
 
 
@@ -220,20 +211,6 @@ path_files = list.files(path = path_folder,
 )
 ```
 
-## Set up the parallel cluster
-If the user input indicated that they would like to use parallel processing, 
-`R` will open a "cluster" of processors to use.
-It detects how many processors are available and uses all except one
-(leaving some power for other processes happening on the computer).
-In combination with `data.table`, this utilises most of the computer's CPU.
-```{r Set up parallel processing, echo=TRUE}
-if(use_par)
-  {
-  clt = parallel::makeCluster(spec = parallel::detectCores() - 1,
-                              type="SOCK")
-  }
-```
-
 ## Process all files
 Open each `.dat` file, perform some additional calculations 
 (convert to real-world units of distance, calculate moving averages across time)
@@ -316,6 +293,31 @@ average across specified time-windows (phases).
 This data is saved as an uncompressed `.csv`,
 containing a single table with most of the same headers as the `.txt` file.
 
+
+Check for a path to the `.txt` file.
+If the user started here, they will need to select it.
+```{r Look for the txt file, echo=TRUE}
+if(!exists('path_txt'))
+{
+  if(!exists('path_folder'))#if folder is missing too
+  {path_folder = FT_select_folder(file_type = '_proc.txt.gz')}
+  if(interactive())#in an interactive session
+  {path_txt = FT_select_file(file_type = '_proc.txt.gz')}else
+  { #in knitr
+    path_txt = file.path(path_folder,
+                        list.files(path = path_folder,
+                                   pattern = '_proc.txt.gz',
+                                   recursive = TRUE)
+  )
+  message('Processed txt file found:\n',
+          path_txt)
+  }
+  
+}
+
+```
+
+Average each track across phases.
 ```{r Average across phases, echo=TRUE}
 message('Averaging data across phases.',
         '\n------------------------------------------')
@@ -373,6 +375,24 @@ if(any(deleted_pdfs))
           deleted_pdfs[deleted_pdfs]
           )
   }
+```
+
+Check for paths to the processed `.csv` files.
+If the user started here, they will need to select the folder
+```{r Look for the csv file, echo=TRUE}
+if(!exists('path_csv'))
+{
+  if(!exists('path_folder'))#in an interactive session
+  {path_folder = FT_select_folder(file_type = "_proc.csv.gz")}
+  path_csv = file.path(path_folder,
+                      list.files(path = path_folder,
+                                 pattern = '_proc.csv.gz',
+                                 recursive = TRUE)
+                      )
+  message(length(path_csv), 'processed files found:\n',
+          )
+}
+
 ```
 
 Plot all tracks individually as a PDF in the same folder.
@@ -433,6 +453,32 @@ knitr::include_graphics(path = example_png)
 
 ## Raster plot
 To view all tracks in context, plot the summary statistics from each experiment aligned together as a heatmap. Individual trials are stacked and labelled along the y-axis, the x-axis shows time in the experiment.
+
+Check for a path to the `.txt` file.
+If the user started here, they will need to select it.
+```{r Find txt file, echo=TRUE}
+if(!exists('path_txt'))
+{
+  if(!exists('path_folder'))#if folder is missing too
+  {path_folder = FT_select_folder(file_type = '_proc.txt.gz')}
+  if(interactive())#in an interactive session
+  {path_txt = FT_select_file(file_type = '_proc.txt.gz')}else
+  { #in knitr
+    path_txt = file.path(path_folder,
+                        list.files(path = path_folder,
+                                   pattern = '_proc.txt.gz',
+                                   recursive = TRUE)
+  )
+  message('Processed txt file found:\n',
+          path_txt)
+  }
+  
+}
+
+```
+
+
+Save raster plots for all experiments
 ```{r Show all raw data as a Raster plot}
 rast_plot = FT_raster_condition(
                         txt_file = path_txt,
@@ -449,10 +495,8 @@ rast_plot = FT_raster_condition(
 ```
 
 Show all raster plots
-```{r Raster plots}
-lapply(X = rast_plot,
-       FUN = knitr::include_graphics
-)
+```{r Raster plots, echo = FALSE}
+knitr::include_graphics( as.character(rast_plot) )
 ```
 
 ## Stop the parallel cluster
@@ -464,6 +508,36 @@ if(use_par){parallel::stopCluster(clt)}
 
 ## Plot Averages
 Make a boxplot summary of the median value in each `phase_window` across each experiment type.
+
+Check for a path to the `_average.csv` file.
+If the user started here, they will need to select it.
+```{r Find _average.csv file, echo=TRUE}
+if(!exists('path_av'))
+{
+  if(!exists('path_folder'))#if folder is missing too
+  {path_folder = FT_select_folder(file_type = '_average.csv')}
+  if(interactive())#in an interactive session
+  {
+    path_av = FT_select_file(file_type = '_average.csv')
+  }else
+  { #in knitr
+    path_av = file.path(path_folder,
+                        list.files(path = path_folder,
+                                   pattern = '_average.csv',
+                                   recursive = TRUE)
+  )
+  message('Processed csv file found:\n',
+          basename(path_av)
+          )
+  }
+  
+}
+
+```
+
+
+Save boxplots for all experiments
+
 ```{r Plot averaged data for each phase}
 av_plot = FT_plot_average(path_file = path_av,
                            experiment_length = exper_leng, #minutes
@@ -480,10 +554,6 @@ av_plot = FT_plot_average(path_file = path_av,
 
 Show all average plots
 
-```{r Average plots}
-invisible({
-  lapply(X = av_plot,
-         FUN = knitr::include_graphics
-  )
-})
+```{r Average plots, echo = FALSE}
+  knitr::include_graphics( as.character(av_plot) )
 ```
