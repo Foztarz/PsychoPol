@@ -832,7 +832,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                 )
   }
   #close the parallel cluster
-  if(speedup_parallel){ if(missing(clust)){stopCluster(clt)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clt)} }#only close internal cluster
   #  Save data --------------------------------------------------------------
   new_name = paste0(basename(path_file),
                     '_proc',
@@ -1106,7 +1106,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
   }
   names(adata) = basename(file_paths)
   #close the parallel cluster
-  if(speedup_parallel){ if(missing(clust)){stopCluster(clt)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clt)} }#only close internal cluster
   
   # . combine all data into a single data frame -------------------------------
   adata_frame = do.call(what = rbind,#N.B. seems to work the same with data.table & data.frame
@@ -1381,7 +1381,7 @@ n_tracks = length(unique(full_expr$track))
 
 
 #close the parallel cluster
-if(speedup_parallel){ if(missing(clust)){stopCluster(clust)} }#only close internal cluster
+if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
 # Plot Summary ------------------------------------------------------------
 if(verbose){message("Making raster plot")}
 
@@ -1644,7 +1644,9 @@ FT_raster = function(cnd,#condition to subset by
 plot_file = file.path(dirname(txt_file),
                        paste0(basename(txt_file),
                               '_rast', ifelse(crossval, '-CROSSVAL',''),
-                              ifelse(save_type == 'pdf', '', with(full_expr, unique(condition))[1]),
+                              ifelse(test = save_type %in% 'pdf', 
+                                     yes = '', 
+                                     no = paste0('-',with(full_expr, unique(condition))[1])),
                               '.', save_type)
 )
 if(file.exists(plot_file))
@@ -1653,13 +1655,15 @@ if(file.exists(plot_file))
   nnm = readline(prompt = 'New plot name: '
   )
   
-  plot_file <-  file.path(dirname(txt_file),
+  plot_file = file.path(dirname(txt_file),
                           paste0(
                             ifelse(test = nchar(nnm),
                                    yes = nnm,
                                    no = basename(txt_file)),
                             '_rast',ifelse(crossval, '-CROSSVAL',''),
-                            ifelse(save_type == 'pdf', '', with(full_expr, unique(condition))[1]),
+                            ifelse(test = save_type %in% 'pdf', 
+                                   yes = '', 
+                                   no = paste0('-',with(full_expr, unique(condition))[1])),
                             '.', save_type)
   )
 }
@@ -1699,8 +1703,11 @@ switch(save_type,
 )
 
 # . Plot summarys ---------------------------------------------------------
+#Find unique conditions
 u_cond = with(full_expr, unique(condition))
-if(save_type == 'pdf')
+#Plot PDF as multiple pages in a single file
+#Or PNG as multiple files with different names
+if(save_type %in% 'pdf')
 {
   invisible(
     lapply(X = u_cond,
@@ -1718,7 +1725,7 @@ for(cnd in u_cond)
     plot_file = file.path(dirname(txt_file),
                           paste0(basename(txt_file),
                                  '_rast', ifelse(crossval, '-CROSSVAL',''),
-                                 cnd,
+                                 '-', cnd,
                                  '.', save_type)
     )
     switch(save_type,
@@ -1743,8 +1750,8 @@ for(cnd in u_cond)
     FT_raster(cnd = cnd,
               dta = full_expr
             )
-    dev.off()
-    png_files[cnd] = plot_file
+    dev.off()#close and save
+    png_files[cnd] = plot_file # add file name to the list
   }
 }
 # . Save plot -------------------------------------------------------------
@@ -2748,7 +2755,7 @@ FT_summarise_all = function(
                           }
   )
   # . . Close the cluster if it is not needed anymore -----------------------
-  if(speedup_parallel){stopCluster(clust)}
+  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
   
   # . . Tell the user how many were correct length --------------------------
   if( with(all_data_table, !any( flag_exp)) )
@@ -2918,7 +2925,7 @@ FT_plot_summary = function(
   if(verbose){message('"',basename(csv_file), '" loaded successfully')}
   
   # . . Close the cluster if it is not needed anymore -----------------------
-  if(speedup_parallel){stopCluster(clust)}
+  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
   
   # Plot Summary ------------------------------------------------------------
   # . Set up plot area ------------------------------------------------------
@@ -3289,7 +3296,7 @@ FT_TimeAverage_all = function(
                           }
   )
   # . . Close the cluster if it is not needed anymore -----------------------
-  if(speedup_parallel){stopCluster(clust)}
+  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
   
   # . . Tell the user how many were correct length --------------------------
   if( with(day_data_table, !any( flag_exp)) )
