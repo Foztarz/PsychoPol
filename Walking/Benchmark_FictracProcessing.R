@@ -1,5 +1,5 @@
 library(knitr)
-system.time(
+st = system.time(
   {
 source(knitr::purl(
                   file.path(dirname(sys.frame(1)$ofile), 'FictracProcessing.Rmd'), 
@@ -8,3 +8,4 @@ source(knitr::purl(
        )
   }
 )
+print(st)
