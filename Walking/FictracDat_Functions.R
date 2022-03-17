@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 24
-#     MODIFIED:	James Foster              DATE: 2022 02 01
+#     MODIFIED:	James Foster              DATE: 2022 03 17
 #
 #  DESCRIPTION: A set of functions to load a set of ".dat" files exported from 
 #               fictrac,export speed and angle and their moving averages, 
@@ -13,6 +13,9 @@
 #	   CHANGES: - Combine within folder
 #             - Find animal and experiment names
 #             - Raster plot
+#             - Averaging across "phases"
+#             - MAsmoothturn() added to avoid short .dat error 
+#             - NA handling in acceleration axis labels
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -282,6 +285,27 @@ MAturnspeed <- function(i, #index
     )*hz #number of data collected per second, units returned are deg/s
   )
 }
+
+MAsmoothturn <- function(angle,
+                         ma_turn)
+{
+       if(sum(!is.na(ma_turn)) > 10) # smoothing only works where there is some data
+       {
+        predict( # fit a spline and predict its values across all times
+          smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
+                        y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
+          x = 1:length(angle) # predict for all times
+        )$y
+       }else
+       {
+         rep(x = mean(x = ma_turn, 
+                      na.rm = T
+                      ),
+             times = length(ma_turn)
+             )
+       }
+}
+
 #Calculate average speed from a vector of distances
 MAspeed <- function(i, #index
                     dta_x, #vector of data
@@ -490,6 +514,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                        'MAmeanang',
                        'MAmeanvec',
                        'MAturnspeed',
+                       'MAsmoothturn',
                        'mean.circular',
                        'rho.circular',
                        'circular',
@@ -589,12 +614,14 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                      }
                      )
           ]#,
-    adata[, `:=`( #assign from list call
-                     smooth_turn = predict( # fit a spline and predict its values across all times
-                       smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
-                                     y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
-                       x = 1:length(angle) # predict for all times
-                     )$y
+    adata[, `:=`( smooth_turn = MAsmoothturn(    #assign from list call
+                                    angle = angle,
+                                    ma_turn = ma_turn) 
+                     # smooth_turn = predict( # fit a spline and predict its values across all times
+                     #   smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
+                     #                 y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
+                     #   x = 1:length(angle) # predict for all times
+                     # )$y
                      )
           ]#,
     adata[, `:=`( #assign from list call
@@ -735,11 +762,15 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                             hz = fps #sample rate (Hz)
                      )
                    }
-                   smooth_turn = predict( # fit a spline and predict its values across all times
-                     smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
-                                   y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
-                     x = 1:length(angle) # predict for all times
-                   )$y
+                   smooth_turn = MAsmoothturn(    
+                                   angle = angle,
+                                   ma_turn = ma_turn
+                                   ) 
+                   #   predict( # fit a spline and predict its values across all times
+                   #   smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
+                   #                 y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
+                   #   x = 1:length(angle) # predict for all times
+                   # )$y
                    ma_accel = if(speedup_parallel)
                    {
                      parSapply(cl = clt,
@@ -2403,23 +2434,36 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
        }
   )
   #Acceleration
+  #set up y-axis lines
+  acc_lab = with(adata,
+                 {
+                    if( !(all(is.na(ma_accel))) )
+                    {
+                    plt_accel_scale*plt_turn_ax*
+                      (round(min(ma_accel, na.rm = T)/plt_turn_ax):
+                         round(max(ma_accel, na.rm = T)/plt_turn_ax))
+                    }else
+                    {
+                      NA
+                    }
+                 }
+                )
   with(adata,
        {
          lines(x = experimental_time,
                y = ma_accel*plt_accel_scale,
                col = adjustcolor('darkred', alpha.f = 200/256)
          )
-         axis(side = 4,
-              line = -1,
-              at = plt_accel_scale*plt_turn_ax*
-                (round(min(ma_accel, na.rm = T)/plt_turn_ax):
-                   round(max(ma_accel, na.rm = T)/plt_turn_ax)),
-              labels = plt_accel_scale*plt_turn_ax*
-                (round(min(ma_accel, na.rm = T)/plt_turn_ax):
-                   round(max(ma_accel, na.rm = T)/plt_turn_ax)/
-                   plt_accel_scale),
-              col = 'darkred'
-         )
+         if(any(!is.na(acc_lab)))
+         {
+           axis(side = 4,
+                line = -1,
+                at = acc_lab,
+                labels = acc_lab/
+                     plt_accel_scale,
+                col = 'darkred'
+               )
+         }
          mtext(text = bquote(median ~ acceleration ~
                                '(°/s'^2 ~ 
                                .(av_window)*s ~ ")"),
@@ -3491,6 +3535,51 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
   )
   if(verbose){message('"',basename(path_file), '" loaded successfully')}
   
+
+  # Derive variables --------------------------------------------------------
+  cnds = with(day_data_table, unique(condition))
+  #somehow the plotting is faster than the checking, slow down here
+  if(!(save_type %in% 'pdf'))
+  {
+    plot_files = paste0(path_file,
+                        '_average',
+                        ifelse(test = crossval, 
+                               yes = '-CROSSVAL',
+                               no = ''),
+                         '-',cnds,
+                        '.', 
+                        save_type)
+    plot_exists = file.exists(plot_files)
+    names(plot_exists) = plot_files
+  }
+  if(any(plot_exists))
+  {
+    message(sum(plot_exists), ' average plot(s) already exist(s) in this folder.',
+            '\nPlease provide new name labels.')
+    for(pf in plot_files[plot_exists])
+    {
+    nnm = readline(prompt = paste0(basename(pf),
+                                   '\tNew plot label: ')
+    )
+    
+    plot_files[which(plot_files %in% pf)] = 
+                                            paste0(
+                                                  sub(x = pf,
+                                                      pattern = paste0('.',
+                                                                       save_type,
+                                                                       '$'),
+                                                      replacement = ''
+                                                      ),
+                                                  '-',
+                                                  ifelse(test = nchar(nnm),
+                                                         yes = nnm,
+                                                         no = ''),
+                                                   '.',
+                                                  save_type)
+    }
+    
+  }
+  
   # Plot Summary ------------------------------------------------------------
   # . Set up plot area ------------------------------------------------------
   save_base =  paste0('_average',
@@ -3499,26 +3588,32 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                              no = ''),
                       ifelse(test = save_type %in% 'pdf',
                              yes = '',
-                             no = '-1'),
+                             no = paste0('-',
+                                     with(day_data_table, unique(condition))[1])
+                             ),
                       '.', 
                       save_type)
-  plot_file = file.path(dirname(path_file), 
-                        paste0(basename(dirname(path_file)),
-                               save_base)
-  )
-  if(file.exists(plot_file))
+  if(save_type %in% 'pdf')
   {
-    message('A plot called "', basename(plot_file), '" already exists in this folder.')
-    nnm = readline(prompt = 'New plot name: '
-    )
-    
-    plot_file = file.path(dirname(path_file),
-                          paste0(ifelse(test = nchar(nnm),
-                                        yes = nnm,
-                                        no = basename(dirname(path_file))),
+    plot_file = file.path(dirname(path_file), 
+                          paste0(basename(dirname(path_file)),
                                  save_base)
     )
+    if(file.exists(plot_file))
+    {
+      message('A plot called "', basename(plot_file), '" already exists in this folder.')
+      nnm = readline(prompt = 'New plot name: '
+      )
+      
+      plot_file = file.path(dirname(path_file),
+                            paste0(ifelse(test = nchar(nnm),
+                                          yes = nnm,
+                                          no = basename(dirname(path_file))),
+                                   save_base)
+      )
+    }
   }
+  
   switch(EXPR = save_type,
          pdf = 
            pdf(file = plot_file,
@@ -3528,19 +3623,20 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                onefile = TRUE,
                useDingbats = F
            ),
-         png = png(file = plot_file,
+         png = png(file = plot_files[1],
                    res = 150,
                    width = 210*10,
                    height = 297*10,
                    bg = 'white'
          ),
-         jpeg(file = paste0(plot_file,'.jpeg'),
+         jpeg(file = paste0(plot_files[1],'.jpeg'),
               quality = 100,
               width = 210*10,
               height = 297*10,
               bg = 'white'
          )
   )
+  
   switch(EXPR = save_type,
          png = par(mfrow = c(3,1),
                    mar = c(3,5,0,0),
@@ -3553,11 +3649,75 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
   )
   
   # . Plot summarys ---------------------------------------------------------
-  if(!(save_type %in% 'pdf'))
-  {png_files = list()}
+  # if(!(save_type %in% 'pdf'))
+  # {png_files = list()}
   # . . Loop through experiments --------------------------------------------
   for(cnd in with(day_data_table, unique(condition)))
   {  
+    cnd_i = which( with(day_data_table, unique(condition)) %in% cnd)
+    # . . . Set up plot area ------------------------------------------------
+    if( #except for the 1st condition, a new plot needs to be opened
+      cnd_i>1 
+      ) # open a new plot
+       {
+    # save_base =  paste0('_average',
+    #                     ifelse(test = crossval, 
+    #                            yes = '-CROSSVAL',
+    #                            no = ''),
+    #                     '-',
+    #                     paste0(
+    #                       # which( 
+    #                       #   with(day_data_table, unique(condition)) %in% cnd
+    #                       cnd,
+    #                       '.',save_type)
+    #                     )
+    plot_file = plot_files[cnd_i]
+    #   file.path(dirname(path_file), 
+    #                       paste0(basename(dirname(path_file)),
+    #                              save_base)
+    # )
+    # #somehow the plotting is faster than the checking, slow down here
+    # Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
+    # if(file.exists(plot_file))
+    # {
+    #   message('A plot called "', basename(plot_file), '" already exists in this folder.')
+    #   nnm = readline(prompt = 'New plot name: '
+    #   )
+    #   
+    #   plot_file = file.path(dirname(path_file),
+    #                         paste0(ifelse(test = nchar(nnm),
+    #                                       yes = nnm,
+    #                                       no = basename(dirname(path_file))),
+    #                                save_base)
+    #   )
+    # }
+    switch(EXPR = save_type,
+           png = png(file = plot_file,
+                     res = 150,
+                     width = 210*10,
+                     height = 297*10,
+                     bg = 'white'
+           ),
+           jpeg(file = paste0(plot_file,'.jpeg'),
+                quality = 100,
+                width = 210*10,
+                height = 297*10,
+                bg = 'white'
+           )
+    )
+    switch(EXPR = save_type,
+           png = par(mfrow = c(3,1),
+                     mar = c(3,5,0,0),
+                     oma = c(1.5,0,1.5,0),
+                     cex = 1.5
+           ),
+           par(mfrow = c(3,1),
+               mar = c(3,5,0,0),
+               oma = c(1.5,0,1.5,0))
+    )
+    }
+    
+    #Plot each condition separately 
     if(dim(subset(day_data_table,
                   condition %in% cnd))[1])
     {
@@ -3685,75 +3845,19 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
     # . . Open next page ------------------------------------------------------
     if(
       !(save_type %in% 'pdf') &
-      with(day_data_table,  
-           {
-             which(cnd %in% unique(condition))+1 < 
-               length(unique(condition))
-           }
-      )
+      (cnd_i + 1) < length(cnds)
     )
     {
-      png_files[cnd] = plot_file
+      # png_files[cnd] = plot_file
       dev.off()
-      # . . . Set up plot area ------------------------------------------------
-      save_base =  paste0('_average',
-                          ifelse(test = crossval, 
-                                 yes = '-CROSSVAL',
-                                 no = ''),
-                          '-',
-                          paste0(
-                            # which( 
-                            #   with(day_data_table, unique(condition)) %in% cnd
-                            cnd,
-                            '.',save_type),
-                          '.', 
-                          save_type)
-      plot_file = file.path(dirname(path_file), 
-                            paste0(basename(dirname(path_file)),
-                                   save_base)
-      )
-      if(file.exists(plot_file))
-      {
-        message('A plot called "', basename(plot_file), '" already exists in this folder.')
-        nnm = readline(prompt = 'New plot name: '
-        )
-        
-        plot_file = file.path(dirname(path_file),
-                              paste0(ifelse(test = nchar(nnm),
-                                            yes = nnm,
-                                            no = basename(dirname(path_file))),
-                                     save_base)
-        )
-      }
-      switch(EXPR = save_type,
-             png = png(file = plot_file,
-                       res = 150,
-                       width = 210*10,
-                       height = 297*10,
-                       bg = 'white'
-             ),
-             jpeg(file = paste0(plot_file,'.jpeg'),
-                  quality = 100,
-                  width = 210*10,
-                  height = 297*10,
-                  bg = 'white'
-             )
-      )
-      switch(EXPR = save_type,
-             png = par(mfrow = c(3,1),
-                       mar = c(3,5,0,0),
-                       oma = c(1.5,0,1.5,0),
-                       cex = 1.5
-             ),
-             par(mfrow = c(3,1),
-                 mar = c(3,5,0,0),
-                 oma = c(1.5,0,1.5,0))
-      )
-      
     }
   }#loop through conditions
   # . Save plot -------------------------------------------------------------
-  dev.off()
+  tryCatch(
+            expr = dev.off(),
+            error = function(e)
+            {'TODO: Fix dev.off() error'}
+          )
   if(show_plot)
   {
     if(save_type %in% 'pdf')
@@ -3761,7 +3865,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       shell.exec.OS(plot_file)
     }else
     {
-      for(fl in png_files )
+      for(fl in plot_files )
       {
         # open_plot = paste0(sub(pattern = paste0('....',save_type,'$'),
         #                 replacement = paste0(
@@ -3778,7 +3882,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
   return(
     if(save_type %in% 'pdf'){plot_file}else
     {
-      png_files
+      plot_files
       # lapply(X = with(day_data_table, unique(condition)),
       #        FUN = function(cnd)
       #        {
