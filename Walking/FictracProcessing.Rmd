@@ -15,7 +15,7 @@ output:
 
 > **MODIFIED**
 >
-  James Foster            2022 03 16
+  James Foster            2022 03 17
 
 
 > **DESCRIPTION** 
@@ -176,6 +176,24 @@ source(file = fun_path,
        encoding = 'UTF-8')
 ```
 
+If using parallel processing, add these functions to the parallel cluster
+```{r Add functions to parallel cluster}
+ parallel::clusterExport(cl = clt,
+                         varlist = 
+                           c('MAmeanang',
+                             'MAmeanvec',
+                             'MAturnspeed',
+                             'MAsmoothturn',
+                             'Mod360.180',
+                             'mean.circular',
+                             'rho.circular',
+                             'circular',
+                             'deg',
+                             'rad'),
+                         envir = environment()#needs to be reminded to use current environment, NOT global environment
+  )
+```
+
 ## Search for the files
 The user should select a folder containing all `.dat` files saved by `FicTrac`.
 
@@ -227,7 +245,7 @@ path_input = file.path(
                         path_files)
 ```
 
-Run processing as a loop.
+Run processing as a loop. This step may take a *very* long time.
 ```{r Process ".dat" files, echo=TRUE}
 path_csv = lapply(
                   X = path_input,
@@ -261,6 +279,7 @@ and combine the data into a single table including the name of the original file
 the condition, the animal and the date. 
 This is then saved as a `.txt` file with the same headers as the `.csv` file, 
 plus headers for condition, bumblebee name, date and `.dat` file.
+This may take a long time, and use a lot of memory.
 ```{r Combine across all trials, echo=TRUE}
 message('Combining data from all trials.',
         '\n------------------------------------------')
@@ -318,6 +337,7 @@ if(!exists('path_txt'))
 ```
 
 Average each track across phases.
+This may take a long time.
 ```{r Average across phases, echo=TRUE}
 message('Averaging data across phases.',
         '\n------------------------------------------')
@@ -356,7 +376,7 @@ Remove any pre-existing PDFs the user might have generated to avoid conflicts.
 pre_pdfs = list.files(path = path_folder,
                       pattern = '.pdf$',#ends in PDF
                       recursive = TRUE)
-if(any(pre_pdfs))
+if(length(pre_pdfs))
 {
   warning(
           ' deleting existing PDFs in the folder','\n', 
@@ -369,12 +389,12 @@ deleted_pdfs = lapply(X = file.path(path_folder,
                      FUN = file.remove
                      )
 names(deleted_pdfs) = basename(pre_pdfs)
-if(any(deleted_pdfs))
+if(length(deleted_pdfs))
 {
   message('Deleted:\n',
-          deleted_pdfs[deleted_pdfs]
+          paste0(names(deleted_pdfs[unlist(deleted_pdfs)]),'\n')
           )
-  }
+}
 ```
 
 Check for paths to the processed `.csv` files.
@@ -396,6 +416,7 @@ if(!exists('path_csv'))
 ```
 
 Plot all tracks individually as a PDF in the same folder.
+This may take a very long time.
 
 ```{r Plot ".csv" files, echo=TRUE}
 #Plot all
@@ -405,7 +426,23 @@ message('Plotting ',
         paste0(lapply(X=path_csv, FUN=basename),'\n'), 
         '\nProcessing files.',
         '\n------------------------------------------')
-path_pdf = lapply(
+path_pdf = if(use_par) #FT_plot_track doesn't use parallel processing,
+            { # so can perhaps be run in parallel
+              parLapply(
+                  cl = clt,
+                  X = path_csv,
+                  fun = FT_plot_track,#N.B. not "FUN" in  parLapply()
+                  show_plot = FALSE, #don't open the plot immediately
+                  av_window = 5.0, #seconds to smooth over for averaging
+                  plt_speed_max = 200, #y axis maximum speed
+                  save_type = 'pdf',#Save as PDF or PNG
+                  speedup_parallel = FALSE, #Not used
+                  speedup_data.table = use_dt, #Speed up reading and writing
+                  verbose = TRUE #Tell the user what is going on
+                  )
+            }else
+            {
+              lapply(
                   X = path_csv,
                   FUN = FT_plot_track,
                   show_plot = FALSE, #don't open the plot immediately
@@ -414,9 +451,9 @@ path_pdf = lapply(
                   save_type = 'pdf',#Save as PDF or PNG
                   speedup_parallel = use_par, #Use parallel processing
                   speedup_data.table = use_dt, #Speed up reading and writing
-                  verbose = TRUE, #Tell the user what is going on
-                  clust =clt
+                  verbose = TRUE #Tell the user what is going on
                   )
+            }
 names(path_pdf) = path_csv
 ```
 
@@ -478,7 +515,8 @@ if(!exists('path_txt'))
 ```
 
 
-Save raster plots for all experiments
+Save raster plots for all experiments.
+This may take some time.
 ```{r Show all raw data as a Raster plot}
 rast_plot = FT_raster_condition(
                         txt_file = path_txt,
