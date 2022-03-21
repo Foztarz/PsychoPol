@@ -498,7 +498,8 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
   # Conversions -------------------------------------------------------------
   
   # . Derive variables ------------------------------------------------------
-  fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
+  dff_time = diff(adata$time_stamp)
+  fps = 1/mean(dff_time)*1e3 # frames per second
   
   # . Add variables ---------------------------------------------------------
   # . . Set up parallel processing, if used -----------------------------------
@@ -524,6 +525,56 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
     )
   }
 
+
+# . . Check for jumps -------------------------------------------------------
+  #check for jumps (happened in fictrac-20220316_134902.dat)
+  jmp = abs(dff_time) > 1e3*3.0/(fps) | # jump of more than 3x typical interval
+      dff_time < 0 #or at all negative
+  if(any(jmp))
+  {
+    # if(any(dff_time<0))
+    # {
+    #   jmp_ind = which(dff_time<0)
+    #   min_jmp_ind = min(jmp_ind)
+    # }else
+    # {
+    jmp_ind = jmp
+    min_jmp_frame = min(jmp)
+    # }
+    post_jump = (min_jmp_ind:length(dff_time))+1 #diff is OBOE from data
+    if(speedup_data.table)
+    {
+      adata[, `:=` ( heading_integrated = c(heading_integrated[-(post_jump)],
+                                            rep(x = NA, times = length(post_jump))
+                                            ),
+                      z_ball = c(z_ball[-(post_jump)],
+                                   rep(x = NA, times = length(post_jump))
+                                ),
+                      y_int = c(y_int[-(post_jump)],
+                                   rep(x = NA, times = length(post_jump))
+                                ),
+                      x_int = c(x_int[-(post_jump)],
+                                   rep(x = NA, times = length(post_jump))
+                                ),
+                     time_stamp = c(time_stamp[-(post_jump)],
+                                   rep(x = NA, times = length(post_jump))
+                                )
+                    )
+            ]
+    }else
+    {
+      adata = within(adata,
+                     {
+                     heading_integrated[post_jump] = NA
+                     z_ball[post_jump] = NA
+                     y_int[post_jump] = NA
+                     x_int[post_jump] = NA
+                     time_stamp[post_jump] = NA
+                     }
+                    )
+    }
+  }
+  
 # . . Variable definitions ------------------------------------------------
 
   if(speedup_data.table)
@@ -532,7 +583,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
     #N.B. Cannot call variable until after it has been created
     #data.table method
     adata[, `:=`( #assign from list call
-                     experimental_time = (time_stamp - min(time_stamp))/1e3, # seconds since start
+                     experimental_time = (time_stamp - min(time_stamp, na.rm = T))/1e3, # seconds since start
                      angle = circular(deg(heading_integrated),#180 is forwards!
                                       type = 'angles',
                                       unit = 'degrees',
@@ -685,7 +736,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
   #data.frame method
   adata = within(adata, 
                  {
-                   experimental_time = (time_stamp - min(time_stamp))/1e3 # seconds since start
+                   experimental_time = (time_stamp - min(time_stamp, na.rm = T))/1e3 # seconds since start
                    angle = circular(deg(heading_integrated),#180 is forwards!
                                     type = 'angles',
                                     unit = 'degrees',
@@ -2059,6 +2110,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   # . Required packages -----------------------------------------------------
   invisible(
     { # hide verbose loading messages
+      library(circular, quietly = TRUE)#Circular
       library(bspec, quietly = TRUE)#Bayesian Spectral Inference
       if(speedup_data.table){library(data.table, quietly = TRUE)}
       if(speedup_parallel){library(parallel, quietly = TRUE)}
@@ -2088,7 +2140,44 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   # Conversions -------------------------------------------------------------
   
   # . Derive variables ------------------------------------------------------
-  fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
+  dff_time = diff(adata$time_stamp)
+  fps = 1/mean(dff_time, na.rm = T)*1e3 # frames per second
+  
+  # . Conversions -------------------------------------------------------------
+  
+  # . . Convert to time series --------------------------------------------------
+  ts_data = if(sum(!is.na(adata$z_turn))>3)
+              {
+                with(subset(adata,!is.na(z_turn)), 
+                     ts(data = z_turn, 
+                        frequency = fps,
+                        start = which.min(experimental_time)
+                        # end = which.max(experimental_time[!is.na(z_turn)])
+                     )
+                    )
+              }else
+              {
+                ts(rep(1,3))
+              }
+  ind_1 = with(subset(adata,!is.na(z_turn)), experimental_time <60)
+  ind_2 = with(subset(adata,!is.na(z_turn)), experimental_time > 60 &
+                 experimental_time < 120
+               )
+  ts_1 = if(sum(ind_1, na.rm = TRUE)>2)
+          {
+            ts(data = ts_data[ind_1 & !is.na(ts_data)],
+              frequency = fps)
+          }else
+          {ts(rep(1,3))}
+  ts_2 = if(sum(ind_2, na.rm = TRUE)>2)
+          {
+            ts(data = ts_data[ind_2 & !is.na(ts_data)],
+              frequency = fps)
+          }else
+          {ts(rep(1,3))}
+  emp_data1 = empiricalSpectrum(ts_1)
+  emp_data2 = empiricalSpectrum(ts_2)
+  
   # . Set up plot area ------------------------------------------------------
   plot_file = file.path(dirname(path_file), 
                         paste0(basename(path_file),'_','.', save_type))
@@ -2164,7 +2253,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          
        }
   )
-  pretty_time = with(adata, paste0(pretty(range(experimental_time)), 's'))
+  pretty_time = with(adata, paste0(pretty(range(experimental_time, na.rm = T)), 's'))
   legend(x = plt_leg_pos,
          inset= plt_leg_inset,
          xpd = TRUE,
@@ -2193,9 +2282,9 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                                 modulo = '2pi'
          ),
          labels = 0:3*90,
-         xlim = c(-1,1)*max(experimental_time),
-         ylim = c(-1,1)*max(experimental_time),
-         shrink = 1/max(experimental_time)
+         xlim = c(-1,1)*max(experimental_time, na.rm = T),
+         ylim = c(-1,1)*max(experimental_time, na.rm = T),
+         shrink = 1/max(experimental_time, na.rm = T)
          )
          circular::lines.circular(x = 
                   circular::circular(angle-180,
@@ -2204,7 +2293,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                                      template = 'geographics',
                                      modulo = '2pi'
          ),
-         y = experimental_time/max(experimental_time)-1,
+         y = experimental_time/max(experimental_time, na.rm = T)-1,
          col = adjustcolor(point_col, alpha.f = 0.5),
          type = 'p',
          pch = 19,
@@ -2213,7 +2302,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          )
          invisible(
            {
-             lapply(X = 10*(0:(max(experimental_time)/10)),
+             lapply(X = 10*(0:(max(experimental_time, na.rm = T)/10)),
                     FUN =function(i)
                     {
                       circular::lines.circular(
@@ -2221,7 +2310,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                                              to = pi, 
                                              length.out = 1e3),
                                      template = 'none'),
-                        y = rep(x = i/max(experimental_time) - 1, 
+                        y = rep(x = i/max(experimental_time, na.rm = T) - 1, 
                                 times = 1e3),
                         col = gray(level = 0, alpha = 0.5)
                       )
@@ -2236,7 +2325,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                          to = pi, 
                          length.out = 1e3),
                  template = 'none'),
-    y = rep(x = 60/max(adata$experimental_time) - 1, 
+    y = rep(x = 60/max(adata$experimental_time, na.rm = T) - 1, 
             times = 1e3),
     col = adjustcolor('darkred', alpha.f = 0.5),
     lwd = 5
@@ -2244,9 +2333,9 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   with(adata,
        {
          axis(side = 1,
-              at = 10*round(-(max(experimental_time/10)):(max(experimental_time/10)))/max(experimental_time),
+              at = 10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))/max(experimental_time, na.rm = T),
               labels = abs(
-                10*round(-(max(experimental_time/10)):(max(experimental_time/10)))
+                10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))
               ),
               cex.axis = plt_leg_cex/1.5
          )
@@ -2284,8 +2373,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                cex = 0.1,
                pch = 19)
          axis(side = 1,
-              at = 10*(0:(max(experimental_time)/10)),
-              labels = 10*(0:(max(experimental_time)/10))
+              at = 10*(0:(max(experimental_time, na.rm = T)/10)),
+              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
          )
          axis(side = 2
          )
@@ -2349,8 +2438,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
               axes = F
          )
          axis(side = 1,
-              at = 10*(0:(max(experimental_time)/10)),
-              labels = 10*(0:(max(experimental_time)/10))
+              at = 10*(0:(max(experimental_time, na.rm = T)/10)),
+              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
          )
          axis(side = 2,
               at = 90*(round(-180/90):round(180/90)),
@@ -2403,8 +2492,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
               axes = F
          )
          axis(side = 1,
-              at = 10*(0:(max(experimental_time)/10)),
-              labels = 10*(0:(max(experimental_time)/10))
+              at = 10*(0:(max(experimental_time, na.rm = T)/10)),
+              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
          )
          axis(side = 2,
               at = plt_turn_ax*(round(min(z_turn, na.rm = T)/plt_turn_ax):round(max(z_turn, na.rm = T)/15))
@@ -2490,56 +2579,106 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   )
   
   
-  
-  # . . Mean vector length --------------------------------------------------
-  with(adata,
+  # 
+  # # . . Mean vector length --------------------------------------------------
+  # with(adata,
+  #      {
+  #        plot(x = NULL,
+  #             xlim = range(experimental_time, na.rm = T),
+  #             ylim = c(0,1),
+  #             xlab = 'time (s)',
+  #             ylab = paste0('mean vector length (',av_window,'s)'),
+  #             axes = F
+  #        )
+  #        axis(side = 1,
+  #             at = 10*(0:(max(experimental_time)/10)),
+  #             labels = 10*(0:(max(experimental_time)/10))
+  #        )
+  #        axis(side = 2,
+  #             at = 0:5/5
+  #        )
+  #        lines(x = experimental_time,
+  #              y = ma_rho,
+  #              col = point_col
+  #        )
+  #        abline(h = c(0,1),
+  #               v = c(0,60,120),
+  #               col = 'black',
+  #               lwd = 0.25
+  #        )
+  #        abline(h = sqrt(-log(c(0.05, 0.01)))/(av_window*fps),#Mean vector Rayleigh test p
+  #               col = 'red',
+  #               lty = c(3,2),
+  #               lwd = 0.25
+  #        )
+  #        
+  #      }
+  # )
+  # legend(x = plt_leg_pos,
+  #        inset= plt_leg_inset,
+  #        xpd = TRUE,
+  #        legend = c(paste0('mean vector ', '(', av_window,'s)'),
+  #                   'Rayleigh (p = 0.05)'),
+  #        lty = c(1, 3),
+  #        pch = c(NA, NA),
+  #        col = c(point_col,
+  #                'red'),
+  #        cex = plt_leg_cex
+  # )
+
+# . Plot frequency --------------------------------------------------------
+  with(emp_data1,
        {
-         plot(x = NULL,
-              xlim = range(experimental_time, na.rm = T),
-              ylim = c(0,1),
-              xlab = 'time (s)',
-              ylab = paste0('mean vector length (',av_window,'s)'),
-              axes = F
+         plot(frequency,
+              sqrt(power),
+              log = 'x',
+              type = 'l',
+              xlim = c(1/(fps*1.2), fps*1.2),
+              ylim = if( any(!is.na(power)) )
+                        {sqrt( c(0, max(c(emp_data1$power, emp_data2$power)) ) )}else
+                        {c(0,1)},
+              col = adjustcolor('darkblue', alpha.f = 100/255),
+              lwd = 2
+              # main = 'Discrete FFT'
+             )  
+       }
+  )
+  mtext(text = 'Discrete FFT',
+        side = 4,
+        cex = plt_leg_cex)
+  abline(v = c(0.1),
+         lty = c(1),
+         col = adjustcolor('gray', alpha.f = 150/255)
+  )
+  with(emp_data2,
+       {
+         lines(frequency,
+               sqrt(power),
+               lwd = 2,
+               col = adjustcolor('darkred', alpha.f = 150/255)
          )
-         axis(side = 1,
-              at = 10*(0:(max(experimental_time)/10)),
-              labels = 10*(0:(max(experimental_time)/10))
-         )
-         axis(side = 2,
-              at = 0:5/5
-         )
-         lines(x = experimental_time,
-               y = ma_rho,
-               col = point_col
-         )
-         abline(h = c(0,1),
-                v = c(0,60,120),
-                col = 'black',
-                lwd = 0.25
-         )
-         abline(h = sqrt(-log(c(0.05, 0.01)))/(av_window*fps),#Mean vector Rayleigh test p
-                col = 'red',
-                lty = c(3,2),
-                lwd = 0.25
-         )
-         
        }
   )
   legend(x = plt_leg_pos,
-         inset= plt_leg_inset,
+         legend  = c('0–60s',
+                     '60–120s',
+                     '0.1Hz (10s)'
+                     ),
+         col = c('darkblue',
+                 'darkred',
+                 'gray'
+         ),
+         lty = c(1, 1, 1, 3),
+         lwd = c(2,2,1,1),
          xpd = TRUE,
-         legend = c(paste0('mean vector ', '(', av_window,'s)'),
-                    'Rayleigh (p = 0.05)'),
-         lty = c(1, 3),
-         pch = c(NA, NA),
-         col = c(point_col,
-                 'red'),
+         inset= plt_leg_inset,
          cex = plt_leg_cex
   )
   
   # . . Outer labels --------------------------------------------------------
   
-  mtext(text = basename(path_file),
+  mtext(text = paste( basename(dirname(path_file)),
+                     basename(path_file) ),
         outer = T, 
         side = 3
   )
