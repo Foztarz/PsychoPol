@@ -15,7 +15,7 @@ output:
 
 > **MODIFIED**
 >
-  James Foster            2022 03 17
+  James Foster            2022 03 21
 
 
 > **DESCRIPTION** 
@@ -218,7 +218,7 @@ This folder should have the structure:
 ```{r Find the folder, echo=TRUE}
 if(interactive())#for knitting, it is not possible to ask the user
 {path_folder = FT_select_folder(file_type = 'Fictrac experiment')}else
-{path_folder = "C:\\Users\\jaf54iq\\Documents\\AllTestdata\\TestFolder\\dat_folder"}
+{path_folder = "C:\\Users\\jaf54iq\\Documents\\AllTestdata\\Pascal"}
 ```
 
 Search for any `.dat` files in the data folder and sub-folders.
@@ -424,7 +424,7 @@ message('Plotting ',
         length(path_csv),
         ' files:\n', 
         paste0(lapply(X=path_csv, FUN=basename),'\n'), 
-        '\nProcessing files.',
+        '\nPlotting files.',
         '\n------------------------------------------')
 path_pdf = if(use_par) #FT_plot_track doesn't use parallel processing,
             { # so can perhaps be run in parallel
