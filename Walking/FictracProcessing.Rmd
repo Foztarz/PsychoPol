@@ -115,7 +115,11 @@ Load the packages required to run the analysis. If these packages are not alread
 ```{r Load packages, echo=TRUE, message = FALSE, warning = FALSE}
 require(circular)#for handing angles
 require(bspec)#for spectrum/frequency analysis
-if(use_dt){require(data.table)}#for fast data handling
+if(use_dt)
+  {
+  require(R.utils) # sometimes missing from older Rstudio 
+  require(data.table)
+  }#for fast data handling
 if(use_par){require(parallel)}#for parallel processing
 ```
 
