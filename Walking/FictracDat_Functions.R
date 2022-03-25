@@ -2818,7 +2818,6 @@ FT_summarise_all = function(
   suppressMessages(#these are disturbing users unnecessarily
     {
       require(circular)#package for handling circular data
-      require(CircStats)#package for circular hypothesis tests
       if(speedup_data.table){require(data.table)}#package for reorganising large datasets
       if(speedup_parallel){require(parallel)}#package for reorganising large datasets
     }
@@ -3445,7 +3444,6 @@ FT_TimeAverage_all = function(
   suppressMessages(#these are disturbing users unnecessarily
     {
       require(circular)#package for handling circular data
-      require(CircStats)#package for circular hypothesis tests
       if(speedup_data.table){require(data.table)}#package for reorganising large datasets
       if(speedup_parallel){require(parallel)}#package for reorganising large datasets
     }
@@ -4105,6 +4103,9 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
   )
 }
 
+# Maintenance -------------------------------------------------------------
+
+#Delete pre-existing processed files in the data folder
 FT_delete_processed = function(path_folder = FT_select_folder())
 {
   #Find processed files compressed to '.gz'
@@ -4132,7 +4133,8 @@ FT_delete_processed = function(path_folder = FT_select_folder())
 }
 
 FT_troubleshoot_function = function(fn, ...)
-{
+{ #turn formal arguments into an expression
+  #in the function body
   body(fn) = quote(expr = lapply(formals(), 
                                  FUN = function(x)
                                    {
@@ -4140,19 +4142,21 @@ FT_troubleshoot_function = function(fn, ...)
                                    }
                                  )
                   )
-  ex = fn(...)
-  nm = names(ex)
-  invisible(
+  ex = fn(...) #execute the function and extract the arguments
+  nm = names(ex) #find the argument names
+  AssignGE = #in a loop, assign to global env with the name
+    function(i)
+      {
+        assign(x = nm[i],
+               value = ex[[i]],
+               envir = .GlobalEnv,
+               pos = -1
+        )
+        }
+  invisible( # loop through without echoing
     {
   lapply(X = 1:length(ex),
-         FUN = function(i)
-                 {
-                 assign(x = nm[i],
-                        value = ex[[i]],
-                        envir = .GlobalEnv,
-                        pos = -1
-                        )
-                 }
+         FUN = AssignGE
          )
     }
   )
