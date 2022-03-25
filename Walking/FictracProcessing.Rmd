@@ -15,7 +15,7 @@ output:
 
 > **MODIFIED**
 >
-  James Foster            2022 03 21
+  James Foster            2022 03 25
 
 
 > **DESCRIPTION** 
@@ -68,9 +68,12 @@ output:
 
 
 ```{r Set up HTML, include=FALSE}
+if(!is.null(getOption("knitr.in.progress")))
+{ # only used during "knitting"
 knitr::opts_chunk$set(echo = TRUE, 
                       tidy.opts = list(width.cutoff = 35, 
                                        tidy = TRUE))
+}
 ```
 
 ## Input variables
@@ -111,6 +114,7 @@ Load the packages required to run the analysis. If these packages are not alread
 ( `install.packages(...)` or select `Tools>Install packages` in the Rstudio menu)
 ```{r Load packages, echo=TRUE, message = FALSE, warning = FALSE}
 require(circular)#for handing angles
+require(bspec)#for spectrum/frequency analysis
 if(use_dt){require(data.table)}#for fast data handling
 if(use_par){require(parallel)}#for parallel processing
 ```
@@ -176,6 +180,8 @@ source(file = fun_path,
        encoding = 'UTF-8')
 ```
 
+
+####    - Load into the parallel cluster
 If using parallel processing, add these functions to the parallel cluster
 ```{r Add functions to parallel cluster}
  parallel::clusterExport(cl = clt,
@@ -406,10 +412,12 @@ if(!exists('path_csv'))
   {path_folder = FT_select_folder(file_type = "_proc.csv.gz")}
   path_csv = file.path(path_folder,
                       list.files(path = path_folder,
-                                 pattern = '_proc.csv.gz',
+                                 pattern = '_proc.csv.gz$',
                                  recursive = TRUE)
                       )
-  message(length(path_csv), 'processed files found:\n',
+  message(length(path_csv), 
+          ' processed files found:\n',
+                  paste0(basename(path_csv),'\n')
           )
 }
 
