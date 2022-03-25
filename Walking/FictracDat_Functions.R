@@ -1555,7 +1555,7 @@ FT_raster = function(cnd,#condition to subset by
                # ylim = c(0,1.0),
                xlab = 'time (s)',
                ylab = ' ',
-               main = paste0('absolute mean turning speed (°/s: ',av_window,'s)'),
+               main = paste0('absolute median turning speed (°/s: ',av_window,'s)'),
                axes = F,
                col = hcl.colors(n = 16,
                                 palette = plette)
@@ -1614,7 +1614,7 @@ FT_raster = function(cnd,#condition to subset by
                # ylim = c(1,n_flightdates),
                xlab = 'time (s)',
                ylab = ' ',
-               main = paste0('absolute mean acceleration (°/s^2: ',av_window,'s)'),
+               main = paste0('absolute median acceleration (°/s^2: ',av_window,'s)'),
                axes = F,
                col = hcl.colors(n = 16,
                                 palette = plette)
@@ -3932,7 +3932,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                      xlim = range(phase, na.rm = T),
                      ylim = c(0,360)/8,
                      xlab = 'phase end time (s)',
-                     ylab = paste0('absolute mean turning speed (°/s: ',av_window,'s)'),
+                     ylab = paste0('absolute median turning speed (°/s: ',av_window,'s)'),
                      axes = F
              )
              axis(side = 1,
@@ -3969,7 +3969,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                      xlim = range(phase, na.rm = T),
                      ylim = (c(0,360)/10)/8,
                      xlab = 'phase end time (s)',
-                     ylab = paste0('absolute mean acceleration (°/s^2 : ',av_window,'s)'),
+                     ylab = paste0('absolute median acceleration (°/s^2 : ',av_window,'s)'),
                      axes = F
              )
              axis(side = 1,
