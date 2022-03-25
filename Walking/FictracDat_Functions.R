@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 24
-#     MODIFIED:	James Foster              DATE: 2022 03 17
+#     MODIFIED:	James Foster              DATE: 2022 03 22
 #
 #  DESCRIPTION: A set of functions to load a set of ".dat" files exported from 
 #               fictrac,export speed and angle and their moving averages, 
@@ -16,6 +16,7 @@
 #             - Averaging across "phases"
 #             - MAsmoothturn() added to avoid short .dat error 
 #             - NA handling in acceleration axis labels
+#             - jump handling and NA handling in experimental time
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -215,7 +216,7 @@ MAmeanang <- function(i, #index
                    unit = 'degrees',
                    template = 'geographics',
                    modulo = '2pi'
-      )
+      ), na.rm = T
     )
     #N.B. conversion to class circular faster than calculating from 1st principles in R
     # atan2(
@@ -242,7 +243,7 @@ MAmeanvec <- function(i, #index
                    unit = 'degrees',
                    template = 'geographics',
                    modulo = '2pi'
-      )
+      ), na.rm = T
     )
     #N.B. conversion to class circular faster than calculating from 1st principles in R
     # sqrt(
@@ -281,7 +282,7 @@ MAturnspeed <- function(i, #index
   return(
     # mean( # default method for mean, no missing values allowed
     median( # default method for median, no missing values allowed
-      dff
+      dff, na.rm = T
     )*hz #number of data collected per second, units returned are deg/s
   )
 }
@@ -378,7 +379,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                          compress_csv = TRUE, #Compress to ".gz" to save space?
                          verbose = TRUE, #Tell the user what is going on
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-                           {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                           {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                            {NULL},
                          folder_labels = TRUE #read date, animal and experiment from the containing folder
 )
@@ -468,7 +469,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
              'x_speed_int', #20 integrated x position (radians) of the sphere, neglecting heading
              'y_speed_int', #21 integrated y position (radians) of the sphere, neglecting heading
              'time_stamp', #22
-             'frame_counter' #23 rest not available in 2.03
+             'seq_counter' #23 rest not available in 2.03
              # 'delta_timestap', #24 change in time since last frame
              # 'ms_since_midnight' #25 time of capture
   )
@@ -499,7 +500,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
   
   # . Derive variables ------------------------------------------------------
   dff_time = diff(adata$time_stamp)
-  fps = 1/mean(dff_time)*1e3 # frames per second
+  fps = 1/mean(dff_time, na.rm = T)*1e3 # frames per second
   
   # . Add variables ---------------------------------------------------------
   # . . Set up parallel processing, if used -----------------------------------
@@ -538,8 +539,8 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
     #   min_jmp_ind = min(jmp_ind)
     # }else
     # {
-    jmp_ind = jmp
-    min_jmp_frame = min(jmp)
+    jmp_ind = which(jmp)
+    min_jmp_ind = min(jmp_ind)
     # }
     post_jump = (min_jmp_ind:length(dff_time))+1 #diff is OBOE from data
     if(speedup_data.table)
@@ -960,7 +961,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
                              verbose = TRUE, #Tell the user what is going on
                              recursive = TRUE,   #Search in sub folders                          
                              clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-                             {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                             {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                              {NULL}
                              )
 {
@@ -989,7 +990,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
   file_paths = file.path(path_folder, names_files)
   if(speedup_parallel)
   {
-    clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
+    clusterExport(cl = clust,#the cluster needs some variables&functions outside parLapply
                   varlist = 
                     list('file_paths',
                          'data.table',
@@ -1002,7 +1003,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
     {
       adata = if(speedup_parallel)
         {
-        parLapply(cl = clt,
+        parLapply(cl = clust,
                   X = if(speedup_data.table)
                           {file_paths}else
                           {lapply(file_paths, gzfile)},
@@ -1053,11 +1054,11 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
   #check sample rates for each
   sample_rates = lapply(X = adata,
                         FUN = function(x)
-                        {with(x, 1/mean(diff(experimental_time)))}
+                        {with(x, 1/mean(diff(experimental_time), na.rm = T))}
   )#Hz
   if(verbose)
   {
-    if(sum(diff(unlist(sample_rates))))
+    if(sum(diff(unlist(sample_rates)), na.rm = T))
       {
         warning('Sample rates differ between recordings\n',
                'proceed with caution!\n',
@@ -1091,15 +1092,14 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
     
   if(speedup_data.table)
     {#assume works the same with data.table (nothing defined and used in same expr)
-    dt = within(dt,
-               {
-                 track = regmatches(
+    dt[, `:=` (track = regmatches(
                            m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
                                        text = basename(file_paths[[i]])
                            ),
                            x = basename(file_paths[[i]])
                          )
-                 condition = regmatches(
+      )]
+    dt[, `:=` (condition = regmatches(
                                  m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
                                              text = FoldName(x = file_paths[[i]], 
                                                              type = 'Condition')
@@ -1107,11 +1107,13 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
                                  x = FoldName(x = file_paths[[i]], 
                                               type = 'Condition')
                                  )
-                 bumblebee = sub(pattern = 'Bumblebee ',
+      )]
+    dt[, `:=` (bumblebee = sub(pattern = 'Bumblebee ',
                                  x = FoldName(file_paths[[i]], 'Bumblebee'),
                                  replacement = ''
                                  )
-                 date = regmatches(
+      )]
+    dt[, `:=` (date = regmatches(
                                  m = regexpr(pattern = '[^ -][^-]*$',#Remove illegal characters
                                              text = FoldName(x = file_paths[[i]], 
                                                              type = 'Day')
@@ -1119,8 +1121,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
                                  x = FoldName(x = file_paths[[i]], 
                                               type = 'Day')
                                  )
-               }
-              )
+      )]
     }else
     {
     dt = within(dt,
@@ -1163,19 +1164,20 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
     {message('Using parallel processing...')}
     #Benefits from some parallel processing, but setting up the cluster is slow
     clt = clust
-    clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
+    clusterExport(cl = clust,#the cluster needs some variables&functions outside parLapply
                   varlist = 
                     list('adata',
                        'file_paths',
                        'data.table',
                        'FT_trial_details',
-                       'FoldName'),
+                       'FoldName',
+                       'speedup_data.table'),
                   envir = environment()#needs to be reminded to use function environment, NOT global environment
     )
   }
   adata = if(speedup_parallel)
   {
-    parLapply(cl = clt,
+    parLapply(cl = clust,
            X = 1:length(adata),
            fun = FT_trial_details #N.B. parLapply uses "fun" not "FUN" like parSapply & lapply
            )
@@ -1188,7 +1190,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
   }
   names(adata) = basename(file_paths)
   #close the parallel cluster
-  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clt)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
   
   # . combine all data into a single data frame -------------------------------
   adata_frame = do.call(what = rbind,#N.B. seems to work the same with data.table & data.frame
@@ -1251,7 +1253,7 @@ FT_raster_condition = function(
                         verbose = TRUE, #Tell the user what is going on
                         show_plot = TRUE, #Tell the user what is going on
                         clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-                        {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                        {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                         {NULL}
                         )
   {
@@ -1303,7 +1305,7 @@ sample_rate = 1/mean(diff(
          subset = track == unique(track)[1] &
            date == unique(date)[1] 
   )$experimental_time
-))
+), na.rm = T)
 #set up function to flag full length experiments #N.B. this currently looks quite slow
 FlagExper = function(trackID,
                      dta,
@@ -1314,7 +1316,7 @@ FlagExper = function(trackID,
  return( #TODO speed up with data.table
         with(subset(dta, track %in% trackID), #subset to single track
              {
-                     rep(x = (max(experimental_time)/60)>
+                     rep(x = (max(experimental_time, na.rm = T)/60)>
                              experiment_length,#is the experiment longer than the minimum?
                          times = length(experimental_time)) #replicate logical
              }
@@ -1420,19 +1422,34 @@ if(verbose){message('Ranking by median value across 1st condition...','\n')}
 #summarise 
 track_rho = aggregate(formula = ma_rho~track,
                        data = subset(all_data_table, 
-                                     subset = experimental_time < experiment_length*60),
+                                     subset = experimental_time < condition1_length*60),
                        FUN = quantile,
                        p = quantls)
 track_abs_turn = aggregate(formula = abs_turn~track,
                             data = subset(all_data_table, 
-                                          subset = experimental_time < experiment_length*60),
+                                          subset = experimental_time < condition1_length*60),
                             FUN = quantile,
                             p = quantls)
 track_abs_accel = aggregate(formula = abs_accel~track,
                              data = subset(all_data_table, 
-                                           subset = experimental_time < experiment_length*60),
+                                           subset = experimental_time < condition1_length*60),
                              FUN = quantile,
-                             p = quantls)
+                             p = quantls) 
+# track_rho = aggregate(formula = ma_rho~track,
+#                        data = subset(all_data_table, 
+#                                      subset = experimental_time < experiment_length*60),
+#                        FUN = quantile,
+#                        p = quantls)
+# track_abs_turn = aggregate(formula = abs_turn~track,
+#                             data = subset(all_data_table, 
+#                                           subset = experimental_time < experiment_length*60),
+#                             FUN = quantile,
+#                             p = quantls)
+# track_abs_accel = aggregate(formula = abs_accel~track,
+#                              data = subset(all_data_table, 
+#                                            subset = experimental_time < experiment_length*60),
+#                              FUN = quantile,
+#                              p = quantls)
 ##probably don't need to calculate the rest?
 all_data_table = data.table::merge.data.table(x = #combine with the rest of the data, adding quantiles that can be used for sorting
                                                 data.table::merge.data.table( #combine rho with turn & accel
@@ -1533,7 +1550,7 @@ FT_raster = function(cnd,#condition to subset by
        {
          image(x = TurnTrans(mtr_turn),
                useRaster = TRUE,
-               zlim = TurnTrans(c(0,360)),
+               zlim = TurnTrans(c(0,360/8)),
                xlim = c(0,1.1),
                # ylim = c(0,1.0),
                xlab = 'time (s)',
@@ -1544,8 +1561,8 @@ FT_raster = function(cnd,#condition to subset by
                                 palette = plette)
          )
          axis(side = 1,
-              at = sample_rate*10*(0:(max(experimental_time)/10))/dim(mtr_turn)[1],
-              labels = 10*(0:(max(experimental_time)/10))
+              at = sample_rate*10*(0:(max(experimental_time, na.rm = T)/10))/dim(mtr_turn)[1],
+              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
          )
          axis(side = 2,
               at = seq(from = 0, to  = 1, length.out = dim(mtr_turn)[2]),
@@ -1574,7 +1591,7 @@ FT_raster = function(cnd,#condition to subset by
            round( 
              TurnTransInv(
                seq( from = TurnTrans(0), 
-                    to = TurnTrans(360), 
+                    to = TurnTrans(360/8), 
                     length.out = 5) ) 
            ),
            '>360'
@@ -1592,7 +1609,7 @@ FT_raster = function(cnd,#condition to subset by
        {
          image(x = AccelTrans(mtr_accel),
                useRaster = TRUE,
-               zlim = AccelTrans(c(0,15)),
+               zlim = AccelTrans(c(0,10)),
                xlim = c(0,1.1),
                # ylim = c(1,n_flightdates),
                xlab = 'time (s)',
@@ -1603,8 +1620,8 @@ FT_raster = function(cnd,#condition to subset by
                                 palette = plette)
          )
          axis(side = 1,
-              at = sample_rate*10*(0:(max(experimental_time)/10))/dim(mtr_accel)[1],
-              labels = 10*(0:(max(experimental_time)/10))
+              at = sample_rate*10*(0:(max(experimental_time, na.rm = T)/10))/dim(mtr_accel)[1],
+              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
          )
          axis(side = 2,
               at = seq(from = 0, to  = 1, length.out = dim(mtr_accel)[2]),
@@ -1633,7 +1650,7 @@ FT_raster = function(cnd,#condition to subset by
            round( 
              AccelTransInv(
                seq( from = AccelTrans(0), 
-                    to = AccelTrans(15), 
+                    to = AccelTrans(10), 
                     length.out = 5) )
            ),
            '>15'
@@ -1661,8 +1678,8 @@ FT_raster = function(cnd,#condition to subset by
                                 palette = plette)
          )
          axis(side = 1,
-              at = sample_rate*10*(0:(max(experimental_time)/10))/dim(mtr_rho)[1],
-              labels = 10*(0:(max(experimental_time)/10))
+              at = sample_rate*10*(0:(max(experimental_time, na.rm = T)/10))/dim(mtr_rho)[1],
+              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
          )
          axis(side = 2,
               at = seq(from = 0, to  = 1, length.out = dim(mtr_rho)[2]),
@@ -1871,7 +1888,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
                          res.method = if(!is.null(resample)){'MAturnspeed'}, #Hz Resample to predetermined sampling base
                          validation = FALSE, #Test with the target sine wave
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-                         {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                         {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                          {NULL}
 )
 {
@@ -1916,7 +1933,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
   # Conversions -------------------------------------------------------------
   
   # . Derive variables ------------------------------------------------------
-  fps = 1/mean(diff(adata$time_stamp))*1e3 # frames per second
+  fps = 1/mean(diff(adata$time_stamp), na.rm = T)*1e3 # frames per second
   
   # . Convert to time series --------------------------------------------------
   ts_data = with(adata, 
@@ -2016,7 +2033,11 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
 
   # . . Overwrite time series -----------------------------------------------
   ts_data = ts(data = res_data[!is.na(res_data)],
-             start = with(adata, {which.min(experimental_time[!is.na(z_turn)])}),
+             start = with(adata, 
+                          {
+                            which.min(experimental_time[!is.na(z_turn)])
+                            }
+                          ),
              frequency = resample
              )
   
@@ -2037,7 +2058,7 @@ FT_frequency_analysis = function(path_file = FT_select_file(file_type = '_proc.c
            log = 'x',
            type = 'l',
            xlim = c(1/(fps*1.2), fps*1.2),
-           ylim = sqrt( c(0, max(c(emp_data$power, psd_data$power)) ) ),
+           ylim = sqrt( c(0, max(c(emp_data$power, psd_data$power), na.rm = T) ) ),
            col = adjustcolor('darkblue', alpha.f = 100/255),
            lwd = 2,
            main = if(validation){paste(av_window/4, 'sec sinusoid')}else
@@ -2098,7 +2119,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                          speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
                          verbose = TRUE, #Tell the user what is going on
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-                         {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+                         {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                          {NULL}
                          )
 {
@@ -2141,7 +2162,9 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   
   # . Derive variables ------------------------------------------------------
   dff_time = diff(adata$time_stamp)
-  fps = 1/mean(dff_time, na.rm = T)*1e3 # frames per second
+  fps = if(any(!is.na(dff_time)))
+          {1/mean(dff_time, na.rm = T)*1e3}else
+            {60}# frames per second
   
   # . Conversions -------------------------------------------------------------
   
@@ -2230,9 +2253,13 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
        {
          plot(x = y_pos,
               y = x_pos,
-              xlim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T), 
-              ylim = c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T), 
-              col = hcl.colors(n = length(frame_counter),
+              xlim = if(any(!is.na(y_pos)))
+                      {c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)}else
+                        {c(-1,1)*2000}, 
+              ylim =  if(any(!is.na(x_pos)))
+                        {c(-1,1)*max(abs(c(y_pos, x_pos)), na.rm = T)}else
+                        {c(-1,1)*2000}, 
+              col = hcl.colors(n = sum(!is.na(frame_counter)),
                                palette = 'viridis',
                                alpha = 0.5),
               xlab = 'lateral position (mm)',
@@ -2282,27 +2309,40 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                                 modulo = '2pi'
          ),
          labels = 0:3*90,
-         xlim = c(-1,1)*max(experimental_time, na.rm = T),
-         ylim = c(-1,1)*max(experimental_time, na.rm = T),
-         shrink = 1/max(experimental_time, na.rm = T)
+         xlim = if(any(!is.na(experimental_time)))
+                 {c(-1,1)*max(experimental_time, na.rm = T)}else
+                   {c(-1,1)*120},
+         ylim = if(any(!is.na(experimental_time)))
+                 {c(-1,1)*max(experimental_time, na.rm = T)}else
+                 {c(-1,1)*120},
+         shrink = if(any(!is.na(experimental_time)))
+                   {1/max(experimental_time, na.rm = T)}else
+                   {1}
          )
+         if(any(!is.na(angle)))
+         {
          circular::lines.circular(x = 
-                  circular::circular(angle-180,
+                  circular::circular(x = angle-180,
                                      type = 'angles',
                                      unit = 'degrees',
                                      template = 'geographics',
                                      modulo = '2pi'
          ),
-         y = experimental_time/max(experimental_time, na.rm = T)-1,
+         y = if(any(!is.na(experimental_time)))
+               {experimental_time/max(experimental_time, na.rm = T)-1}else
+               {experimental_time/120 - 1},
          col = adjustcolor(point_col, alpha.f = 0.5),
          type = 'p',
          pch = 19,
          lty = 2,
          cex = 0.5
          )
+         }
          invisible(
            {
-             lapply(X = 10*(0:(max(experimental_time, na.rm = T)/10)),
+             lapply(X = if(any(!is.na(experimental_time)))
+                         {10*(0:(max(experimental_time, na.rm = T)/10))}else
+                         {10*0:12},
                     FUN =function(i)
                     {
                       circular::lines.circular(
@@ -2310,7 +2350,9 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                                              to = pi, 
                                              length.out = 1e3),
                                      template = 'none'),
-                        y = rep(x = i/max(experimental_time, na.rm = T) - 1, 
+                        y = rep(x = if(any(!is.na(experimental_time)))
+                                      {i/max(experimental_time, na.rm = T) - 1}else
+                                      {i/120 - 1}, 
                                 times = 1e3),
                         col = gray(level = 0, alpha = 0.5)
                       )
@@ -2330,17 +2372,20 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
     col = adjustcolor('darkred', alpha.f = 0.5),
     lwd = 5
   )
-  with(adata,
-       {
-         axis(side = 1,
-              at = 10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))/max(experimental_time, na.rm = T),
-              labels = abs(
-                10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))
-              ),
-              cex.axis = plt_leg_cex/1.5
-         )
-       }
-  )
+  if(any(!is.na(adata$experimental_time)))
+  {
+    with(adata,
+         {
+           axis(side = 1,
+                at = 10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))/max(experimental_time, na.rm = T),
+                labels = abs(
+                  10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))
+                ),
+                cex.axis = plt_leg_cex/1.5
+           )
+         }
+    )
+  }
   mtext(text = 'Time (sec)',
         outer = T,
         side = 1
@@ -2360,7 +2405,12 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
               y = ground_speed,
               xlab = 'time since start',
               ylab = 'ground speed (mm/s)',
-              ylim = c(0, max(x = c(ma_speed,plt_speed_max), na.rm = T)),
+              xlim = if(any(!is.na(experimental_time)))
+                      {range(experimental_time, na.rm = T)}else
+                      {c(0,120)},
+              ylim = if(any(!is.na(ma_speed)))
+                      {c(0, max(x = c(ma_speed,plt_speed_max), na.rm = T))}else
+                        {c(0,200)},
               type = 'p',
               pch = 19,
               cex = 0.1,
@@ -2372,15 +2422,18 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                col = adjustcolor('orange', alpha.f = 100/256),
                cex = 0.1,
                pch = 19)
-         axis(side = 1,
-              at = 10*(0:(max(experimental_time, na.rm = T)/10)),
-              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
-         )
+         if(any(!is.na(experimental_time)))
+         {
+           axis(side = 1,
+                at = 10*(0:(max(experimental_time, na.rm = T)/10)),
+                labels = 10*(0:(max(experimental_time, na.rm = T)/10))
+           )
+           abline(h = 10*(round(min(ground_speed, na.rm = T)/10):round(max(ground_speed, na.rm = T)/10)),
+                  v = c(0,60,120),
+                  col = rgb(0,0,0,0.1)
+           )
+         }
          axis(side = 2
-         )
-         abline(h = 10*(round(min(ground_speed, na.rm = T)/10):round(max(ground_speed, na.rm = T)/10)),
-                v = c(0,60,120),
-                col = rgb(0,0,0,0.1)
          )
          abline(h = 0,
                 col = 1)
@@ -2429,6 +2482,9 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          plot(x = experimental_time,
               y = Mod360.180(angle),
               ylim = c(-180,180),
+              xlim = if(any(!is.na(experimental_time)))
+                      {range(experimental_time, na.rm = T)}else
+                      {c(0,120)},
               xlab = 'time since start',
               ylab = 'fictive direction',
               type = 'p',
@@ -2437,10 +2493,13 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
               col = adjustcolor(point_col, alpha.f = 20/256),
               axes = F
          )
-         axis(side = 1,
-              at = 10*(0:(max(experimental_time, na.rm = T)/10)),
-              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
-         )
+         if(any(!is.na(experimental_time)))
+         {
+           axis(side = 1,
+                at = 10*(0:(max(experimental_time, na.rm = T)/10)),
+                labels = 10*(0:(max(experimental_time, na.rm = T)/10))
+           )
+         }
          axis(side = 2,
               at = 90*(round(-180/90):round(180/90)),
               labels = paste0(90*(round(-180/90):round(180/90)),
@@ -2485,19 +2544,26 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   with(adata,
        {
          plot(x = NULL,
-              xlim = range(experimental_time, na.rm = T),
-              ylim = c(-1,1)*max(abs(range(z_turn, na.rm = T))),
+              xlim = if(any(!is.na(experimental_time)))
+                      {range(experimental_time, na.rm = T)}else
+                      {c(0,120)},
+              ylim = if(any(!is.na(z_turn)))
+                      {c(-1,1)*max(abs(range(z_turn, na.rm = T)))}else
+                      {c(-45,45)},
               xlab = 'time (s)',
               ylab = paste0('median turning speed (°/s: ',av_window,'s)'),
               axes = F
          )
-         axis(side = 1,
-              at = 10*(0:(max(experimental_time, na.rm = T)/10)),
-              labels = 10*(0:(max(experimental_time, na.rm = T)/10))
-         )
-         axis(side = 2,
-              at = plt_turn_ax*(round(min(z_turn, na.rm = T)/plt_turn_ax):round(max(z_turn, na.rm = T)/15))
-         )
+         if(any(!is.na(experimental_time)))
+         {
+           axis(side = 1,
+                at = 10*(0:(max(experimental_time, na.rm = T)/10)),
+                labels = 10*(0:(max(experimental_time, na.rm = T)/10))
+           )
+           axis(side = 2,
+                at = plt_turn_ax*(round(min(z_turn, na.rm = T)/plt_turn_ax):round(max(z_turn, na.rm = T)/15))
+           )
+         }
          lines(x = experimental_time,
                y = z_turn,
                col = adjustcolor(point_col, alpha.f = 50/256),
@@ -2708,7 +2774,7 @@ FT_summarise_all = function(
     verbose = TRUE, #Tell the user what is going on
     show_plot = TRUE, #Tell the user what is going on
     clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-    {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+    {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
     {NULL},
     ... #passed to; I don't know yet
 )
@@ -2887,7 +2953,7 @@ FT_summarise_all = function(
            subset = track == unique(track)[1] &
              date == unique(date)[1] 
     )$experimental_time
-  ))
+  ), na.rm = T)
   #set up function to flag full length experiments #N.B. this currently looks quite slow
   FlagExper = function(trackID,
                        dta,
@@ -3069,7 +3135,7 @@ FT_plot_summary = function(
     verbose = TRUE, #Tell the user what is going on
     show_plot = TRUE, #Tell the user what is going on
     clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-    {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+    {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
     {NULL}
 )
 {
@@ -3178,8 +3244,8 @@ FT_plot_summary = function(
               axes = F
          )
          axis(side = 1,
-              at = 60*(0:(max(experimental_time)/60)),
-              labels = 1*(0:(max(experimental_time)/60))
+              at = 60*(0:(max(experimental_time, na.rm = T)/60)),
+              labels = 1*(0:(max(experimental_time, na.rm = T)/60))
          )
          axis(side = 2,
               at = 45*(0:360/45)
@@ -3227,8 +3293,8 @@ FT_plot_summary = function(
               axes = F
          )
          axis(side = 1,
-              at = 60*(0:(max(experimental_time)/60)),
-              labels = 1*(0:(max(experimental_time)/60))
+              at = 60*(0:(max(experimental_time, na.rm = T)/60)),
+              labels = 1*(0:(max(experimental_time, na.rm = T)/60))
          )
          axis(side = 2,
               at = 15*(0:360/15)
@@ -3277,8 +3343,8 @@ FT_plot_summary = function(
               axes = F
          )
          axis(side = 1,
-              at = 60*(0:(max(experimental_time)/60)),
-              labels = 1*(0:(max(experimental_time)/60))
+              at = 60*(0:(max(experimental_time, na.rm = T)/60)),
+              labels = 1*(0:(max(experimental_time, na.rm = T)/60))
          )
          axis(side = 2,
               at = 0:5/5
@@ -3337,7 +3403,7 @@ FT_TimeAverage_all = function(
     show_plot = TRUE, #Tell the user what is going on
     show_csv = TRUE, #Open the output table after saving
     clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
-    {makeCluster(parallel::detectCores() - 1,type="SOCK")}else
+    {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
     {NULL}
 )
 {
@@ -3439,7 +3505,7 @@ FT_TimeAverage_all = function(
     return( #TODO speed up with data.table
       with(subset(dta, track %in% trackID), #subset to single track
            {
-             rep(x = (max(experimental_time)/60)>
+             rep(x = (max(experimental_time, na.rm = T)/60)>
                    experiment_length,#is the experiment longer than the minimum?
                  times = length(experimental_time)) #replicate logical
            }
@@ -3866,7 +3932,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
            {
              boxplot(formula = turn_median ~ phase,
                      xlim = range(phase, na.rm = T),
-                     ylim = c(0,360),
+                     ylim = c(0,360)/8,
                      xlab = 'phase end time (s)',
                      ylab = paste0('absolute mean turning speed (°/s: ',av_window,'s)'),
                      axes = F
@@ -3903,7 +3969,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
            {
              boxplot(formula = accel_median ~ phase,
                      xlim = range(phase, na.rm = T),
-                     ylim = c(0,360)/10,
+                     ylim = (c(0,360)/10)/8,
                      xlab = 'phase end time (s)',
                      ylab = paste0('absolute mean acceleration (°/s^2 : ',av_window,'s)'),
                      axes = F
@@ -4065,4 +4131,29 @@ FT_delete_processed = function(path_folder = FT_select_folder())
   message('DELETED:\n',paste0(names(dlt[unlist(dlt)]),'\n') )#TRUE indicates these files were deleted
 }
 
-
+FT_troubleshoot_function = function(fn, ...)
+{
+  body(fn) = quote(expr = lapply(formals(), 
+                                 FUN = function(x)
+                                   {
+                                   try(eval(x), TRUE)
+                                   }
+                                 )
+                  )
+  ex = fn(...)
+  nm = names(ex)
+  invisible(
+    {
+  lapply(X = 1:length(ex),
+         FUN = function(i)
+                 {
+                 assign(x = nm[i],
+                        value = ex[[i]],
+                        envir = .GlobalEnv,
+                        pos = -1
+                        )
+                 }
+         )
+    }
+  )
+}
