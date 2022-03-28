@@ -1513,7 +1513,7 @@ RhoTrans = function(x)
 }
 RhoTransInv = function(x)
 {sqrt(x)}
-speedlim = -2
+speedlim = 20
 SpeedTrans = function(x)
 {
    ifelse(
@@ -1523,7 +1523,12 @@ SpeedTrans = function(x)
         )
   }
 SpeedTransInv = function(x)
-{10^x +speedlim}
+{
+  ifelse(test = x == SpeedTrans(speedlim),
+         yes = speedlim,
+         no = 10^x +speedlim
+        )
+ }
 
 # . . Main plot function --------------------------------------------------
 
@@ -1762,7 +1767,7 @@ FT_raster = function(cnd,#condition to subset by
                xlim = c(0,1.1),
                xlab = 'time (s)',
                ylab = 'Test',
-               main = paste0('Forward speed (','instantaneous)'),
+               main = paste0('Forward speed (','mm/s',': by frame)'),
                axes = F,
                col = hcl.colors(n = 16,
                                 palette = plette)
@@ -1784,7 +1789,7 @@ FT_raster = function(cnd,#condition to subset by
               ),
               line = -0.5,
               las = 1,
-              cex.axis = 0.2
+              cex.axis = 0.15
          )
          abline(v = sample_rate*60*c(condition1_length)/dim(mtr_speed)[1],
                 col = adjustcolor('white',alpha.f = 200/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
@@ -3498,7 +3503,7 @@ FT_TimeAverage_all = function(
 {
   # Details ---------------------------------------------------------------
   #       AUTHOR:	James Foster              DATE: 2021 11 30
-  #     MODIFIED:	James Foster              DATE: 2021 03 09
+  #     MODIFIED:	James Foster              DATE: 2021 03 29
   #
   #  DESCRIPTION: Loads "_proc.txt.gz" files saved by "FT_combine_folders()" from 
   #               "FictracDat_Functions.R" and compiles them into a single dataset 
@@ -3511,7 +3516,7 @@ FT_TimeAverage_all = function(
   #
   #	   CHANGES: - Became a function
   #             - Preserve condition
-  #             - 
+  #             - Include speed
   #
   #   REFERENCES: Batschelet E (1981).
   #               In: Circular Statistics in Biology
@@ -3673,6 +3678,9 @@ FT_TimeAverage_all = function(
     if(verbose){message('Randomising data to cross-validate...','\n')}
     day_data_table = within(day_data_table,
                             {#randomise each parameter of interest across the dataset
+                              forward_speed = sample(x = forward_speed,
+                                              size = length(bumblebee),
+                                              replace = FALSE)
                               ma_rho = sample(x = ma_rho,
                                               size = length(bumblebee),
                                               replace = FALSE)
@@ -3708,6 +3716,11 @@ FT_TimeAverage_all = function(
                           }
   )
   #summarise 
+  track_speed = aggregate(formula = forward_speed~track*phase*condition,
+                        data = subset(within(day_data_table, rm(experimental_time)), 
+                                      subset = flag_exp),
+                        FUN = quantile,
+                        p = quantls)
   track_rho = aggregate(formula = ma_rho~track*phase*condition,
                         data = subset(within(day_data_table, rm(experimental_time)), 
                                       subset = flag_exp),
@@ -3726,7 +3739,7 @@ FT_TimeAverage_all = function(
   
   # . . Combine summaries ---------------------------------------------------
   day_data_table = data.table::merge.data.table(
-    x = data.table(track_rho),
+    x = data.table(track_speed),
     y = data.table::merge.data.table(
       x = data.table(track_abs_turn) ,
       y = data.table(track_abs_accel) ),
@@ -3735,7 +3748,8 @@ FT_TimeAverage_all = function(
   #give them more convenient names
   day_data_table = within(day_data_table,
                           {
-                            rho_median = ma_rho.50.; rm(ma_rho.50.)  
+                            speed_median = forward_speed.50.; rm(forward_speed.50.)  
+                            # rho_median = ma_rho.50.; rm(ma_rho.50.)  
                             turn_median = abs_turn.50.; rm(abs_turn.50.)  
                             accel_median = abs_accel.50.; rm(abs_accel.50.)  
                           }
@@ -3953,37 +3967,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       cnd_i>1 
       ) # open a new plot
        {
-    # save_base =  paste0('_average',
-    #                     ifelse(test = crossval, 
-    #                            yes = '-CROSSVAL',
-    #                            no = ''),
-    #                     '-',
-    #                     paste0(
-    #                       # which( 
-    #                       #   with(day_data_table, unique(condition)) %in% cnd
-    #                       cnd,
-    #                       '.',save_type)
-    #                     )
     plot_file = plot_files[cnd_i]
-    #   file.path(dirname(path_file), 
-    #                       paste0(basename(dirname(path_file)),
-    #                              save_base)
-    # )
-    # #somehow the plotting is faster than the checking, slow down here
-    # Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
-    # if(file.exists(plot_file))
-    # {
-    #   message('A plot called "', basename(plot_file), '" already exists in this folder.')
-    #   nnm = readline(prompt = 'New plot name: '
-    #   )
-    #   
-    #   plot_file = file.path(dirname(path_file),
-    #                         paste0(ifelse(test = nchar(nnm),
-    #                                       yes = nnm,
-    #                                       no = basename(dirname(path_file))),
-    #                                save_base)
-    #   )
-    # }
     switch(EXPR = save_type,
            png = png(file = plot_file,
                      res = 150,
@@ -4057,7 +4041,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
            {
              boxplot(formula = accel_median ~ phase,
                      xlim = range(phase, na.rm = T),
-                     ylim = (c(0,360)/10)/8,
+                     ylim = (c(0,360))/24,
                      xlab = 'phase end time (s)',
                      ylab = paste0('absolute median acceleration (°/s^2 : ',av_window,'s)'),
                      axes = F
@@ -4084,16 +4068,53 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
              )
            }
       )
-      
-      # . . Mean vector length --------------------------------------------------
+      # 
+      # # . . Mean vector length --------------------------------------------------
+      # with(subset(day_data_table,
+      #             condition %in% cnd),
+      #      {
+      #        boxplot(formula = rho_median ~ phase,
+      #                xlim = range(phase, na.rm = T),
+      #                ylim = c(0,1),
+      #                xlab = 'phase end time (s)',
+      #                ylab = paste0('mean vector length (',av_window,'s)'),
+      #                axes = F
+      #        )
+      #        axis(side = 1,
+      #             at = unique(phase),
+      #             labels = round( (1:length(unique(phase)))*
+      #                               med_window
+      #             )#/60
+      #        )
+      #        axis(side = 2,
+      #             at = (0:5)/5
+      #        )
+      #        abline(v = 0.5+seq(from = 0,
+      #                           to = experiment_length,
+      #                           by = condition1_length)*60/med_window,
+      #               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+      #               lwd = 2
+      #        )
+      #        abline(h = c(0,1),
+      #               col = 'black',
+      #               lwd = 0.25
+      #        )
+      #      }
+      # )
+      # mtext(text = c(paste('Medians across', med_window, 's phases from each track'),
+      #                'phase end time (min)'),
+      #       side = c(3,1),
+      #       outer = T)
+      # . . Forward speed ----------------------------------------------------
+      speedlim = 20
       with(subset(day_data_table,
                   condition %in% cnd),
            {
-             boxplot(formula = rho_median ~ phase,
+             boxplot(formula = speed_median ~ phase,
                      xlim = range(phase, na.rm = T),
-                     ylim = c(0,1),
+                     ylim = c(0,10)*speedlim,
                      xlab = 'phase end time (s)',
-                     ylab = paste0('mean vector length (',av_window,'s)'),
+                     ylab = paste0('Forward speed (','mm/s',': by frame)'),
                      axes = F
              )
              axis(side = 1,
@@ -4103,7 +4124,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                   )#/60
              )
              axis(side = 2,
-                  at = (0:5)/5
+                  at = 10*(0:20)
              )
              abline(v = 0.5+seq(from = 0,
                                 to = experiment_length,
@@ -4111,7 +4132,7 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                     col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
                     lwd = 2
              )
-             abline(h = c(0,1),
+             abline(h = c(0,1,2)*speedlim,
                     col = 'black',
                     lwd = 0.25
              )
@@ -4160,14 +4181,6 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
     {
       for(fl in plot_files )
       {
-        # open_plot = paste0(sub(pattern = paste0('....',save_type,'$'),
-        #                 replacement = paste0(
-        #                   # which( 
-        #                   #   with(day_data_table, unique(condition)) %in% cnd
-        #                   '-',cnd,
-        #                   '.',save_type),
-        #                 x =  plot_file
-        # )
         shell.exec.OS(fl)
       }
     }
@@ -4176,19 +4189,6 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
     if(save_type %in% 'pdf'){plot_file}else
     {
       plot_files
-      # lapply(X = with(day_data_table, unique(condition)),
-      #        FUN = function(cnd)
-      #        {
-      #          sub(pattern = paste0('..',save_type,'$'),
-      #              replacement = paste0(
-      #                # which( 
-      #                #   with(day_data_table, unique(condition)) %in% cnd
-      #                '-',cnd,
-      #                '.',save_type),
-      #              x =  plot_file
-      #          )
-      #        }
-      #        )
     }
   )
 }
