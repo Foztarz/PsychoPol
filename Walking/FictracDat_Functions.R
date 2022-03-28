@@ -1393,6 +1393,9 @@ if(crossval)
   
   all_data_table = within(all_data_table,
                           {#randomise each parameter of interest across the dataset
+                            forward_speed = sample(x = forward_speed,
+                                            size = length(bumblebee),
+                                            replace = FALSE)
                             ma_rho = sample(x = ma_rho,
                                             size = length(bumblebee),
                                             replace = FALSE)
@@ -1420,6 +1423,11 @@ if(crossval)
 # . Rank by first condition -----------------------------------------------
 if(verbose){message('Ranking by median value across 1st condition...','\n')}
 #summarise 
+track_speed = aggregate(formula = forward_speed~track,
+                       data = subset(all_data_table, 
+                                     subset = experimental_time < condition1_length*60),
+                       FUN = quantile,
+                       p = quantls)
 track_rho = aggregate(formula = ma_rho~track,
                        data = subset(all_data_table, 
                                      subset = experimental_time < condition1_length*60),
@@ -1435,25 +1443,10 @@ track_abs_accel = aggregate(formula = abs_accel~track,
                                            subset = experimental_time < condition1_length*60),
                              FUN = quantile,
                              p = quantls) 
-# track_rho = aggregate(formula = ma_rho~track,
-#                        data = subset(all_data_table, 
-#                                      subset = experimental_time < experiment_length*60),
-#                        FUN = quantile,
-#                        p = quantls)
-# track_abs_turn = aggregate(formula = abs_turn~track,
-#                             data = subset(all_data_table, 
-#                                           subset = experimental_time < experiment_length*60),
-#                             FUN = quantile,
-#                             p = quantls)
-# track_abs_accel = aggregate(formula = abs_accel~track,
-#                              data = subset(all_data_table, 
-#                                            subset = experimental_time < experiment_length*60),
-#                              FUN = quantile,
-#                              p = quantls)
 ##probably don't need to calculate the rest?
 all_data_table = data.table::merge.data.table(x = #combine with the rest of the data, adding quantiles that can be used for sorting
                                                 data.table::merge.data.table( #combine rho with turn & accel
-                                                  x = data.table(track_rho),
+                                                  x = data.table(track_speed),
                                                   y = data.table::merge.data.table( #combine abs turn & accel
                                                     x = data.table(track_abs_turn) ,
                                                     y = data.table(track_abs_accel) ),
@@ -1466,7 +1459,8 @@ all_data_table = data.table::merge.data.table(x = #combine with the rest of the 
 #find the order of each variable across the dataset
 all_data_table = within(all_data_table,
                         {
-                          rank_rho = rank(ma_rho.50.)  
+                          rank_speed = rank(forward_speed.50.)  
+                          # rank_rho = rank(ma_rho.50.)  
                           rank_turn = rank(abs_turn.50.)  
                           rank_accel = rank(abs_accel.50.)  
                         }
@@ -1500,6 +1494,10 @@ RhoTrans = function(x)
 {x^2}
 RhoTransInv = function(x)
 {sqrt(x)}
+SpeedTrans = function(x)
+{log10(x)}
+SpeedTransInv = function(x)
+{10^x}
 
 # . . Main plot function --------------------------------------------------
 
@@ -1533,12 +1531,21 @@ FT_raster = function(cnd,#condition to subset by
            ncol = n_tracks # columns are individual tracks
     )
   )
+  # #mean vector
+  # mtr_rho = with(data.table::setorderv(
+  #   cnd_expr, #full_expr,#dataset of full experiments
+  #   cols = 'rank_rho',#order by median mean vector length
+  #   order = 1), # descending order
+  #   matrix(data = ma_rho, # produce a matrix for plotting
+  #          ncol = n_tracks # columns are individual tracks
+  #   )
+  # )
   #mean vector
-  mtr_rho = with(data.table::setorderv(
+  mtr_speed = with(data.table::setorderv(
     cnd_expr, #full_expr,#dataset of full experiments
-    cols = 'rank_rho',#order by median mean vector length
+    cols = 'rank_speed',#order by median mean vector length
     order = 1), # descending order
-    matrix(data = ma_rho, # produce a matrix for plotting
+    matrix(data = forward_speed, # produce a matrix for plotting
            ncol = n_tracks # columns are individual tracks
     )
   )
@@ -1662,32 +1669,89 @@ FT_raster = function(cnd,#condition to subset by
            'white'
          )
   )
-  
-  # . . Mean vector length --------------------------------------------------
+  # 
+  # # . . Mean vector length --------------------------------------------------
+  # with(cnd_expr, #full_expr,#dataset of full experiments
+  #      {
+  #        image(x = RhoTrans(mtr_rho),
+  #              useRaster = TRUE,
+  #              zlim = RhoTrans(c(0,0.99)),
+  #              xlim = c(0,1.1),
+  #              xlab = 'time (s)',
+  #              ylab = 'Test',
+  #              main = paste0('mean vector length (',av_window,'s)'),
+  #              axes = F,
+  #              col = hcl.colors(n = 16,
+  #                               palette = plette)
+  #        )
+  #        axis(side = 1,
+  #             at = sample_rate*10*(0:(max(experimental_time, na.rm = T)/10))/dim(mtr_rho)[1],
+  #             labels = 10*(0:(max(experimental_time, na.rm = T)/10))
+  #        )
+  #        axis(side = 2,
+  #             at = seq(from = 0, to  = 1, length.out = dim(mtr_rho)[2]),
+  #             labels = gsub(pattern = '_',
+  #                           x = unique(
+  #                             data.table::setorderv(
+  #                               cnd_expr,
+  #                               cols = 'rank_rho',
+  #                               order = -1)$day_anim_cond,
+  #                           ),
+  #                           replacement = '\n'
+  #             ),
+  #             line = -0.5,
+  #             las = 1,
+  #             cex.axis = 0.25
+  #        )
+  #        abline(v = sample_rate*60*c(condition1_length)/dim(mtr_rho)[1],
+  #               col = adjustcolor('white',alpha.f = 200/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+  #               lwd = 0.5
+  #        )
+  #      }
+  # )
+  # legend(x = 'right',
+  #        inset=c(0,0),
+  #        legend = c(
+  #          round(
+  #            x = RhoTransInv(seq( from = RhoTrans(0), 
+  #                                 to = RhoTrans(0.99), 
+  #                                 length.out = 5)),
+  #            digits = 2
+  #          ),
+  #          '1.0'
+  #        ),
+  #        pch = 22,
+  #        pt.bg = c(
+  #          hcl.colors(n = 5,
+  #                     palette = plette),
+  #          'white'
+  #        )
+  # )
+  # . . Forward speed ---------------------------------------------------------
   with(cnd_expr, #full_expr,#dataset of full experiments
        {
-         image(x = RhoTrans(mtr_rho),
+         image(x = SpeedTrans(mtr_speed),
                useRaster = TRUE,
-               zlim = RhoTrans(c(0,0.99)),
+               zlim = SpeedTrans(c(0,200)),
                xlim = c(0,1.1),
                xlab = 'time (s)',
                ylab = 'Test',
-               main = paste0('mean vector length (',av_window,'s)'),
+               main = paste0('Forward speed (','instantaneous)'),
                axes = F,
                col = hcl.colors(n = 16,
                                 palette = plette)
          )
          axis(side = 1,
-              at = sample_rate*10*(0:(max(experimental_time, na.rm = T)/10))/dim(mtr_rho)[1],
+              at = sample_rate*10*(0:(max(experimental_time, na.rm = T)/10))/dim(mtr_speed)[1],
               labels = 10*(0:(max(experimental_time, na.rm = T)/10))
          )
          axis(side = 2,
-              at = seq(from = 0, to  = 1, length.out = dim(mtr_rho)[2]),
+              at = seq(from = 0, to  = 1, length.out = dim(mtr_speed)[2]),
               labels = gsub(pattern = '_',
                             x = unique(
                               data.table::setorderv(
                                 cnd_expr,
-                                cols = 'rank_rho',
+                                cols = 'rank_speed',
                                 order = -1)$day_anim_cond,
                             ),
                             replacement = '\n'
@@ -1696,7 +1760,7 @@ FT_raster = function(cnd,#condition to subset by
               las = 1,
               cex.axis = 0.25
          )
-         abline(v = sample_rate*60*c(condition1_length)/dim(mtr_rho)[1],
+         abline(v = sample_rate*60*c(condition1_length)/dim(mtr_speed)[1],
                 col = adjustcolor('white',alpha.f = 200/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
                 lwd = 0.5
          )
@@ -1706,8 +1770,8 @@ FT_raster = function(cnd,#condition to subset by
          inset=c(0,0),
          legend = c(
            round(
-             x = RhoTransInv(seq( from = RhoTrans(0), 
-                                  to = RhoTrans(0.99), 
+             x = SpeedTransInv(seq( from = SpeedTrans(0), 
+                                  to = SpeedTrans(200), 
                                   length.out = 5)),
              digits = 2
            ),
