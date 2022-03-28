@@ -1483,21 +1483,47 @@ if(verbose){message("Making raster plot")}
 
 #  . . Set up colour scale transforms -------------------------------------
 TurnTrans = function(x)
-{log(x + 1)}
+{
+  log(x = ifelse(
+            test = is.na(x),
+            yes = 1,
+            no = x + 1
+              )
+    )
+  }
 TurnTransInv = function(x)
 {exp(x) - 1}
 AccelTrans = function(x)
-{log(x + 1)}
+{
+  log(x = ifelse(
+            test = is.na(x),
+            yes = 1,
+            no =   x + 1)
+            )
+}
 AccelTransInv = function(x)
 {exp(x) - 1}
 RhoTrans = function(x)
-{x^2}
+{
+  ifelse(
+    test = is.na(x), 
+    yes = 0,
+    no = x^2
+  )
+}
 RhoTransInv = function(x)
 {sqrt(x)}
+speedlim = -2
 SpeedTrans = function(x)
-{log10(x)}
+{
+   ifelse(
+            test = x <= speedlim | is.na(x),
+            yes = 0,
+            no = suppressWarnings({log10(x-speedlim)})
+        )
+  }
 SpeedTransInv = function(x)
-{10^x}
+{10^x +speedlim}
 
 # . . Main plot function --------------------------------------------------
 
@@ -1535,7 +1561,7 @@ FT_raster = function(cnd,#condition to subset by
   # mtr_rho = with(data.table::setorderv(
   #   cnd_expr, #full_expr,#dataset of full experiments
   #   cols = 'rank_rho',#order by median mean vector length
-  #   order = 1), # descending order
+  #   order = 1), # ascending order
   #   matrix(data = ma_rho, # produce a matrix for plotting
   #          ncol = n_tracks # columns are individual tracks
   #   )
@@ -1544,7 +1570,7 @@ FT_raster = function(cnd,#condition to subset by
   mtr_speed = with(data.table::setorderv(
     cnd_expr, #full_expr,#dataset of full experiments
     cols = 'rank_speed',#order by median mean vector length
-    order = 1), # descending order
+    order = 1), # ascending order
     matrix(data = forward_speed, # produce a matrix for plotting
            ncol = n_tracks # columns are individual tracks
     )
@@ -1601,7 +1627,7 @@ FT_raster = function(cnd,#condition to subset by
                     to = TurnTrans(360/8), 
                     length.out = 5) ) 
            ),
-           '>360'
+           paste0('>',360/8)
          ),
          pch = 22,
          pt.bg = c(
@@ -1660,7 +1686,7 @@ FT_raster = function(cnd,#condition to subset by
                     to = AccelTrans(10), 
                     length.out = 5) )
            ),
-           '>15'
+           '>10'
          ),
          pch = 22,
          pt.bg = c(
@@ -1732,7 +1758,7 @@ FT_raster = function(cnd,#condition to subset by
        {
          image(x = SpeedTrans(mtr_speed),
                useRaster = TRUE,
-               zlim = SpeedTrans(c(0,200)),
+               zlim = SpeedTrans(c(speedlim,100)),
                xlim = c(0,1.1),
                xlab = 'time (s)',
                ylab = 'Test',
@@ -1758,7 +1784,7 @@ FT_raster = function(cnd,#condition to subset by
               ),
               line = -0.5,
               las = 1,
-              cex.axis = 0.25
+              cex.axis = 0.2
          )
          abline(v = sample_rate*60*c(condition1_length)/dim(mtr_speed)[1],
                 col = adjustcolor('white',alpha.f = 200/255),#c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
@@ -1770,12 +1796,12 @@ FT_raster = function(cnd,#condition to subset by
          inset=c(0,0),
          legend = c(
            round(
-             x = SpeedTransInv(seq( from = SpeedTrans(0), 
-                                  to = SpeedTrans(200), 
+             x = SpeedTransInv(seq( from = SpeedTrans(speedlim), 
+                                  to = SpeedTrans(100), 
                                   length.out = 5)),
-             digits = 2
+             digits = 0
            ),
-           '1.0'
+           '>100'
          ),
          pch = 22,
          pt.bg = c(
