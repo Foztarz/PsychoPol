@@ -1246,6 +1246,7 @@ FT_raster_condition = function(
                         save_type = "pdf",# "png",#
                         quantls = c(0.025, 0.25, 0.5, 0.75, 0.975), # quantiles to use when summarising
                         plette = 'Plasma',#'YlGnBu'#  for options see http://colorspace.r-forge.r-project.org/articles/approximations.html
+                        ranking = TRUE,
                         crossval = FALSE, # TRUE, randomise the data to check the analysis
                         sys_win = Sys.info()[['sysname']] == 'Windows',
                         speedup_parallel = TRUE, #Use the parallel package to speed up calculations
@@ -1453,7 +1454,8 @@ all_data_table = data.table::merge.data.table(x = #combine with the rest of the 
                                                   by = c('track')
                                                 ),
                                               y = subset(all_data_table, 
-                                                         subset = experimental_time < experiment_length*60),
+                                                         subset =  flag_exp &
+                                                           experimental_time <= experiment_length*60),
                                               by = c('track')
 )
 #find the order of each variable across the dataset
@@ -1469,7 +1471,7 @@ all_data_table = within(all_data_table,
 # . Find full experiments -------------------------------------------------
 full_expr = subset(all_data_table,
                    subset = flag_exp &
-                     experimental_time < experiment_length*60
+                     experimental_time <= experiment_length*60
 )
 n_tracks = length(unique(full_expr$track))
 
@@ -1513,21 +1515,30 @@ RhoTrans = function(x)
 }
 RhoTransInv = function(x)
 {sqrt(x)}
-speedlim = 20
+speedlim = 0#20
 SpeedTrans = function(x)
 {
-   ifelse(
-            test = x <= speedlim | is.na(x),
+  ifelse(
+            test = x <= speedlim,
             yes = 0,
-            no = suppressWarnings({log10(x-speedlim)})
+            no = x
         )
+  # ifelse(
+  #           test = x <= speedlim | is.na(x),
+  #           yes = 0,
+  #           no = suppressWarnings({log10(x-speedlim)})
+  #       )
   }
 SpeedTransInv = function(x)
 {
   ifelse(test = x == SpeedTrans(speedlim),
          yes = speedlim,
-         no = 10^x +speedlim
+         no = x
         )
+  # ifelse(test = x == SpeedTrans(speedlim),
+  #        yes = speedlim,
+  #        no = 10^x +speedlim
+  #       )
  }
 
 # . . Main plot function --------------------------------------------------
@@ -1544,20 +1555,52 @@ FT_raster = function(cnd,#condition to subset by
   
   # . Make matrices of full experiments -------------------------------------
   
+  
   #turning speed
-  mtr_turn = with(data.table::setorderv(#reorder by median turning speed across experiment
+  if(!ranking)
+  {dt_turn = cnd_expr}else
+  {
+  dt_turn = data.table::setorderv(#reorder by median turning speed across experiment
     cnd_expr, #full_expr,#dataset of full experiments
     cols = 'rank_turn',#order by median turning speed
-    order = -1), #descending order
+    order = -1)
+  }
+  
+  exp_len = experiment_length * 60
+  while(dim(dt_turn)[1] %% n_tracks #|
+        # aggregate(formula = experimental_time~day_anim_cond,
+        #           data = dt_turn,
+        #           FUN = max,
+        #             na.rm = T
+        #           )$experimental_time
+        )
+  { #if not a square matrix reduce the time period by one sample
+    exp_len = exp_len - 1/sample_rate
+    dt_turn = subset(x = dt_turn, 
+                     subset = experimental_time < exp_len)
+  }  
+  mtr_turn = with(dt_turn, #descending order
     matrix(data = abs_turn, # produce a matrix for plotting
            ncol = n_tracks # columns are individual tracks
     )
   )
   #acceleration
-  mtr_accel = with(data.table::setorderv(
+  if(!ranking)
+  {dt_accel =     cnd_expr}else
+  {
+  dt_accel = data.table::setorderv(
     cnd_expr, #full_expr,#dataset of full experiments
     cols = 'rank_accel',#order by median acceleration
-    order = -1), # descending order
+    order = -1)
+  }
+  exp_len = experiment_length * 60
+  while(dim(dt_accel)[1] %% n_tracks)
+  { #if not a square matrix reduce the time period by one sample
+    exp_len = exp_len - 1/sample_rate
+    dt_accel = subset(x = dt_accel, 
+                     subset = experimental_time < exp_len)
+  }
+  mtr_accel = with(dt_accel, # descending order
     matrix(data = abs_accel, # produce a matrix for plotting
            ncol = n_tracks # columns are individual tracks
     )
@@ -1571,11 +1614,23 @@ FT_raster = function(cnd,#condition to subset by
   #          ncol = n_tracks # columns are individual tracks
   #   )
   # )
-  #mean vector
-  mtr_speed = with(data.table::setorderv(
+  #forward speed
+  if(!ranking)
+  {dt_speed = cnd_expr}else
+  {
+  dt_speed = data.table::setorderv(
     cnd_expr, #full_expr,#dataset of full experiments
     cols = 'rank_speed',#order by median mean vector length
-    order = 1), # ascending order
+    order = 1)
+  }
+  exp_len = experiment_length * 60
+  while(dim(dt_speed)[1] %% n_tracks)
+  { #if not a square matrix reduce the time period by one sample
+    exp_len = exp_len - 1/sample_rate
+    dt_speed = subset(x = dt_speed, 
+                      subset = experimental_time < exp_len)
+  }
+  mtr_speed = with(dt_speed, # ascending order
     matrix(data = forward_speed, # produce a matrix for plotting
            ncol = n_tracks # columns are individual tracks
     )
@@ -1584,7 +1639,7 @@ FT_raster = function(cnd,#condition to subset by
   # . Plot data -------------------------------------------------------------
 
   # . . Turning speed -------------------------------------------------------
-  with(cnd_expr, #full_expr,#dataset of full experiments
+  with(dt_turn, #full_expr,#dataset of full experiments
        {
          image(x = TurnTrans(mtr_turn),
                useRaster = TRUE,
@@ -1607,7 +1662,7 @@ FT_raster = function(cnd,#condition to subset by
               labels = gsub(pattern = '_',
                             x = unique(
                               data.table::setorderv(
-                                cnd_expr,
+                                dt_turn,
                                 cols = 'rank_turn',
                                 order = 1)$day_anim_cond,
                             ),
@@ -1643,7 +1698,7 @@ FT_raster = function(cnd,#condition to subset by
   )
   
   # . . Acceleration --------------------------------------------------------
-  with(cnd_expr, #full_expr,#dataset of full experiments
+  with(dt_accel, #full_expr,#dataset of full experiments
        {
          image(x = AccelTrans(mtr_accel),
                useRaster = TRUE,
@@ -1666,7 +1721,7 @@ FT_raster = function(cnd,#condition to subset by
               labels = gsub(pattern = '_',
                             x = unique(
                               data.table::setorderv(
-                                cnd_expr,
+                                dt_accel,
                                 cols = 'rank_accel',
                                 order = 1)$day_anim_cond,
                             ),
@@ -1759,7 +1814,7 @@ FT_raster = function(cnd,#condition to subset by
   #        )
   # )
   # . . Forward speed ---------------------------------------------------------
-  with(cnd_expr, #full_expr,#dataset of full experiments
+  with(dt_speed, #full_expr,#dataset of full experiments
        {
          image(x = SpeedTrans(mtr_speed),
                useRaster = TRUE,
@@ -1781,7 +1836,7 @@ FT_raster = function(cnd,#condition to subset by
               labels = gsub(pattern = '_',
                             x = unique(
                               data.table::setorderv(
-                                cnd_expr,
+                                dt_speed,
                                 cols = 'rank_speed',
                                 order = -1)$day_anim_cond,
                             ),
