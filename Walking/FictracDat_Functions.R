@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 24
-#     MODIFIED:	James Foster              DATE: 2022 03 22
+#     MODIFIED:	James Foster              DATE: 2022 04 08
 #
 #  DESCRIPTION: A set of functions to load a set of ".dat" files exported from 
 #               fictrac,export speed and angle and their moving averages, 
@@ -40,7 +40,8 @@
 #- Raster plot  +
 #- Add labels in csv +
 #- Recursive FT_select_folder +
-#- Frequency analysis ...
+#- Frequency analysis +
+#- Fix alignment raster plot
 
 # General use -------------------------------------------------------------
 
@@ -915,7 +916,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                 )
   }
   #close the parallel cluster
-  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clt)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){parallel::stopCluster(clt)} }#only close internal cluster
   #  Save data --------------------------------------------------------------
   new_name = paste0(basename(path_file),
                     '_proc',
@@ -1190,7 +1191,7 @@ FT_combine_folders = function(path_folder = FT_select_folder(),
   }
   names(adata) = basename(file_paths)
   #close the parallel cluster
-  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){parallel::stopCluster(clust)} }#only close internal cluster
   
   # . combine all data into a single data frame -------------------------------
   adata_frame = do.call(what = rbind,#N.B. seems to work the same with data.table & data.frame
@@ -1447,10 +1448,10 @@ track_abs_accel = aggregate(formula = abs_accel~track,
 ##probably don't need to calculate the rest?
 all_data_table = data.table::merge.data.table(x = #combine with the rest of the data, adding quantiles that can be used for sorting
                                                 data.table::merge.data.table( #combine rho with turn & accel
-                                                  x = data.table(track_speed),
+                                                  x =data.table::data.table(track_speed),
                                                   y = data.table::merge.data.table( #combine abs turn & accel
-                                                    x = data.table(track_abs_turn) ,
-                                                    y = data.table(track_abs_accel) ),
+                                                    x =data.table::data.table(track_abs_turn) ,
+                                                    y =data.table::data.table(track_abs_accel) ),
                                                   by = c('track')
                                                 ),
                                               y = subset(all_data_table, 
@@ -1471,13 +1472,39 @@ all_data_table = within(all_data_table,
 # . Find full experiments -------------------------------------------------
 full_expr = subset(all_data_table,
                    subset = flag_exp &
-                     experimental_time <= experiment_length*60
+                     experimental_time <= experiment_length*60 &
+                     frame_counter <= experiment_length*60*sample_rate
 )
-n_tracks = length(unique(full_expr$track))
 
+#Check for glitches
+Glitch_catcher = function(x){min(diff(x), na.rm = TRUE)<0}
+diff_frames = aggregate(formula = frame_counter~track,
+                        data = full_expr,
+                        FUN = Glitch_catcher
+                        )
+if(with(diff_frames, {any(frame_counter)}))
+{
+  glitch_tracks = with(subset(diff_frames, frame_counter),
+                       track)
+  if(verbose)
+  {
+    message('\nExcluding ', 
+            length(glitch_tracks), 
+            ' tracks with time glitches:\n ', 
+            paste0(glitch_tracks,'\n ')
+            )
+  }
+  full_expr = subset(full_expr,
+                     !(track %in% glitch_tracks) )
+}
+
+
+n_tracks = length(unique(full_expr$track))
+if(dim(full_expr)[1] %% n_tracks)
+{stop('Dimension mismatch\ninput file suggests different expected experiment length')}
 
 #close the parallel cluster
-if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
+if(speedup_parallel){ if(base::missing(clust)){parallel::stopCluster(clust)} }#only close internal cluster
 # Plot Summary ------------------------------------------------------------
 if(verbose){message("Making raster plot")}
 
@@ -1567,13 +1594,7 @@ FT_raster = function(cnd,#condition to subset by
   }
   
   exp_len = experiment_length * 60
-  while(dim(dt_turn)[1] %% n_tracks #|
-        # aggregate(formula = experimental_time~day_anim_cond,
-        #           data = dt_turn,
-        #           FUN = max,
-        #             na.rm = T
-        #           )$experimental_time
-        )
+  while(dim(dt_turn)[1] %% n_tracks)
   { #if not a square matrix reduce the time period by one sample
     exp_len = exp_len - 1/sample_rate
     dt_turn = subset(x = dt_turn, 
@@ -3154,7 +3175,7 @@ FT_summarise_all = function(
                           }
   )
   # . . Close the cluster if it is not needed anymore -----------------------
-  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){parallel::stopCluster(clust)} }#only close internal cluster
   
   # . . Tell the user how many were correct length --------------------------
   if( with(all_data_table, !any( flag_exp)) )
@@ -3225,14 +3246,14 @@ FT_summarise_all = function(
   time_data_table = data.table::merge.data.table( # finally add time angle
     x = 
       data.table::merge.data.table( # then combine with rho using experimental_time
-        x = data.table(time_rho),
+        x =data.table::data.table(time_rho),
         y = data.table::merge.data.table( # first combine absolute
-          x = data.table(time_abs_turn) ,
-          y = data.table(time_abs_accel) 
+          x =data.table::data.table(time_abs_turn) ,
+          y =data.table::data.table(time_abs_accel) 
         ),
         by = 'experimental_time'
       ),
-    y = data.table(time_angle)
+    y =data.table::data.table(time_angle)
   )
   
   # . Save combined dataset in master folder --------------------------------
@@ -3324,7 +3345,7 @@ FT_plot_summary = function(
   if(verbose){message('"',basename(csv_file), '" loaded successfully')}
   
   # . . Close the cluster if it is not needed anymore -----------------------
-  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){parallel::stopCluster(clust)} }#only close internal cluster
   
   # Plot Summary ------------------------------------------------------------
   # . Set up plot area ------------------------------------------------------
@@ -3694,7 +3715,7 @@ FT_TimeAverage_all = function(
                           }
   )
   # . . Close the cluster if it is not needed anymore -----------------------
-  if(speedup_parallel){ if(base::missing(clust)){stopCluster(clust)} }#only close internal cluster
+  if(speedup_parallel){ if(base::missing(clust)){parallel::stopCluster(clust)} }#only close internal cluster
   
   # . . Tell the user how many were correct length --------------------------
   if( with(day_data_table, !any( flag_exp)) )
@@ -3794,10 +3815,10 @@ FT_TimeAverage_all = function(
   
   # . . Combine summaries ---------------------------------------------------
   day_data_table = data.table::merge.data.table(
-    x = data.table(track_speed),
+    x =data.table::data.table(track_speed),
     y = data.table::merge.data.table(
-      x = data.table(track_abs_turn) ,
-      y = data.table(track_abs_accel) ),
+      x =data.table::data.table(track_abs_turn) ,
+      y =data.table::data.table(track_abs_accel) ),
     by = c('track', 'phase', 'condition')
   )
   #give them more convenient names
