@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2022 01 12
-#     MODIFIED:	James Foster              DATE: 2022 03 07
+#     MODIFIED:	James Foster              DATE: 2022 04 11
 #
 #  DESCRIPTION: Loads a ".dat" file saved by fictrac and organises data into
 #               speed and angle.
@@ -16,6 +16,7 @@ graphics.off()
 #	   CHANGES: - Compression
 #             - Legends
 #             - Label stops
+#             - avoid duplicated label "frame_counter"
 #
 #   REFERENCES: Moore RJD, Taylor GJ, Paulk AC, Pearson T, van Swinderen B, 
 #               Srinivasan MV (2014). 
@@ -25,7 +26,7 @@ graphics.off()
 #              https://doi.org/10.1016/j.jneumeth.2014.01.010
 #              https://github.com/rjdmoore/fictrac
 # 
-#       USAGE:  Fill out user input (lines 210-220), then press ctrl+shift+s to run
+#       USAGE:  Fill out user input (lines 220-230), then press ctrl+shift+s to run
 #TODO   ---------------------------------------------
 #TODO   
 #- Read in data   +
@@ -37,10 +38,14 @@ graphics.off()
 #- Figure legend +
 #- Fast version ?
 #- Ground truth turn speed with "z_ball" +
+#- Remove steering plot +
+#- Add x, y, z plot +
+#- SG filter speed +
+#- Acceleration in separate plot +
 
 # Load packages ----------------------------------------------------------
 require(circular)#for handing angles
-
+require(signal)#for Savitzky-Golay filter
 # Useful functions --------------------------------------------------------
 #Convert any angle in degrees to (-180,180)
 Mod360.180 = function(x)
@@ -158,12 +163,39 @@ MAspeed <- function(i, #index
                     method = 'median' # mean between frames or distance across interval
 )
 {
+  if(method %in% 'filter')
+  {require(signal)}
   n = window*hz # number of samples to use
   winmin = i-round(n/2)+1 #index of window start 
   winmax = i+round(n/2)-1 #index of window end
   if(winmin<1){return(NA)}#if window starts outside data, don't calculate
   if(winmax>length(dta_x)){return(NA)}#if window ends outside data, don't calculate
   return(
+    if(missing(dta_y))
+    {
+      
+      switch(EXPR = method,
+             `total distance` = # maximum distance travelled over time interval (not necessarily from start to end)
+               diff(dta_x[c(winmin,winmax)] )/window, #window size in seconds, units returned are mm/s
+             mean =   mean(
+               x = 
+                 diff(dta_x[winmin:winmax]),
+               na.rm = T
+             )*hz, #window size in seconds, units returned are mm/s
+             median =   median(
+               x = 
+                 diff(dta_x[winmin:winmax]),
+               na.rm = T
+             )*hz, #window size in seconds, units returned are mm/s
+             filter =  
+               signal::sgolayfilt(
+                   diff(dta_x[winmin:winmax])#,
+                 # p = 3,
+                 # n = p + 3 - p%%2
+      )*hz #window size in seconds, units returned are mm/s
+  )
+    }else
+    {
     switch(EXPR = method,
            `total distance` = sqrt( # maximum distance travelled over time interval (not necessarily from start to end)
              diff(dta_x[c(winmin,winmax)])^2 + 
@@ -182,11 +214,20 @@ MAspeed <- function(i, #index
                  diff(dta_y[winmin:winmax])^2
              ),
              na.rm = T
+           )*hz, #window size in seconds, units returned are mm/s
+           filter =  
+             signal::sgolayfilt(
+               sqrt( 
+                 diff(dta_x[winmin:winmax])^2 +
+                   diff(dta_y[winmin:winmax])^2
+                 )#,
+               # p = 3,
+               # n = p + 3 - p%%2
            )*hz #window size in seconds, units returned are mm/s
-    )
+  )
+    }
   )
 }
-
 MA_stop_flag = function(i, #index
                         dta, #vector of data
                         window = 1, # time window in seconds
@@ -206,7 +247,6 @@ MA_stop_flag = function(i, #index
     )
   )
 }
-
 # Input Variables ----------------------------------------------------------
 #  .  User input -----------------------------------------------------------
 ball_radius = 25#mm
@@ -221,6 +261,7 @@ compress_csv = TRUE #Compress to ".gz" to save space?
 speedup_parallel = TRUE #Use the parallel package to speed up calculations
 stop_speed = 30 #mm/s minimum walking speed
 stop_length = 0.5 #number of seconds to identify a stop
+sg_order = 5 #polynomial order to use for Savitzky-Golay filter smoothing of speed
 
 #Check the operating system and assign a logical flag (TRUE or FALSE)
 sys_win = Sys.info()[['sysname']] == 'Windows'
@@ -341,7 +382,7 @@ cnames = c('frame_counter', #1
                     'x_speed_int', #20 integrated x position (radians) of the sphere, neglecting heading
                     'y_speed_int', #21 integrated y position (radians) of the sphere, neglecting heading
                     'time_stamp', #22
-                    'frame_counter' #23 rest not available in 2.03
+                    'seq_counter' #23 rest not available in 2.03
                     # 'delta_timestap', #24 change in time since last frame
                     # 'ms_since_midnight' #25 time of capture
 )
@@ -415,32 +456,46 @@ with(adata,
               col = gray(level = 50/255,
                          alpha = 0.25),
               lwd = 0.25)
-       plot.circular(circular(NA,
-                              type = 'angles',
-                              unit = 'degrees',
-                              rotation = 'clock',
-                              zero = pi/2,
-                              modulo = '2pi'
-       ),
-       labels = 0:3*90,
-                     xlim = c(-1,1)*max(frame_counter),
-                     ylim = c(-1,1)*max(frame_counter),
-                     shrink = 1/max(frame_counter)
-       )
-       lines.circular(x = circular(deg(heading_integrated)-180,
-                                   type = 'angles',
-                                   unit = 'degrees',
-                                   template = 'geographics',
-                                   modulo = '2pi'
-                                 ),
-            y = frame_counter/max(frame_counter)-1,
-            # zero = -pi/2,
-            col = adjustcolor(point_col, alpha.f = 0.5),
-            type = 'p',
-            pch = 19,
-            lty = 2,
-            cex = 0.75
-            )
+       par(mar = c(2,4,0,0))
+       plot(x = frame_counter,
+            y = y_ball,
+            ylab = 'ball speed (radians/frame)',
+            type = 'l',
+            col = 2,
+            cex.lab = 0.7)
+       lines(x = frame_counter,
+             y = x_ball,
+             col = 8)
+       lines(x = frame_counter,
+             y = z_ball,
+             col = 3)
+       abline(h = 0)
+       # plot.circular(circular(NA,
+       #                        type = 'angles',
+       #                        unit = 'degrees',
+       #                        rotation = 'clock',
+       #                        zero = pi/2,
+       #                        modulo = '2pi'
+       # ),
+       # labels = 0:3*90,
+       #               xlim = c(-1,1)*max(frame_counter),
+       #               ylim = c(-1,1)*max(frame_counter),
+       #               shrink = 1/max(frame_counter)
+       # )
+       # lines.circular(x = circular(deg(heading_integrated)-180,
+       #                             type = 'angles',
+       #                             unit = 'degrees',
+       #                             template = 'geographics',
+       #                             modulo = '2pi'
+       #                           ),
+       #      y = frame_counter/max(frame_counter)-1,
+       #      # zero = -pi/2,
+       #      col = adjustcolor(point_col, alpha.f = 0.5),
+       #      type = 'p',
+       #      pch = 19,
+       #      lty = 2,
+       #      cex = 0.75
+       #      )
      }
 )
 
@@ -468,7 +523,8 @@ if(speedup_parallel)
                      'rho.circular',
                      'circular',
                      'deg',
-                     'rad'),
+                     'rad',
+                     'sg_order'),
                 environment()#needs to be reminded to use function environment, NOT global environment
   )
 }
@@ -558,6 +614,8 @@ adata = within(adata,
                                  y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
                    x = 1:length(angle) # predict for all times
                  )$y
+                 inst_accel = c(NA, diff(deg(heading_integrated))*fps)
+                 smooth_accel = c(NA, diff(smooth_turn)*fps)
                  ma_accel = if(speedup_parallel)
                              {
                                parSapply(cl = clt,
@@ -580,28 +638,35 @@ adata = within(adata,
                  y_speed = c(NA, diff(y_pos))*fps #sideways speed in mm/s
                  ground_speed = sqrt(x_speed^2 + y_speed^2) #speed in mm/s
                  straight_distance = sqrt(x_pos^2 + y_pos^2) #straight-line distance in mm
-                 ma_speed = if(speedup_parallel)
-                             {
-                             parSapply(cl = clt,
-                                       X = 1:length(straight_distance),#all indices in angle
-                                       FUN = MAspeed, #the mean speed function
-                                       dta_x = x_pos,#x coordinate
-                                       dta_y = y_pos,#y coordinate
-                                       window = av_window,#window size (s)
-                                       hz = fps, #sample rate (Hz)
-                                       method = 'mean' #average between frame
-                                     )
-                             }else
-                             {
-                             sapply(X = 1:length(straight_distance),#all indices in angle
-                                    FUN = MAspeed, #the mean speed function
-                                    dta_x = x_pos,#x coordinate
-                                    dta_y = y_pos,#y coordinate
-                                    window = av_window,#window size (s)
-                                    hz = fps, #sample rate (Hz)
-                                    method = 'mean' #average between frame
-                                   )
-                             }
+                 ma_speed = signal::sgolayfilt(
+                               x = forward_speed,
+                               p = sg_order,
+                               n = if(round(av_window*fps) %% 2) #filter length must be odd
+                                     {round(av_window*fps)}else
+                                     {round(av_window*fps+1)}
+                               )
+                             # if(speedup_parallel)
+                             # {
+                             # parSapply(cl = clt,
+                             #           X = 1:length(straight_distance),#all indices in angle
+                             #           FUN = MAspeed, #the mean speed function
+                             #           dta_x = x_pos,#x coordinate
+                             #           # dta_y = y_pos,#y coordinate
+                             #           window = av_window,#window size (s)
+                             #           hz = fps, #sample rate (Hz)
+                             #           method = 'filter' #Savitzky-Golay filtered
+                             #         )
+                             # }else
+                             # {
+                             # sapply(X = 1:length(straight_distance),#all indices in angle
+                             #        FUN = MAspeed, #the mean speed function
+                             #        dta_x = x_pos,#x coordinate
+                             #        # dta_y = y_pos,#y coordinate
+                             #        window = av_window,#window size (s)
+                             #        hz = fps, #sample rate (Hz)
+                             #        method = 'filter' #Savitzky-Golay filtered
+                             #       )
+                             # }
                  low_forward = forward_speed < stop_speed
                    stop_flag = if(speedup_parallel){
                                  parSapply(cl = clt,
@@ -616,6 +681,13 @@ adata = within(adata,
                                                   FUN = MA_stop_flag,
                                                   window = stop_length)
                                }
+               }
+               )
+#set early acceleration to NA where it cannot be estimated
+adata = within(adata,
+               {
+                 smooth_accel[experimental_time < av_window/2] = NA
+                 ma_accel[experimental_time < av_window] = NA
                }
                )
 #close the parallel cluster
@@ -684,20 +756,82 @@ switch(save_type,
        )
 )
 switch(save_type,
-       png = par(mfrow = c(2,1),
+       png = par(mfrow = c(4,1),
                  mar = c(3,5,0,3),
                  oma = c(1.5,0,1.5,0),
                  cex = 1.5
        ),
-       par(mfrow = c(2,1),
+       par(mfrow = c(4,1),
            mar = c(3,5,0,3),
            oma = c(1.5,0,1.5,0))
 )
 
 # . Plot raw data ---------------------------------------------------------
+
+#sphere movement
+with(adata,
+     {
+       plot(x = experimental_time,
+            y = circular::deg(y_ball),
+            pch = 19,
+            type = 'o',
+            col = adjustcolor('darkred', alpha.f = 0.7),
+            xlim = range(experimental_time, na.rm = TRUE), 
+            ylim = c(-1,1)*360/60 *1.1, 
+            xlab = 'experimental time (s)',
+            ylab = 'rotation per frame (°)',
+            cex = 0.2
+           )
+       mtext(text = 'y rotation (forwards)',
+             line = -1.5
+             )
+       abline(h = 0,
+              col = adjustcolor('black', alpha = 0.9),
+              lwd = 0.5
+             )
+       plot(x = experimental_time,
+            y = circular::deg(z_ball),
+            pch = 19,
+            type = 'o',
+            col = adjustcolor('darkblue', alpha.f = 0.7),
+            xlim = range(experimental_time, na.rm = TRUE), 
+            ylim = c(-1,1)*360/60 *1.1, 
+            xlab = 'experimental time (s)',
+            ylab = 'rotation per frame (°)',
+            cex = 0.2
+           )
+       mtext(text = 'z rotation (turning)',
+             line = -1.5
+             )
+       abline(h = 0,
+              col = adjustcolor('black', alpha = 0.9),
+              lwd = 0.5
+             )
+       plot(x = experimental_time,
+            y = circular::deg(x_ball),
+            pch = 19,
+            type = 'o',
+            col = adjustcolor('cyan4', alpha.f = 0.7),
+            xlim = range(experimental_time, na.rm = TRUE), 
+            ylim = c(-1,1)*360/60 *1.1, 
+            xlab = 'experimental time (s)',
+            ylab = 'rotation per frame (°)',
+            cex = 0.2
+           )
+       mtext(text = 'x rotation (lateral)',
+             line = -1.5
+             )
+       abline(h = 0,
+              col = adjustcolor('black', alpha = 0.9),
+              lwd = 0.5
+             )
+       
+     }
+)
+
+#trajectory
 par(pty = 's',
     mar = c(3,0,0,0)) # set plot area to square?
-#trajectory
 with(adata,
      {
        plot(x = y_pos,
@@ -742,79 +876,6 @@ legend(x = plt_leg_pos,
        pt.cex = 1.2,
        cex = plt_leg_cex
 )
-#Circular heading
-with(adata,
-     {
-      plot.circular(circular(NA,
-                             type = 'angles',
-                             unit = 'degrees',
-                             rotation = 'clock',
-                             zero = pi/2,
-                             modulo = '2pi'
-      ),
-      labels = 0:3*90,
-      xlim = c(-1,1)*max(experimental_time),
-      ylim = c(-1,1)*max(experimental_time),
-      shrink = 1/max(experimental_time)
-      )
-      lines.circular(x = circular(angle-180,
-                                  type = 'angles',
-                                  unit = 'degrees',
-                                  template = 'geographics',
-                                  modulo = '2pi'
-      ),
-      y = experimental_time/max(experimental_time)-1,
-      col = adjustcolor(point_col, alpha.f = 0.5),
-      type = 'p',
-      pch = 19,
-      lty = 2,
-      cex = 0.5
-      )
-      invisible(
-        {
-          lapply(X = 10*(0:(max(experimental_time)/10)),
-                FUN =function(i)
-                  {
-                  lines.circular(
-                    x = circular(x = seq(from = -pi, 
-                                                      to = pi, 
-                                                      length.out = 1e3),
-                                              template = 'none'),
-                    y = rep(x = i/max(experimental_time) - 1, 
-                            times = 1e3),
-                    col = gray(level = 0, alpha = 0.5)
-                    )
-                  }
-                )
-        }
-      )
-     }
-)
-lines.circular(
-  x = circular(x = seq(from = -pi, 
-                       to = pi, 
-                       length.out = 1e3),
-               template = 'none'),
-  y = rep(x = 60/max(adata$experimental_time) - 1, 
-          times = 1e3),
-  col = adjustcolor('darkred', alpha.f = 0.5),
-  lwd = 5
-)
-with(adata,
-     {
-axis(side = 1,
-     at = 10*round(-(max(experimental_time/10)):(max(experimental_time/10)))/max(experimental_time),
-     labels = abs(
-                 10*round(-(max(experimental_time/10)):(max(experimental_time/10)))
-                 ),
-     cex.axis = plt_leg_cex/1.5
-     )
-     }
-)
-mtext(text = 'Time (sec)',
-      outer = T,
-      side = 1
-)
 # . Plot time series --------------------------------------------------
 
 # . . Ground speed --------------------------------------------------------
@@ -826,10 +887,10 @@ par(pty = 'm',
 #Raw data
 with(adata,
      {
-       plot(x = experimental_time,
-            y = ground_speed,
+       plot(x = NULL,
             xlab = 'time since start',
-            ylab = 'ground speed (mm/s)',
+            ylab = 'forward speed (mm/s)',
+            xlim = c(0, max(x = experimental_time, na.rm = T)),
             ylim = c(0, max(x = c(ma_speed,plt_speed_max), na.rm = T)),
             type = 'p',
             pch = 19,
@@ -839,7 +900,8 @@ with(adata,
        )
        lines(x = experimental_time,
              y = forward_speed,
-             col = adjustcolor('orange', alpha.f = 100/256),
+             # col = adjustcolor('orange', alpha.f = 100/256),
+             col = adjustcolor(point_col, alpha.f = 100/256),
              cex = 0.1,
              pch = 19)
        axis(side = 1,
@@ -881,15 +943,18 @@ legend(x = plt_leg_pos,
        inset= plt_leg_inset,
        xpd = TRUE,
        legend = c('instantaneous',
-                  paste0('moving average (median: ',av_window,'s)'),
-                  'forward speed',
+                  # paste0('moving average (median: ',av_window,'s)'),
+                  # 'forward speed',
+                  paste0('filtered (Savitzky-Golay filter, ',
+                         'order=', sg_order,', ',
+                         'length=', av_window,'s)'),
+                  # 'forward speed',
                   paste0('stop (fwd speed <', stop_speed, ' mm/s for ', stop_length, ' s)')
                   ),
-       lty = c(NA,1,1,NA),
-       pch = c(19,NA,NA,15),
+       lty = c(1,1,NA),
+       pch = c(NA,NA,15),
        col = c(point_col,
                trend_col,
-               'orange',
                'red'),
        cex = plt_leg_cex
 )
@@ -958,9 +1023,11 @@ with(adata,
      {
        plot(x = NULL,
             xlim = range(experimental_time, na.rm = T),
-            ylim = c(-1,1)*max(abs(range(z_turn, na.rm = T))),
+            ylim = quantile(x = z_turn, 
+                            probs = c(0,1)+c(1,-1)*0.05,
+                            na.rm = T),
             xlab = 'time (s)',
-            ylab = paste0('median turning speed (°/s: ',av_window,'s)'),
+            ylab = paste0('turning speed (°/s: ',av_window,'s)'),
             axes = F
        )
        axis(side = 1,
@@ -969,6 +1036,11 @@ with(adata,
        )
        axis(side = 2,
             at = plt_turn_ax*(round(min(z_turn, na.rm = T)/plt_turn_ax):round(max(z_turn, na.rm = T)/15))
+       )
+       abline(h = c(-15, 0, 15),
+              v = c(0,60,120),
+              col = 'black',
+              lwd = 0.25
        )
        lines(x = experimental_time,
               y = z_turn,
@@ -987,103 +1059,147 @@ with(adata,
              y = smooth_turn,
              col = adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0))
        )
-       abline(h = c(-15, 0, 15),
-              v = c(0,60,120),
-              col = 'black',
-              lwd = 0.25
-       )
-     }
-)
-#Acceleration
-with(adata,
-     {
-       lines(x = experimental_time,
-             y = ma_accel*plt_accel_scale,
-             col = adjustcolor('darkred', alpha.f = 200/256)
-       )
-       axis(side = 4,
-            line = -1,
-            at = plt_accel_scale*plt_turn_ax*
-              (round(min(ma_accel, na.rm = T)/plt_turn_ax):
-                 round(max(ma_accel, na.rm = T)/plt_turn_ax)),
-            labels = plt_accel_scale*plt_turn_ax*
-              (round(min(ma_accel, na.rm = T)/plt_turn_ax):
-                 round(max(ma_accel, na.rm = T)/plt_turn_ax)/
-                 plt_accel_scale),
-            col = 'darkred'
-       )
-       mtext(text = bquote(median ~ acceleration ~
-                             '(°/s'^2 ~ 
-                             .(av_window)*s ~ ")"),
-             side = 4,
-             cex = par('cex.lab')/1.5,
-             line = 2
-       )
      }
 )
 legend(x = plt_leg_pos,
        inset= plt_leg_inset,
        xpd = TRUE,
        legend = c('instantaneous',
-                   paste0('median ', '(', av_window,'s)'),
-                  'smoothing spline',
-                  'acceleration'),
-       lty = c(1,NA, 1, 1),
-       pch = c(NA,19, NA, NA),
+                  paste0('median ', '(', av_window,'s)'),
+                  'smoothing spline'),
+       lty = c(1,NA, 1),
+       pch = c(NA,19, NA),
        col = c(point_col,
                trend_col,
-               adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0)),
-               'darkred'),
+               adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0))
+               ),
        cex = plt_leg_cex
 )
 
 
+# . . Acceleration --------------------------------------------------------
 
-# . . Mean vector length --------------------------------------------------
 with(adata,
      {
-       plot(x = NULL,
-            xlim = range(experimental_time, na.rm = T),
-            ylim = c(0,1),
+       plot(x = experimental_time,
+            y = inst_accel,
+            col = adjustcolor(point_col, alpha.f = 50/256),
+            ylim = quantile(x = inst_accel, 
+                            probs = c(0,1)+c(1,-1)*0.05,
+                            na.rm = T),
+            type = 'l',
             xlab = 'time (s)',
-            ylab = paste0('mean vector length (',av_window,'s)'),
-            axes = F
+            ylab = bquote(acceleration ~
+                            '(°/s'^2 ~ 
+                            .(av_window)*s ~ ")"),
+            axes = FALSE
        )
        axis(side = 1,
             at = 10*(0:(max(experimental_time)/10)),
             labels = 10*(0:(max(experimental_time)/10))
        )
        axis(side = 2,
-            at = 0:5/5
+            at = plt_turn_ax*(round(min(inst_accel, na.rm = T)/plt_turn_ax):round(max(inst_accel, na.rm = T)/15))
        )
-       lines(x = experimental_time,
-             y = ma_rho,
-             col = point_col
-       )
-       abline(h = c(0,1),
+       abline(h = c(-15, 0, 15)/plt_accel_scale,
               v = c(0,60,120),
               col = 'black',
               lwd = 0.25
        )
-       abline(h = sqrt(-log(c(0.05, 0.01)))/(av_window*fps),#Mean vector Rayleigh test p
-              col = 'red',
-              lty = c(3,2),
-              lwd = 0.25
-       )
-       
+       lines(x = experimental_time,
+             y = smooth_accel,
+             col = adjustcolor(trend_col, alpha.f = 200/256)
+             )
+       lines(x = experimental_time,
+             y = ma_accel,
+             lwd = 3,
+            col = adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0)),
+             )
+       # axis(1)
+       # axis(side = 2,
+       #      line = -1,
+       #      at = plt_accel_scale*plt_turn_ax*
+       #        (round(min(ma_accel, na.rm = T)/plt_turn_ax):
+       #           round(max(ma_accel, na.rm = T)/plt_turn_ax)),
+       #      labels = plt_accel_scale*plt_turn_ax*
+       #        (round(min(ma_accel, na.rm = T)/plt_turn_ax):
+       #           round(max(ma_accel, na.rm = T)/plt_turn_ax)/
+       #           plt_accel_scale),
+       #      col = 'darkred'
+       # )
+       # mtext(text = bquote(median ~ acceleration ~
+       #                       '(°/s'^2 ~ 
+       #                       .(av_window)*s ~ ")"),
+       #       side = 4,
+       #       cex = par('cex.lab')/1.5,
+       #       line = 2
+       # )
      }
 )
 legend(x = plt_leg_pos,
        inset= plt_leg_inset,
        xpd = TRUE,
-       legend = c(paste0('mean vector ', '(', av_window,'s)'),
-                  'Rayleigh (p = 0.05)'),
-       lty = c(1, 3),
-       pch = c(NA, NA),
+       legend = c('instantaneous',
+                  'from smoothed speed',
+                   paste0('median ', '(', av_window,'s)')
+                  ),
+       lty = c(1,1, 1),
+       lwd = c(1,1, 3),
+       pch = c(NA, NA, NA),
        col = c(point_col,
-               'red'),
+               trend_col,
+               adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0))
+               ),
        cex = plt_leg_cex
 )
+
+
+
+    # # . . Mean vector length --------------------------------------------------
+    # with(adata,
+    #      {
+    #        plot(x = NULL,
+    #             xlim = range(experimental_time, na.rm = T),
+    #             ylim = c(0,1),
+    #             xlab = 'time (s)',
+    #             ylab = paste0('mean vector length (',av_window,'s)'),
+    #             axes = F
+    #        )
+    #        axis(side = 1,
+    #             at = 10*(0:(max(experimental_time)/10)),
+    #             labels = 10*(0:(max(experimental_time)/10))
+    #        )
+    #        axis(side = 2,
+    #             at = 0:5/5
+    #        )
+    #        lines(x = experimental_time,
+    #              y = ma_rho,
+    #              col = point_col
+    #        )
+    #        abline(h = c(0,1),
+    #               v = c(0,60,120),
+    #               col = 'black',
+    #               lwd = 0.25
+    #        )
+    #        abline(h = sqrt(-log(c(0.05, 0.01)))/(av_window*fps),#Mean vector Rayleigh test p
+    #               col = 'red',
+    #               lty = c(3,2),
+    #               lwd = 0.25
+    #        )
+    #        
+    #      }
+    # )
+    # legend(x = plt_leg_pos,
+    #        inset= plt_leg_inset,
+    #        xpd = TRUE,
+    #        legend = c(paste0('mean vector ', '(', av_window,'s)'),
+    #                   'Rayleigh (p = 0.05)'),
+    #        lty = c(1, 3),
+    #        pch = c(NA, NA),
+    #        col = c(point_col,
+    #                'red'),
+    #        cex = plt_leg_cex
+    # )
 
 # . . Outer labels --------------------------------------------------------
 
