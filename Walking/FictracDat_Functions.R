@@ -4193,76 +4193,243 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
     if(dim(subset(day_data_table,
                   condition %in% cnd))[1])
     {
+      lp = with(subset(day_data_table,
+                            condition %in% cnd),
+                     length(unique(phase))
+                )
       # . . Turning speed -------------------------------------------------------
+     turn_quant = aggregate(formula = turn_median ~ phase,
+                             data = subset(day_data_table,
+                                           condition %in% cnd),
+                             FUN = quantile)
       with(subset(day_data_table,
                   condition %in% cnd),
            {
-             boxplot(formula = turn_median ~ phase,
-                     xlim = range(phase, na.rm = T),
-                     ylim = c(0,360)/8,
-                     xlab = 'phase end time (s)',
-                     ylab = paste0('absolute median turning speed (°/s: ',av_window,'s)'),
-                     axes = F
-             )
-             axis(side = 1,
-                  at = unique(phase),
-                  labels = round( (1:length(unique(phase)))*
-                                    med_window
-                  )#/60
-             )
-             axis(side = 2,
-                  at = 15*(0:(360/15))
-             )
-             
-             abline(v = 0.5+seq(from = 0,
-                                to = experiment_length,
-                                by = condition1_length)*60/med_window,
-                    col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
-                    lwd = 2
-             )
-             abline(h = c(0),
-                    col = 'black',
-                    lwd = 0.25
-             )
+            plot(x = NULL,
+                xlim = c(1,lp),
+                ylim = c(0,360)/8,
+                xlab = 'phase end time (s)',
+                ylab = paste0('absolute median turning speed (°/s: ',av_window,'s)'),
+                axes = F
+                )
+            axis(side = 1,
+                at = unique(phase),
+                labels = round( (1:lp)*
+                                  med_window
+                              )#/60
+                )
+            axis(side = 2,
+                at = 15*(0:(360/15))
+            )
            }
       )
+      with(turn_quant,
+           {
+            polygon(x = c(1:lp,
+                          lp:1),
+                    y = c(turn_median[,"100%"],
+                          rev(turn_median[,"0%"])
+                          ),
+                    col = adjustcolor('gray',alpha.f = 50/255),
+                    border = NA
+            )
+           }
+      )
+     stripchart(x = turn_median~phase,
+                add = T,
+                data = subset(day_data_table,
+                              condition %in% cnd),
+                method = 'jitter',
+                vertical = TRUE,
+                pch = 19,
+                col = point_col,
+                cex = 0.5
+                )
+     with(turn_quant,
+          {
+             polygon(x = c(1:lp,
+                           lp:1),
+                     y = c(turn_median[,"75%"],
+                           rev(turn_median[,"25%"])
+                     ),
+                     col = adjustcolor('steelblue',alpha.f = 100/255),
+                     border = NA
+             )
+             points(x = 1:lp,
+                   y = turn_median[,"50%"],
+                   col = 1,
+                   lwd = 3,
+                   pch = 15,
+                   type = 'o'
+                 )
+           }
+      )
+     abline(v = 0.5+seq(from = 0,
+                        to = experiment_length,
+                        by = condition1_length)*60/med_window,
+            col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+            lwd = 2
+     )
+     abline(h = c(0),
+            col = 'black',
+            lwd = 0.25
+     )
+      # with(subset(day_data_table,
+      #             condition %in% cnd),
+      #      {
+      #        boxplot(formula = turn_median ~ phase,
+      #                xlim = range(phase, na.rm = T),
+      #                ylim = c(0,360)/8,
+      #                xlab = 'phase end time (s)',
+      #                ylab = paste0('absolute median turning speed (°/s: ',av_window,'s)'),
+      #                axes = F
+      #        )
+      #        axis(side = 1,
+      #             at = unique(phase),
+      #             labels = round( (1:length(unique(phase)))*
+      #                               med_window
+      #             )#/60
+      #        )
+      #        axis(side = 2,
+      #             at = 15*(0:(360/15))
+      #        )
+      #        
+      #        abline(v = 0.5+seq(from = 0,
+      #                           to = experiment_length,
+      #                           by = condition1_length)*60/med_window,
+      #               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+      #               lwd = 2
+      #        )
+      #        abline(h = c(0),
+      #               col = 'black',
+      #               lwd = 0.25
+      #        )
+      #      }
+      # )
       legend(x = 'topleft',
              legend = cnd,
              cex = 2)
+      legend(x = 'topright',
+             legend = c('range',
+                        'IQR',
+                        'median'),
+             col = c('gray',
+                        'steelblue',
+                        'black'),
+             pch = 15,
+             cex = 0.5)
       
       # . . Acceleration --------------------------------------------------------
+      accel_quant = aggregate(formula = accel_median ~ phase,
+                             data = subset(day_data_table,
+                                           condition %in% cnd),
+                             FUN = quantile)
       with(subset(day_data_table,
                   condition %in% cnd),
            {
-             boxplot(formula = accel_median ~ phase,
-                     xlim = range(phase, na.rm = T),
-                     ylim = (c(0,360))/24,
-                     xlab = 'phase end time (s)',
-                     ylab = paste0('absolute median acceleration (°/s^2 : ',av_window,'s)'),
-                     axes = F
+             plot(x = NULL,
+                  xlim = c(1,lp),
+                  ylim = c(0,360)/24,
+                  xlab = 'phase end time (s)',
+                  ylab = paste0('absolute median acceleration (°/s^2 : ',av_window,'s)'),
+                  axes = F
              )
              axis(side = 1,
                   at = unique(phase),
-                  labels = round( (1:length(unique(phase)))*
+                  labels = round( (1:lp)*
                                     med_window
                   )#/60
              )
              axis(side = 2,
                   at = 5*(0:(360/5))
              )
-             
-             abline(v = 0.5+seq(from = 0,
-                                to = experiment_length,
-                                by = condition1_length)*60/med_window,
-                    col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
-                    lwd = 2
-             )
-             abline(h = c(0),
-                    col = 'black',
-                    lwd = 0.25
+           }
+      )
+      with(accel_quant,
+           {
+             polygon(x = c(1:lp,
+                           lp:1),
+                     y = c(accel_median[,"100%"],
+                           rev(accel_median[,"0%"])
+                     ),
+                     col = adjustcolor('gray',alpha.f = 50/255),
+                     border = NA
              )
            }
       )
+      stripchart(x = accel_median~phase,
+                 add = T,
+                 data = subset(day_data_table,
+                               condition %in% cnd),
+                 method = 'jitter',
+                 vertical = TRUE,
+                 pch = 19,
+                 col = point_col,
+                 cex = 0.5
+      )
+      with(accel_quant,
+           {
+             polygon(x = c(1:lp,
+                           lp:1),
+                     y = c(accel_median[,"75%"],
+                           rev(accel_median[,"25%"])
+                     ),
+                     col = adjustcolor('steelblue',alpha.f = 100/255),
+                     border = NA
+             )
+             points(x = 1:lp,
+                    y = accel_median[,"50%"],
+                    col = 1,
+                    lwd = 3,
+                    pch = 15,
+                    type = 'o'
+             )
+           }
+      )
+      abline(v = 0.5+seq(from = 0,
+                         to = experiment_length,
+                         by = condition1_length)*60/med_window,
+             col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+             lwd = 2
+      )
+      abline(h = c(0),
+             col = 'black',
+             lwd = 0.25
+      )
+      
+      # 
+      # with(subset(day_data_table,
+      #             condition %in% cnd),
+      #      {
+      #        boxplot(formula = accel_median ~ phase,
+      #                xlim = range(phase, na.rm = T),
+      #                ylim = (c(0,360))/24,
+      #                xlab = 'phase end time (s)',
+      #                ylab = paste0('absolute median acceleration (°/s^2 : ',av_window,'s)'),
+      #                axes = F
+      #        )
+      #        axis(side = 1,
+      #             at = unique(phase),
+      #             labels = round( (1:length(unique(phase)))*
+      #                               med_window
+      #             )#/60
+      #        )
+      #        axis(side = 2,
+      #             at = 5*(0:(360/5))
+      #        )
+      #        
+      #        abline(v = 0.5+seq(from = 0,
+      #                           to = experiment_length,
+      #                           by = condition1_length)*60/med_window,
+      #               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+      #               lwd = 2
+      #        )
+      #        abline(h = c(0),
+      #               col = 'black',
+      #               lwd = 0.25
+      #        )
+      #      }
+      # )
       # 
       # # . . Mean vector length --------------------------------------------------
       # with(subset(day_data_table,
@@ -4301,42 +4468,120 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       #       side = c(3,1),
       #       outer = T)
       # . . Forward speed ----------------------------------------------------
-      speedlim = 20
+      speedlim = 10
+      
+      speed_quant = aggregate(formula = speed_median ~ phase,
+                              data = subset(day_data_table,
+                                            condition %in% cnd),
+                              FUN = quantile)
       with(subset(day_data_table,
                   condition %in% cnd),
            {
-             boxplot(formula = speed_median ~ phase,
-                     xlim = range(phase, na.rm = T),
-                     ylim = c(0,10)*speedlim,
-                     xlab = 'phase end time (s)',
-                     ylab = paste0('Forward speed (','mm/s',': by frame)'),
-                     axes = F
+             plot(x = NULL,
+                  xlim = c(1,lp),
+                  ylim = c(0,10)*speedlim,
+                  xlab = 'phase end time (s)',
+                  ylab = paste0('Forward speed (','mm/s',': by frame)'),
+                  axes = F
              )
              axis(side = 1,
                   at = unique(phase),
-                  labels = round( (1:length(unique(phase)))*
+                  labels = round( (1:lp)*
                                     med_window
                   )#/60
              )
              axis(side = 2,
                   at = 10*(0:20)
              )
-             abline(v = 0.5+seq(from = 0,
-                                to = experiment_length,
-                                by = condition1_length)*60/med_window,
-                    col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
-                    lwd = 2
-             )
-             abline(h = c(0,1,2)*speedlim,
-                    col = 'black',
-                    lwd = 0.25
+           }
+      )
+      with(speed_quant,
+           {
+             polygon(x = c(1:lp,
+                           lp:1),
+                     y = c(speed_median[,"100%"],
+                           rev(speed_median[,"0%"])
+                     ),
+                     col = adjustcolor('gray',alpha.f = 50/255),
+                     border = NA
              )
            }
       )
-      mtext(text = c(paste('Medians across', med_window, 's phases from each track'),
-                     'phase end time (min)'),
-            side = c(3,1),
-            outer = T)
+      stripchart(x = speed_median~phase,
+                 add = T,
+                 data = subset(day_data_table,
+                               condition %in% cnd),
+                 method = 'jitter',
+                 vertical = TRUE,
+                 pch = 19,
+                 col = point_col,
+                 cex = 0.5
+      )
+      with(speed_quant,
+           {
+             polygon(x = c(1:lp,
+                           lp:1),
+                     y = c(speed_median[,"75%"],
+                           rev(speed_median[,"25%"])
+                     ),
+                     col = adjustcolor('steelblue',alpha.f = 100/255),
+                     border = NA
+             )
+             points(x = 1:lp,
+                    y = speed_median[,"50%"],
+                    col = 1,
+                    lwd = 3,
+                    pch = 15,
+                    type = 'o'
+             )
+           }
+      )
+      abline(v = 0.5+seq(from = 0,
+                         to = experiment_length,
+                         by = condition1_length)*60/med_window,
+             col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+             lwd = 2
+      )
+      abline(h = c(0),
+             col = 'black',
+             lwd = 0.25
+      )
+      # 
+      # with(subset(day_data_table,
+      #             condition %in% cnd),
+      #      {
+      #        boxplot(formula = speed_median ~ phase,
+      #                xlim = range(phase, na.rm = T),
+      #                ylim = c(0,10)*speedlim,
+      #                xlab = 'phase end time (s)',
+      #                ylab = paste0('Forward speed (','mm/s',': by frame)'),
+      #                axes = F
+      #        )
+      #        axis(side = 1,
+      #             at = unique(phase),
+      #             labels = round( (1:length(unique(phase)))*
+      #                               med_window
+      #             )#/60
+      #        )
+      #        axis(side = 2,
+      #             at = 10*(0:20)
+      #        )
+      #        abline(v = 0.5+seq(from = 0,
+      #                           to = experiment_length,
+      #                           by = condition1_length)*60/med_window,
+      #               col = c('orange','seagreen','MediumAquamarine','MediumAquamarine','MediumAquamarine'),
+      #               lwd = 2
+      #        )
+      #        abline(h = c(0,1,2)*speedlim,
+      #               col = 'black',
+      #               lwd = 0.25
+      #        )
+      #      }
+      # )
+      # mtext(text = c(paste('Medians across', med_window, 's phases from each track'),
+      #                'phase end time (min)'),
+      #       side = c(3,1),
+      #       outer = T)
     }else
     {
       plot(x = NULL,
