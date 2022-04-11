@@ -2730,7 +2730,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                     # 'forward speed',
                     paste0('Savitzky-Golay filtered'),
                     # 'forward speed',
-                    paste0('stop (fwd speed <', stop_speed, ' mm/s for ', stop_length, ' s)')
+                    paste0('stop identified')
          ),
          lty = c(1,1,NA),
          pch = c(NA,NA,15),
