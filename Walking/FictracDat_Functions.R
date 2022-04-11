@@ -382,7 +382,8 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                          clust = if(speedup_parallel) #Use a pre-assigned parallel cluster, or make a new one
                            {parallel::makeCluster(parallel::detectCores() - 1,type="SOCK")}else
                            {NULL},
-                         folder_labels = TRUE #read date, animal and experiment from the containing folder
+                         folder_labels = TRUE, #read date, animal and experiment from the containing folder
+                         sg_order = 3 #read date, animal and experiment from the containing folder
 )
 {
 
@@ -390,6 +391,7 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
  invisible(
    { # hide verbose loading messages
     library(circular, quietly = TRUE)
+    library(signal, quietly = TRUE)
     if(speedup_data.table){library(data.table, quietly = TRUE)}
     if(speedup_parallel){library(parallel, quietly = TRUE)}
     }
@@ -675,9 +677,11 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                      #                 y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
                      #   x = 1:length(angle) # predict for all times
                      # )$y
-                     )
+                     ),
           ]#,
     adata[, `:=`( #assign from list call
+                    inst_accel = c(NA, diff(deg(heading_integrated))*fps),
+                    smooth_accel = c(NA, diff(smooth_turn)*fps),
                      ma_accel = if(speedup_parallel)
                      {
                        parSapply(cl = clt,
@@ -708,28 +712,35 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
     )
     ]
     adata[, `:=`( #assign from list call
-                     ma_speed = if(speedup_parallel)
-                     {
-                       parSapply(cl = clt,
-                                 X = 1:length(straight_distance),#all indices in angle
-                                 FUN = MAspeed, #the mean speed function
-                                 dta_x = x_pos,#x coordinate
-                                 dta_y = y_pos,#y coordinate
-                                 window = av_window,#window size (s)
-                                 hz = fps, #sample rate (Hz)
-                                 method = 'mean' #average between frame
-                       )
-                     }else
-                     {
-                       sapply(X = 1:length(straight_distance),#all indices in angle
-                              FUN = MAspeed, #the mean speed function
-                              dta_x = x_pos,#x coordinate
-                              dta_y = y_pos,#y coordinate
-                              window = av_window,#window size (s)
-                              hz = fps, #sample rate (Hz)
-                              method = 'mean' #average between frame
-                       )
-                     }
+                     ma_speed = signal::sgolayfilt(
+                       x = forward_speed,
+                       p = sg_order,
+                       n = if(round(av_window*fps) %% 2) #filter length must be odd
+                       {round(av_window*fps)}else
+                       {round(av_window*fps+1)}
+                     )
+                     #   if(speedup_parallel)
+                     # {
+                     #   parSapply(cl = clt,
+                     #             X = 1:length(straight_distance),#all indices in angle
+                     #             FUN = MAspeed, #the mean speed function
+                     #             dta_x = x_pos,#x coordinate
+                     #             dta_y = y_pos,#y coordinate
+                     #             window = av_window,#window size (s)
+                     #             hz = fps, #sample rate (Hz)
+                     #             method = 'mean' #average between frame
+                     #   )
+                     # }else
+                     # {
+                     #   sapply(X = 1:length(straight_distance),#all indices in angle
+                     #          FUN = MAspeed, #the mean speed function
+                     #          dta_x = x_pos,#x coordinate
+                     #          dta_y = y_pos,#y coordinate
+                     #          window = av_window,#window size (s)
+                     #          hz = fps, #sample rate (Hz)
+                     #          method = 'mean' #average between frame
+                     #   )
+                     # }
     )
     ]#end of data.table
   }else
@@ -819,6 +830,8 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                                    angle = angle,
                                    ma_turn = ma_turn
                                    ) 
+                   inst_accel = c(NA, diff(deg(heading_integrated))*fps)
+                   smooth_accel = c(NA, diff(smooth_turn)*fps)
                    #   predict( # fit a spline and predict its values across all times
                    #   smooth.spline(x = (1:length(angle))[!is.na(ma_turn)], #use only times when speed was calculated
                    #                 y = ma_turn[!is.na(ma_turn)]), #use only speeds where speed was calculated
@@ -846,28 +859,35 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                    y_speed = c(NA, diff(y_pos))*fps #sideways speed in mm/s
                    ground_speed = sqrt(x_speed^2 + y_speed^2) #speed in mm/s
                    straight_distance = sqrt(x_pos^2 + y_pos^2) #straight-line distance in mm
-                   ma_speed = if(speedup_parallel)
-                   {
-                     parSapply(cl = clt,
-                               X = 1:length(straight_distance),#all indices in angle
-                               FUN = MAspeed, #the mean speed function
-                               dta_x = x_pos,#x coordinate
-                               dta_y = y_pos,#y coordinate
-                               window = av_window,#window size (s)
-                               hz = fps, #sample rate (Hz)
-                               method = 'mean' #average between frame
-                     )
-                   }else
-                   {
-                     sapply(X = 1:length(straight_distance),#all indices in angle
-                            FUN = MAspeed, #the mean speed function
-                            dta_x = x_pos,#x coordinate
-                            dta_y = y_pos,#y coordinate
-                            window = av_window,#window size (s)
-                            hz = fps, #sample rate (Hz)
-                            method = 'mean' #average between frame
-                     )
-                   }
+                   ma_speed = signal::sgolayfilt(
+                                 x = forward_speed,
+                                 p = sg_order,
+                                 n = if(round(av_window*fps) %% 2) #filter length must be odd
+                                 {round(av_window*fps)}else
+                                 {round(av_window*fps+1)}
+                               )
+                   #   if(speedup_parallel)
+                   # {
+                   #   parSapply(cl = clt,
+                   #             X = 1:length(straight_distance),#all indices in angle
+                   #             FUN = MAspeed, #the mean speed function
+                   #             dta_x = x_pos,#x coordinate
+                   #             dta_y = y_pos,#y coordinate
+                   #             window = av_window,#window size (s)
+                   #             hz = fps, #sample rate (Hz)
+                   #             method = 'mean' #average between frame
+                   #   )
+                   # }else
+                   # {
+                   #   sapply(X = 1:length(straight_distance),#all indices in angle
+                   #          FUN = MAspeed, #the mean speed function
+                   #          dta_x = x_pos,#x coordinate
+                   #          dta_y = y_pos,#y coordinate
+                   #          window = av_window,#window size (s)
+                   #          hz = fps, #sample rate (Hz)
+                   #          method = 'mean' #average between frame
+                   #   )
+                   # }
                  }
   )
   }
@@ -915,6 +935,14 @@ FT_read_write = function(path_file = FT_select_dat(),#path to the ".dat" file
                  }
                 )
   }
+  # . Neaten up acceleration ------------------------------------------------
+  adata = within(adata,
+                 {
+                   smooth_accel[experimental_time < av_window/2] = NA
+                   ma_accel[experimental_time < av_window] = NA
+                 }
+  )
+  
   #close the parallel cluster
   if(speedup_parallel){ if(base::missing(clust)){parallel::stopCluster(clt)} }#only close internal cluster
   #  Save data --------------------------------------------------------------
@@ -2297,7 +2325,7 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
   # . TODO   ---------------------------------------------
   #TODO   
   #- Fast version ?
-  #- Frequency plot
+  #- Frequency plot +
   
   # . Required packages -----------------------------------------------------
   invisible(
@@ -2406,12 +2434,12 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          )
   )
   switch(save_type,
-         png = par(mfrow = c(2,1),
+         png = par(mfrow = c(4,1),
                    mar = c(3,5,0,3),
                    oma = c(1.5,0,1.5,0),
                    cex = 1.5
          ),
-         par(mfrow = c(2,1),
+         par(mfrow = c(4,1),
              mar = c(3,5,0,3),
              oma = c(1.5,0,1.5,0))
   )
@@ -2468,120 +2496,185 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          pt.cex = 1.2,
          cex = plt_leg_cex
   )
-  #Circular heading
+  
+  
+  #sphere movement
+  par(pty = 'm',
+      mar = c(3,5,0,3))
   with(adata,
        {
-         circular::plot.circular(
-             circular::circular(NA,
-                                type = 'angles',
-                                unit = 'degrees',
-                                rotation = 'clock',
-                                zero = pi/2,
-                                modulo = '2pi'
-         ),
-         labels = 0:3*90,
-         xlim = if(any(!is.na(experimental_time)))
-                 {c(-1,1)*max(experimental_time, na.rm = T)}else
-                   {c(-1,1)*120},
-         ylim = if(any(!is.na(experimental_time)))
-                 {c(-1,1)*max(experimental_time, na.rm = T)}else
-                 {c(-1,1)*120},
-         shrink = if(any(!is.na(experimental_time)))
-                   {1/max(experimental_time, na.rm = T)}else
-                   {1}
+         plot(x = experimental_time,
+              y = circular::deg(y_ball),
+              pch = 19,
+              type = 'o',
+              col = adjustcolor('darkred', alpha.f = 0.7),
+              xlim = range(experimental_time, na.rm = TRUE), 
+              ylim = c(-1,1)*360/60 *1.1, 
+              xlab = 'experimental time (s)',
+              ylab = 'rotation per frame (°)',
+              cex = 0.2
          )
-         if(any(!is.na(angle)))
-         {
-         circular::lines.circular(x = 
-                  circular::circular(x = angle-180,
-                                     type = 'angles',
-                                     unit = 'degrees',
-                                     template = 'geographics',
-                                     modulo = '2pi'
-         ),
-         y = if(any(!is.na(experimental_time)))
-               {experimental_time/max(experimental_time, na.rm = T)-1}else
-               {experimental_time/120 - 1},
-         col = adjustcolor(point_col, alpha.f = 0.5),
-         type = 'p',
-         pch = 19,
-         lty = 2,
-         cex = 0.5
+         mtext(text = 'y rotation (forwards)',
+               line = -1.5
          )
-         }
-         invisible(
-           {
-             lapply(X = if(any(!is.na(experimental_time)))
-                         {10*(0:(max(experimental_time, na.rm = T)/10))}else
-                         {10*0:12},
-                    FUN =function(i)
-                    {
-                      circular::lines.circular(
-                        x = circular::circular(x = seq(from = -pi, 
-                                             to = pi, 
-                                             length.out = 1e3),
-                                     template = 'none'),
-                        y = rep(x = if(any(!is.na(experimental_time)))
-                                      {i/max(experimental_time, na.rm = T) - 1}else
-                                      {i/120 - 1}, 
-                                times = 1e3),
-                        col = gray(level = 0, alpha = 0.5)
-                      )
-                    }
-             )
-           }
+         abline(h = 0,
+                col = adjustcolor('black', alpha = 0.9),
+                lwd = 0.5
          )
+         plot(x = experimental_time,
+              y = circular::deg(z_ball),
+              pch = 19,
+              type = 'o',
+              col = adjustcolor('darkblue', alpha.f = 0.7),
+              xlim = range(experimental_time, na.rm = TRUE), 
+              ylim = c(-1,1)*360/60 *1.1, 
+              xlab = 'experimental time (s)',
+              ylab = 'rotation per frame (°)',
+              cex = 0.2
+         )
+         mtext(text = 'z rotation (turning)',
+               line = -1.5
+         )
+         abline(h = 0,
+                col = adjustcolor('black', alpha = 0.9),
+                lwd = 0.5
+         )
+         plot(x = experimental_time,
+              y = circular::deg(x_ball),
+              pch = 19,
+              type = 'o',
+              col = adjustcolor('cyan4', alpha.f = 0.7),
+              xlim = range(experimental_time, na.rm = TRUE), 
+              ylim = c(-1,1)*360/60 *1.1, 
+              xlab = 'experimental time (s)',
+              ylab = 'rotation per frame (°)',
+              cex = 0.2
+         )
+         mtext(text = 'x rotation (lateral)',
+               line = -1.5
+         )
+         abline(h = 0,
+                col = adjustcolor('black', alpha = 0.9),
+                lwd = 0.5
+         )
+         
        }
   )
-  circular::lines.circular(
-    x = circular::circular(x = seq(from = -pi, 
-                         to = pi, 
-                         length.out = 1e3),
-                 template = 'none'),
-    y = rep(x = 60/max(adata$experimental_time, na.rm = T) - 1, 
-            times = 1e3),
-    col = adjustcolor('darkred', alpha.f = 0.5),
-    lwd = 5
-  )
-  if(any(!is.na(adata$experimental_time)))
-  {
-    with(adata,
-         {
-           axis(side = 1,
-                at = 10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))/max(experimental_time, na.rm = T),
-                labels = abs(
-                  10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))
-                ),
-                cex.axis = plt_leg_cex/1.5
-           )
-         }
-    )
-  }
-  mtext(text = 'Time (sec)',
-        outer = T,
-        side = 1
-  )
+  mtext(text = 'time (s)',
+        side = 1,
+        cex = plt_leg_cex,
+        line = 3)
+  
+  # #Circular heading
+  # with(adata,
+  #      {
+  #        circular::plot.circular(
+  #            circular::circular(NA,
+  #                               type = 'angles',
+  #                               unit = 'degrees',
+  #                               rotation = 'clock',
+  #                               zero = pi/2,
+  #                               modulo = '2pi'
+  #        ),
+  #        labels = 0:3*90,
+  #        xlim = if(any(!is.na(experimental_time)))
+  #                {c(-1,1)*max(experimental_time, na.rm = T)}else
+  #                  {c(-1,1)*120},
+  #        ylim = if(any(!is.na(experimental_time)))
+  #                {c(-1,1)*max(experimental_time, na.rm = T)}else
+  #                {c(-1,1)*120},
+  #        shrink = if(any(!is.na(experimental_time)))
+  #                  {1/max(experimental_time, na.rm = T)}else
+  #                  {1}
+  #        )
+  #        if(any(!is.na(angle)))
+  #        {
+  #        circular::lines.circular(x = 
+  #                 circular::circular(x = angle-180,
+  #                                    type = 'angles',
+  #                                    unit = 'degrees',
+  #                                    template = 'geographics',
+  #                                    modulo = '2pi'
+  #        ),
+  #        y = if(any(!is.na(experimental_time)))
+  #              {experimental_time/max(experimental_time, na.rm = T)-1}else
+  #              {experimental_time/120 - 1},
+  #        col = adjustcolor(point_col, alpha.f = 0.5),
+  #        type = 'p',
+  #        pch = 19,
+  #        lty = 2,
+  #        cex = 0.5
+  #        )
+  #        }
+  #        invisible(
+  #          {
+  #            lapply(X = if(any(!is.na(experimental_time)))
+  #                        {10*(0:(max(experimental_time, na.rm = T)/10))}else
+  #                        {10*0:12},
+  #                   FUN =function(i)
+  #                   {
+  #                     circular::lines.circular(
+  #                       x = circular::circular(x = seq(from = -pi, 
+  #                                            to = pi, 
+  #                                            length.out = 1e3),
+  #                                    template = 'none'),
+  #                       y = rep(x = if(any(!is.na(experimental_time)))
+  #                                     {i/max(experimental_time, na.rm = T) - 1}else
+  #                                     {i/120 - 1}, 
+  #                               times = 1e3),
+  #                       col = gray(level = 0, alpha = 0.5)
+  #                     )
+  #                   }
+  #            )
+  #          }
+  #        )
+  #      }
+  # )
+  # circular::lines.circular(
+  #   x = circular::circular(x = seq(from = -pi, 
+  #                        to = pi, 
+  #                        length.out = 1e3),
+  #                template = 'none'),
+  #   y = rep(x = 60/max(adata$experimental_time, na.rm = T) - 1, 
+  #           times = 1e3),
+  #   col = adjustcolor('darkred', alpha.f = 0.5),
+  #   lwd = 5
+  # )
+  # if(any(!is.na(adata$experimental_time)))
+  # {
+  #   with(adata,
+  #        {
+  #          axis(side = 1,
+  #               at = 10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))/max(experimental_time, na.rm = T),
+  #               labels = abs(
+  #                 10*round(-(max(experimental_time/10, na.rm = T)):(max(experimental_time/10, na.rm = T)))
+  #               ),
+  #               cex.axis = plt_leg_cex/1.5
+  #          )
+  #        }
+  #   )
+  # }
+  # mtext(text = 'Time (sec)',
+  #       outer = T,
+  #       side = 1
+  # )
+  
   # . Plot time series --------------------------------------------------
   
   # . . Ground speed --------------------------------------------------------
   
   par(pty = 'm',
-      mfrow = c(4, 1),
+      mfrow = c(5, 1),
       mar = c(3,5,0,3)
   )
   #Raw data
   with(adata,
        {
-         plot(x = experimental_time,
-              y = ground_speed,
+         plot(x = NULL,
               xlab = 'time since start',
-              ylab = 'ground speed (mm/s)',
-              xlim = if(any(!is.na(experimental_time)))
-                      {range(experimental_time, na.rm = T)}else
-                      {c(0,120)},
-              ylim = if(any(!is.na(ma_speed)))
-                      {c(0, max(x = c(ma_speed,plt_speed_max), na.rm = T))}else
-                        {c(0,200)},
+              ylab = 'forward speed (mm/s)',
+              xlim = c(0, max(x = experimental_time, na.rm = T)),
+              ylim = c(0, max(x = c(ma_speed,plt_speed_max), na.rm = T)),
               type = 'p',
               pch = 19,
               cex = 0.1,
@@ -2590,24 +2683,33 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          )
          lines(x = experimental_time,
                y = forward_speed,
-               col = adjustcolor('orange', alpha.f = 100/256),
+               # col = adjustcolor('orange', alpha.f = 100/256),
+               col = adjustcolor(point_col, alpha.f = 100/256),
                cex = 0.1,
                pch = 19)
-         if(any(!is.na(experimental_time)))
-         {
-           axis(side = 1,
-                at = 10*(0:(max(experimental_time, na.rm = T)/10)),
-                labels = 10*(0:(max(experimental_time, na.rm = T)/10))
-           )
-           abline(h = 10*(round(min(ground_speed, na.rm = T)/10):round(max(ground_speed, na.rm = T)/10)),
-                  v = c(0,60,120),
-                  col = rgb(0,0,0,0.1)
-           )
-         }
+         axis(side = 1,
+              at = 10*(0:(max(experimental_time)/10)),
+              labels = 10*(0:(max(experimental_time)/10))
+         )
          axis(side = 2
+         )
+         abline(h = 10*(round(min(ground_speed, na.rm = T)/10):round(max(ground_speed, na.rm = T)/10)),
+                v = c(0,60,120),
+                col = rgb(0,0,0,0.1)
          )
          abline(h = 0,
                 col = 1)
+         
+       }
+  )
+  #label stops
+  with(adata,
+       {
+         abline(v = experimental_time[stop_flag],
+                col = adjustcolor(col = 'red',
+                                  alpha.f = 20/256),
+                lwd = 1
+         )
        }
   )
   #Trendline
@@ -2620,28 +2722,20 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          )
        }
   )
-  #label stops
-  with(adata,
-       {
-        abline(v = experimental_time[stop_flag],
-               col = adjustcolor(col = 'red',
-                                 alpha.f = 20/256),
-               lwd = 1
-               )
-       }
-  )
   legend(x = plt_leg_pos,
          inset= plt_leg_inset,
          xpd = TRUE,
          legend = c('instantaneous',
-                    paste0('moving average (median: ',av_window,'s)'),
-                    'forward speed',
-                    'stop'),
-         lty = c(NA,1,1,NA),
-         pch = c(19,NA,NA,15),
+                    # paste0('moving average (median: ',av_window,'s)'),
+                    # 'forward speed',
+                    paste0('Savitzky-Golay filtered'),
+                    # 'forward speed',
+                    paste0('stop (fwd speed <', stop_speed, ' mm/s for ', stop_length, ' s)')
+         ),
+         lty = c(1,1,NA),
+         pch = c(NA,NA,15),
          col = c(point_col,
                  trend_col,
-                 'orange',
                  'red'),
          cex = plt_leg_cex
   )
@@ -2719,10 +2813,14 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
                       {range(experimental_time, na.rm = T)}else
                       {c(0,120)},
               ylim = if(any(!is.na(z_turn)))
-                      {c(-1,1)*max(abs(range(z_turn, na.rm = T)))}else
+                      {
+                       quantile(x = z_turn, 
+                                probs = c(0,1)+c(1,-1)*0.05,
+                                na.rm = T)
+                      }else
                       {c(-45,45)},
               xlab = 'time (s)',
-              ylab = paste0('median turning speed (°/s: ',av_window,'s)'),
+              ylab = paste0('turning speed (°/s: ',av_window,'s)'),
               axes = F
          )
          if(any(!is.na(experimental_time)))
@@ -2759,43 +2857,65 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          )
        }
   )
-  #Acceleration
-  #set up y-axis lines
-  acc_lab = with(adata,
-                 {
-                    if( !(all(is.na(ma_accel))) )
-                    {
-                    plt_accel_scale*plt_turn_ax*
-                      (round(min(ma_accel, na.rm = T)/plt_turn_ax):
-                         round(max(ma_accel, na.rm = T)/plt_turn_ax))
-                    }else
-                    {
-                      NA
-                    }
-                 }
-                )
+  legend(x = plt_leg_pos,
+          inset= plt_leg_inset,
+          xpd = TRUE,
+          legend = c('instantaneous',
+                     paste0('median ', '(', av_window,'s)'),
+                     'smoothing spline'),
+          lty = c(1,NA, 1),
+          pch = c(NA,19, NA),
+          col = c(point_col,
+                  trend_col,
+                  adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0))
+          ),
+          cex = plt_leg_cex
+  )
+  
+  # . . Acceleration --------------------------------------------------------
+  
   with(adata,
        {
-         lines(x = experimental_time,
-               y = ma_accel*plt_accel_scale,
-               col = adjustcolor('darkred', alpha.f = 200/256)
+         plot(x = experimental_time,
+              y = inst_accel,
+              col = adjustcolor(point_col, alpha.f = 50/256),
+              xlim = if(any(!is.na(experimental_time)))
+                      {range(experimental_time, na.rm = T)}else
+                      {c(0,120)},
+              ylim = if(any(!is.na(z_turn)))
+                      {
+                      quantile(x = inst_accel, 
+                                      probs = c(0,1)+c(1,-1)*0.05,
+                                      na.rm = T)
+                      }else
+                      {c(-45,45)},
+              type = 'l',
+              xlab = 'time (s)',
+              ylab = bquote(acceleration ~
+                              '(°/s'^2 ~ 
+                              .(av_window)*s ~ ")"),
+              axes = FALSE
          )
-         if(any(!is.na(acc_lab)))
-         {
-           axis(side = 4,
-                line = -1,
-                at = acc_lab,
-                labels = acc_lab/
-                     plt_accel_scale,
-                col = 'darkred'
-               )
-         }
-         mtext(text = bquote(median ~ acceleration ~
-                               '(°/s'^2 ~ 
-                               .(av_window)*s ~ ")"),
-               side = 4,
-               cex = par('cex.lab')/1.5,
-               line = 2
+         axis(side = 1,
+              at = 10*(0:(max(experimental_time)/10)),
+              labels = 10*(0:(max(experimental_time)/10))
+         )
+         axis(side = 2,
+              at = plt_turn_ax*(round(min(inst_accel, na.rm = T)/plt_turn_ax):round(max(inst_accel, na.rm = T)/15))
+         )
+         abline(h = c(-15, 0, 15)/plt_accel_scale,
+                v = c(0,60,120),
+                col = 'black',
+                lwd = 0.25
+         )
+         lines(x = experimental_time,
+               y = smooth_accel,
+               col = adjustcolor(trend_col, alpha.f = 200/256)
+         )
+         lines(x = experimental_time,
+               y = ma_accel,
+               lwd = 3,
+               col = adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0)),
          )
        }
   )
@@ -2803,19 +2923,18 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
          inset= plt_leg_inset,
          xpd = TRUE,
          legend = c('instantaneous',
-                    paste0('median ', '(', av_window,'s)'),
-                    'smoothing spline',
-                    'acceleration'),
-         lty = c(1,NA, 1, 1),
-         pch = c(NA,19, NA, NA),
+                    'from smoothed speed',
+                    paste0('median ', '(', av_window,'s)')
+         ),
+         lty = c(1,1, 1),
+         lwd = c(1,1, 3),
+         pch = c(NA, NA, NA),
          col = c(point_col,
                  trend_col,
-                 adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0)),
-                 'darkred'),
+                 adjustcolor(trend_col, offset = c(0.5,0.5,0.5,0))
+         ),
          cex = plt_leg_cex
   )
-  
-  
   # 
   # # . . Mean vector length --------------------------------------------------
   # with(adata,
@@ -2897,8 +3016,8 @@ FT_plot_track = function(path_file = FT_select_file(file_type = '_proc.csv.gz'),
        }
   )
   legend(x = plt_leg_pos,
-         legend  = c('0–60s',
-                     '60–120s',
+         legend  = c('0 to 60s',
+                     '60 to 120s',
                      '0.1Hz (10s)'
                      ),
          col = c('darkblue',
