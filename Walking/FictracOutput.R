@@ -683,7 +683,7 @@ adata = within(adata,
                                }
                }
                )
-#set early acceleration to NA where it cannot be estimated
+# . Neaten up acceleration ------------------------------------------------
 adata = within(adata,
                {
                  smooth_accel[experimental_time < av_window/2] = NA
@@ -710,6 +710,8 @@ write.csv(x = adata,
                   {csv_file},
           row.names = FALSE
 )
+
+
 
 # Plot data ---------------------------------------------------------------
 message('Plotting data')
