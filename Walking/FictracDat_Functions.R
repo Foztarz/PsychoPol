@@ -3986,7 +3986,6 @@ FT_TimeAverage_all = function(
   }
   return(av_file)
 }
-
 FT_plot_average = function(path_file = FT_select_file('_average.csv'),
                            experiment_length = 2, #minutes
                            condition1_length = 1, #minutes
@@ -4631,6 +4630,170 @@ FT_plot_average = function(path_file = FT_select_file('_average.csv'),
       plot_files
     }
   )
+}
+#Summarise averages across phases with the same stimulus
+
+FT_track_average = function(path_file = FT_select_file('_average.csv'),
+                           condition1_phases = c(1,2,3,4,5), #10s phases before switch
+                           condition2_phases = c(8,9,10,11,12), #10s phases after switch
+                           av_window = 5.0,#number of seconds to smooth over for averaging
+                           med_window = 10.0,#number of seconds to smooth over for averaging
+                           crossval = FALSE, # TRUE, data were randomised to check the analysis
+                           sys_win = Sys.info()[['sysname']] == 'Windows',
+                           speedup_data.table = TRUE, #Use the data.table package to speed up reading and writing
+                           verbose = TRUE, #Tell the user what is going on
+                           show_csv = TRUE # open the CSV after saving
+)
+{
+  path_folder1 = dirname(path_file)
+  # Read in data ------------------------------------------------------------
+  # . Read in files ------------------------------------------------------------
+  if(verbose){message('\n','Reading in "', basename(path_file), '"\nplease be patient...')}
+  tryCatch(#Perform no further analysis if the file doesn't load
+    {#try to load
+      day_data_table = 
+        if(speedup_data.table)
+        {
+          data.table::fread(
+            file = path_file, 
+            sep = ',',
+            header = TRUE
+          )#,#read from user-selected file
+        }else
+        {
+          read.table(
+            file = path_file, 
+            sep = ',',
+            header = TRUE
+          )#,#read from user-selected file
+        }
+    },
+    error = function(e)
+    {#if it doesn't load
+      stop(
+        paste0('"',
+               basename(path_file), 
+               '" could not be loaded!\n',
+               e)
+      )
+    }
+  )
+  if(verbose){message('"',basename(path_file), '" loaded successfully')}
+  
+  # Calculate averages ------------------------------------------------------
+  #separate pre-switch and post switch phases in user-defined manner
+  pre_switch = subset(x = day_data_table,
+                      subset = phase <= max(condition1_phases) )
+  post_switch = subset(x = day_data_table,
+                      subset = phase >= min(condition2_phases) )
+  #calcuate for pre-switch for each teck, preserving condition
+  pre_switch_speed = aggregate(formula = speed_median~track*condition,
+                               data = pre_switch,
+                               FUN = median
+                               )
+  pre_switch_speed = within(pre_switch_speed,
+                            {
+                            speed_condition1 = speed_median
+                            rm(speed_median)
+                            }
+                            )
+  pre_switch_turn = aggregate(formula = turn_median~track*condition,
+                               data = pre_switch,
+                               FUN = median
+                               )
+  pre_switch_turn = within(pre_switch_turn,
+                            {
+                            turn_condition1 = turn_median
+                            rm(turn_median)
+                            }
+                            )
+  pre_switch_accel = aggregate(formula = accel_median~track*condition,
+                               data = pre_switch,
+                               FUN = median
+                               )
+  pre_switch_accel = within(pre_switch_accel,
+                            {
+                            accel_condition1 = accel_median
+                            rm(accel_median)
+                            }
+                            )
+  
+  
+  #calcuate for post-switch for each teck, preserving condition
+  post_switch_speed = aggregate(formula = speed_median~track*condition,
+                               data = post_switch,
+                               FUN = median
+                               )
+  post_switch_speed = within(post_switch_speed,
+                            {
+                            speed_condition2 = speed_median
+                            rm(speed_median)
+                            }
+                            )
+  post_switch_turn = aggregate(formula = turn_median~track*condition,
+                               data = post_switch,
+                               FUN = median
+                               )
+  post_switch_turn = within(post_switch_turn,
+                            {
+                            turn_condition2 = turn_median
+                            rm(turn_median)
+                            }
+                            )
+  post_switch_accel = aggregate(formula = accel_median~track*condition,
+                               data = post_switch,
+                               FUN = median
+                               )
+  post_switch_accel = within(post_switch_accel,
+                            {
+                            accel_condition2 = accel_median
+                            rm(accel_median)
+                            }
+                            )
+  
+  #combine together
+  track_speed = merge(x = pre_switch_speed,
+                      y =  post_switch_speed)
+  track_turn = merge(x = pre_switch_turn,
+                     y = post_switch_turn)
+  track_accel = merge(x = pre_switch_accel,
+                     y = post_switch_accel)
+  track_averages = merge(x = track_speed,
+                         y = merge(x = track_turn,
+                                   y = track_accel)
+                         )
+  
+  # Save averaged dataset in master folder --------------------------------
+  av_file = file.path(dirname(path_file),
+                      paste0(basename(path_file),
+                             '_trackAv',
+                             '.csv')
+  )
+  if(verbose)
+  {
+    message('Saving track averages as:\n', 
+            gsub(pattern = '/',
+                 x = av_file,
+                 replacement = '\n')
+    )
+    message('May take some time...','\n')
+  }
+  if(speedup_data.table)
+  {
+    data.table::fwrite(x = track_averages,
+                       file = av_file,
+                       row.names = FALSE
+    )
+  }else
+  {
+    write.table(x = track_averages,
+                file = av_file,
+                sep = ',',
+                row.names = FALSE
+    )
+  }
+  if(show_csv){shell.exec.OS(av_file)}
+  return(av_file)
 }
 
 # Maintenance -------------------------------------------------------------
