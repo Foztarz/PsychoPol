@@ -37,9 +37,9 @@ Created on Thu May  6 17:51:26 2021
 #               https://www.sony-semicon.co.jp/products/common/pdf/IMX250_264_253MZR_MYR_Flyer_en.pdf
 # 
 #TODO   
-#- Test run  
+#- Test run  +
 #- Comment  
-#- HDR
+#- HDR      +
 #- Image filtering
 #- Dark subtraction
 #- Neaten up          
@@ -67,9 +67,9 @@ import warnings
 fileformat = '.tiff'
 expos_type = 'name'#exposure is '--######us'
 edge_lim = 10#% bottom and top 10% replaced
-gamma_corr = 1.0#gamma correction for final image
-#top quantile to divide final image by
-max_val = 0.99#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
+# gamma_corr = 1.0#gamma correction for final image#N.B. sigmoid scaling now used
+#Quantile to fit within display sigmoid
+max_val = 0.999#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
 
 """
 ## Find files
@@ -143,12 +143,17 @@ plt.imshow(img_HDR)
         # plt.imshow(img_HDR)
         # plt.imshow(np.log10(img_HDR+1))
         # plt.imshow(np.log10(np.float64(img_mid)+1))
-hist_HDR = plt.hist(np.log10(img_HDR.ravel()+1),1000)
-plt.title('HDR image')
-plt.xlabel("log10 pixel byte values / s")
-plt.ylabel("Frequency")
-plt.savefig( os.path.dirname(imfile)+ '/HDR_histogram.png')
-plt.close()
+#hist_HDR = plt.hist(np.log10(img_HDR.ravel()+1),1000)
+nonzero = img_HDR.ravel()[img_HDR.ravel()>0]
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax.hist(np.log10(nonzero), bins = 100)
+ax.set_title('HDR image')
+ax.set_xlabel("log10 pixel byte values / s")
+ax.set_ylabel("Frequency")
+fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.png')
+# fig.close()
+
 """
 ## Process for polarization
 """
@@ -173,7 +178,19 @@ img_intensity = pa.cvtStokesToIntensity(img_stokes)
 img_DoLP      = pa.cvtStokesToDoLP(img_stokes)
 img_AoLP      = pa.cvtStokesToAoLP(img_stokes)
 
-plt.imshow(img_intensity)
+def  Scale_sigmoid(x, inflex = 0, width = 2, rang = 0.8):
+    bx = (2*np.log((1/((1-rang)/2))-1)*(x-inflex))/width
+    yy = 1/(1+np.exp(-(bx)))
+    return(yy)
+
+img_displ_int = Scale_sigmoid(img_intensity, 
+                              inflex= np.median(nonzero),
+                              width = np.diff(np.quantile(nonzero, [(1-max_val)/2, 1-(1-max_val)/2])),
+                              rang = max_val)
+
+plt.imshow(img_displ_int,   cmap = 'gray', vmin = 0, vmax = 1)
+
+# plt.imshow(img_intensity)
 plt.imshow(img_DoLP, cmap = 'jet', vmin=0, vmax=1)
 plt.imshow(img_AoLP, cmap = 'hsv')
 
@@ -194,14 +211,16 @@ img_AoLP_col_inv = cv2.cvtColor(img_AoLP_col.astype(np.float32), cv2.COLOR_RGB2B
 
 fln = os.path.basename(os.path.dirname(imfile))#crop the file type
 # cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.max(img_intensity))#np.uint8))
-cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.quantile(img_intensity,max_val))#np.uint8))
+# cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.quantile(img_intensity,max_val))#np.uint8))
+cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_displ_int.astype(np.float64))#np.uint8))
 cv2.imwrite(os.path.dirname(imfile)+'/HDR_DoLP_'+fln+".png",img_DoLP_col_inv.astype(np.float64)*255)
 cv2.imwrite(os.path.dirname(imfile)+'/HDR_AoLP_'+fln+".png",img_AoLP_col_inv.astype(np.float64)*255)
 # cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolBright_'+fln+".png",img_AoLP_cmapped)
 
 
 # img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.max(img_intensity), saturation = img_DoLP)
-img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.quantile(img_intensity,max_val), saturation = img_DoLP)
+# img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.quantile(img_intensity,max_val), saturation = img_DoLP)
+img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_displ_int/np.quantile(img_displ_int,max_val), saturation = img_DoLP)
 plt.imshow(img_AoLP_colesque)
 img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.COLOR_RGB2BGR)
 #seems to work differently on Windows?
@@ -210,7 +229,8 @@ img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.C
 # else :
 #     cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolColesque_'+fln+".png",img_AoLP_colesque_inv)
 
-img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= (img_intensity**gamma_corr)/np.quantile(img_intensity,max_val), saturation = img_DoLP*2)
+# img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= (img_intensity**gamma_corr)/np.quantile(img_intensity,max_val), saturation = img_DoLP*2)
+img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= img_displ_int, saturation = img_DoLP*2)
 plt.imshow(img_AoLP_Supercolesque)
 img_AoLP_Supercolesque_inv = cv2.cvtColor(img_AoLP_Supercolesque.astype(np.float32), cv2.COLOR_RGB2BGR)
 #seems to work differently on Windows?
@@ -219,3 +239,11 @@ if os.name == 'nt' :
 else :
     cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque_inv)
 
+"""
+#Save as csv?
+"""
+#Downsample x 2^-8
+AoLP = np.asarray(cv2.pyrDown(cv2.pyrDown(cv2.pyrDown(img_AoLP))),dtype=np.float64)
+DoLP = np.asarray(cv2.pyrDown(cv2.pyrDown(cv2.pyrDown(img_DoLP))),dtype=np.float64)
+np.savetxt(os.path.dirname(imfile)+"/AoLP_pixels.csv", AoLP, delimiter=',')
+np.savetxt(os.path.dirname(imfile)+"/DoLP_pixels.csv", DoLP, delimiter=',')
