@@ -273,17 +273,17 @@ img_displ_int = Scale_sigmoid(img_intensity,
 plt.imshow(img_displ_int,   cmap = 'gray', vmin = 0, vmax = 1)
 
 # plt.imshow(img_intensity)
-plt.imshow(img_DoLP, cmap = 'jet', vmin=0, vmax=1)
-plt.imshow(img_AoLP, cmap = 'hsv')
+plt.imshow(img_DoLP_msk, cmap = 'jet', vmin=0, vmax=1)
+plt.imshow(img_AoLP_msk, cmap = 'hsv')
 
-img_AoLP_cmapped = pa.applyColorToAoLP(img_AoLP, value=img_DoLP)
+img_AoLP_cmapped = pa.applyColorToAoLP(img_AoLP_msk, value=img_DoLP_msk)
 
 plt.imshow(img_AoLP_cmapped)
 
-img_DoLP_col = cm.jet(img_DoLP)
+img_DoLP_col = cm.jet(img_DoLP_msk)
 plt.imshow(img_DoLP_col.astype(np.float64))
 
-img_AoLP_col = cm.hsv(img_AoLP/np.pi)
+img_AoLP_col = cm.hsv(img_AoLP_msk/np.pi)
 plt.imshow(img_AoLP_col.astype(np.float64))
 
 img_DoLP_col_inv = cv2.cvtColor(img_DoLP_col.astype(np.float32), cv2.COLOR_RGB2BGR)
@@ -302,7 +302,8 @@ cv2.imwrite(os.path.dirname(imfile)+'/HDR_AoLP_'+fln+".png",img_AoLP_col_inv.ast
 
 # img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.max(img_intensity), saturation = img_DoLP)
 # img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_intensity/np.quantile(img_intensity,max_val), saturation = img_DoLP)
-img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP, value= img_displ_int/np.quantile(img_displ_int,max_val), saturation = img_DoLP)
+# img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP_msk, value= img_displ_int/np.quantile(img_displ_int,max_val), saturation = img_DoLP_msk)
+img_AoLP_colesque = pa.applyColorToAoLP(img_AoLP_msk, value= img_displ_int, saturation = img_DoLP_msk)
 plt.imshow(img_AoLP_colesque)
 img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.COLOR_RGB2BGR)
 #seems to work differently on Windows?
@@ -312,7 +313,7 @@ img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.C
 #     cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolColesque_'+fln+".png",img_AoLP_colesque_inv)
 
 # img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= (img_intensity**gamma_corr)/np.quantile(img_intensity,max_val), saturation = img_DoLP*2)
-img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP, value= img_displ_int, saturation = img_DoLP*2)
+img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP_msk, value= img_displ_int, saturation = img_DoLP_msk*2)
 plt.imshow(img_AoLP_Supercolesque)
 img_AoLP_Supercolesque_inv = cv2.cvtColor(img_AoLP_Supercolesque.astype(np.float32), cv2.COLOR_RGB2BGR)
 #seems to work differently on Windows?
