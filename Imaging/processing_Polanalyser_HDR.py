@@ -4,7 +4,7 @@ Created on Thu May  6 17:51:26 2021
 
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster        DATE: 2021 03 30
-#     MODIFIED:	James Foster        DATE: 2021 06 18
+#     MODIFIED:	James Foster        DATE: 2021 06 21
 #
 #  DESCRIPTION: Loads images capture exported from Lucid's Arena SDK. These 
 #               should consist of a bracket of images separated by 1–2EV. 
@@ -21,6 +21,9 @@ Created on Thu May  6 17:51:26 2021
 #      OUTPUTS: Images as bitmap (png).
 #
 #	   CHANGES: -double saturated versions
+#	            -sigmoid scaling
+#	            -save DoLP histogram
+#	            -mask DoLP
 #
 #   REFERENCES: Foster J.J., Temple S.E., How M.J., Daly I.M., Sharkey C.R.,
 #               Wilby D., Roberts N.W., (2018)
@@ -147,13 +150,18 @@ plt.imshow(img_HDR)
 nonzero = img_HDR.ravel()[img_HDR.ravel()>0]
 fig = plt.figure()
 ax = fig.add_subplot(111)
-ax.hist(np.log10(nonzero), bins = 100)
+ax.hist(  np.log10(nonzero), bins = 100)
 ax.set_title('HDR image')
 ax.set_xlabel("log10 pixel byte values / s")
 ax.set_ylabel("Frequency")
 fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.png')
 # fig.close()
-
+#create mask
+# msk = np.zeros(img_HDR.shape[:2], np.uint8)
+# msk[np.where(img_HDR > 0)] = 255
+# plt.imshow(msk)
+# nn = cv2.calcHist([nonzero.astype('uint8')], channels = [0], mask = msk, histSize = [1000], ranges = [0,75])
+# plt.plot(nn)
 """
 ## Process for polarization
 """
@@ -177,6 +185,80 @@ img_S0, img_S1, img_S2 = cv2.split(img_stokes)
 img_intensity = pa.cvtStokesToIntensity(img_stokes)
 img_DoLP      = pa.cvtStokesToDoLP(img_stokes)
 img_AoLP      = pa.cvtStokesToAoLP(img_stokes)
+
+"""
+## create mask for lens shape
+"""
+lens_radius = np.float64(img_DoLP.shape[1])/2 * (1 - 80/256)
+msk = np.empty(img_DoLP.shape[:2], np.float64)
+msk[:] = np.nan
+ctr = (np.float64(img_DoLP.shape[:2])+0)/2
+im_coords = [[row, col] for row in range(0, img_DoLP.shape[0] - 1) for col in range(img_DoLP.shape[1] - 1)]
+rowcol_distance2= [(np.square(i[0]), np.square(i[1]))  for i in (np.float64(im_coords)-ctr).tolist()]
+ctr_distance = [(np.sqrt(i[0] + i[1]))  for i in rowcol_distance2]
+lens_ind = np.where(ctr_distance < lens_radius)[0].tolist()
+lens_coords = [im_coords[i] for i in lens_ind]
+msk[[i[0] for i in lens_coords], [i[1] for i in lens_coords]] = 1
+img_DoLP_msk = img_DoLP.astype(np.float64) * msk
+img_AoLP_msk = img_AoLP.astype(np.float64) * msk
+# plt.imshow(img_DoLP_msk)
+plt.imshow(img_AoLP_msk)
+
+
+"""
+## make DoLP histogram
+"""
+fig = plt.figure()
+ax = fig.add_subplot(111)
+DoLP_histogram = ax.hist(  img_DoLP_msk.ravel(), bins = [i/100 for i in range(0, 101, 1)])
+DoLP_freq = DoLP_histogram[0].tolist()
+DoLP_bins = DoLP_histogram[1].tolist()
+DoLP_binc = [i + np.mean(np.diff(DoLP_bins))/2 for i in DoLP_bins[:(len(DoLP_bins)-1)]]
+
+ax.set_title('Image Pixels')
+ax.set_xlabel("Degree of Polarization")
+ax.set_ylabel("Frequency")
+fig.savefig( os.path.dirname(imfile)+ '/DoLP_histogram.png')
+np.savetxt(os.path.dirname(imfile)+"/DoLP_histogram.csv", 
+          [DoLP_freq, DoLP_binc] , 
+           delimiter=',')
+
+
+"""
+## make AoLP histogram
+"""
+N = 59
+
+aop_hist = np.histogram(img_AoLP_msk,bins=N,range = [0.001, np.pi]) 
+
+bottom = 0
+max_height = 1102
+
+theta = np.linspace(0.0, np.pi, N, endpoint=False)
+radii = aop_hist[0] #/ np.product(img_AoLP_msk.shape)
+width = 0.5*(2*np.pi) / N
+    # width = (2*np.pi) / N
+fig = plt.figure()
+ax = fig.add_subplot(111, polar=True)
+bars = ax.bar(theta, radii, width=width, bottom=bottom)
+ax.set_rlabel_position(270)
+
+# Use custom colors and opacity
+for r, bar in zip(radii, bars):
+    bar.set_facecolor('red')
+    # bar.set_facecolor(plt.cm.jet(r / 10.))
+    # bar.set_alpha(0.8)
+ax.set_title('Image Pixels')
+ax.set_xlabel("Angle of Polarization")
+ax.set_ylabel("Frequency")
+fig.savefig( os.path.dirname(imfile)+ '/AoLP_histogram.png')
+np.savetxt(os.path.dirname(imfile)+"/AoLP_histogram.csv", 
+          [radii, theta* 180./np.pi] , 
+           delimiter=',')
+
+"""
+## make sigmoid scaling
+"""
 
 def  Scale_sigmoid(x, inflex = 0, width = 2, rang = 0.8):
     bx = (2*np.log((1/((1-rang)/2))-1)*(x-inflex))/width
