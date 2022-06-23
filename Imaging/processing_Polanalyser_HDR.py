@@ -284,8 +284,8 @@ def  Scale_sigmoid(x, inflex = 0, width = 2, rang = 0.8):
     return(yy)
 
 img_displ_int = Scale_sigmoid(img_intensity, 
-                              inflex= np.median(img_HDR_val),
-                              width = np.diff(np.quantile(img_HDR_val, [(1-max_val)/2, 1-(1-max_val)/2])),
+                              inflex= np.nanmedian(img_HDR_val),
+                              width = np.diff(np.nanquantile(img_HDR_val, [(1-max_val)/2, 1-(1-max_val)/2])),
                               rang = max_val)
 
 plt.imshow(img_displ_int,   cmap = 'gray', vmin = 0, vmax = 1)
