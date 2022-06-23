@@ -38,7 +38,7 @@
 # -----------------------------------------------------------------------------
 """
 #user defined exposure time in s
-user_exposure = 0.500*1000000
+user_exposure = 100.0*1000000
 #user exposure value steps
 user_ev_step = 2
 #user acquisition frame rate
