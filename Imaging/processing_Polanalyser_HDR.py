@@ -195,7 +195,9 @@ msk[[i[0] for i in lens_coords], [i[1] for i in lens_coords]] = 1
 img_DoLP_msk = img_DoLP.astype(np.float64) * msk
 img_AoLP_msk = img_AoLP.astype(np.float64) * msk
 img_HDR_msk = img_HDR.astype(np.float64) * msk
-plt.imshow(img_HDR_msk)
+img_intensity_msk = img_intensity.astype(np.float64) * msk
+# plt.imshow(img_intensity_msk)
+# plt.imshow(img_HDR_msk)
 # plt.imshow(img_DoLP_msk)
 #plt.imshow(img_AoLP_msk)
 
@@ -222,6 +224,9 @@ ax.set_xlim([zero_pos/1.2, np.max(HDR_histogram[1][1:])*1.2] )
 ax.set_xlabel("log10 pixel byte values / s")
 ax.set_ylabel("Frequency")
 fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.pdf')
+np.savetxt(os.path.dirname(imfile)+"/HDR_histogram.csv", 
+          [HDR_histogram[0], HDR_histogram[1][:-1]] , 
+           delimiter=',')
 
 """
 ## make DoLP histogram
@@ -232,7 +237,10 @@ DoLP_histogram = ax.hist(  img_DoLP_msk.ravel(), bins = [i/100 for i in range(0,
 DoLP_freq = DoLP_histogram[0].tolist()
 DoLP_bins = DoLP_histogram[1].tolist()
 DoLP_binc = [i + np.mean(np.diff(DoLP_bins))/2 for i in DoLP_bins[:(len(DoLP_bins)-1)]]
-
+DoLP_bars = DoLP_histogram[2].get_children()
+for i in range(0, len(DoLP_bars)):
+    DoLP_bars[i].set_facecolor( plt.cm.jet(DoLP_binc[i]) )
+    DoLP_bars[i].set_edgecolor( ((0.5,0.5,0.5,1.)) )
 ax.set_title('Image Pixels')
 ax.set_xlabel("Degree of Polarization")
 ax.set_ylabel("Frequency")
@@ -278,14 +286,16 @@ np.savetxt(os.path.dirname(imfile)+"/AoLP_histogram.csv",
 ## make sigmoid scaling
 """
 
-def  Scale_sigmoid(x, inflex = 0, width = 2, rang = 0.8):
+def  Scale_sigmoid(x, inflex = 0., width = 2., rang = 0.8):
     bx = (2*np.log((1/((1-rang)/2))-1)*(x-inflex))/width
     yy = 1/(1+np.exp(-(bx)))
     return(yy)
 
-img_displ_int = Scale_sigmoid(img_intensity, 
-                              inflex= np.median(img_HDR_val),
-                              width = np.diff(np.quantile(img_HDR_val, [(1-max_val)/2, 1-(1-max_val)/2])),
+
+# nonzero = img_intensity_msk.ravel()[np.where(img_intensity_msk.ravel()>0)[0].tolist()]
+img_displ_int = Scale_sigmoid(img_intensity_msk, 
+                              inflex= np.nanmedian(img_HDR_val),
+                              width = np.diff(np.nanquantile(img_HDR_val, [(1-max_val)/2, 1-(1-max_val)/2])),
                               rang = max_val)
 
 plt.imshow(img_displ_int,   cmap = 'gray', vmin = 0, vmax = 1)
@@ -312,7 +322,7 @@ img_AoLP_col_inv = cv2.cvtColor(img_AoLP_col.astype(np.float32), cv2.COLOR_RGB2B
 fln = os.path.basename(os.path.dirname(imfile))#crop the file type
 # cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.max(img_intensity))#np.uint8))
 # cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_intensity.astype(np.float64)/np.quantile(img_intensity,max_val))#np.uint8))
-cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",255*img_displ_int.astype(np.float64))#np.uint8))
+cv2.imwrite(os.path.dirname(imfile)+'/HDR_Int_'+fln+".png",img_displ_int.astype(np.float64)*255)#np.uint8))
 cv2.imwrite(os.path.dirname(imfile)+'/HDR_DoLP_'+fln+".png",img_DoLP_col_inv.astype(np.float64)*255)
 cv2.imwrite(os.path.dirname(imfile)+'/HDR_AoLP_'+fln+".png",img_AoLP_col_inv.astype(np.float64)*255)
 # cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolBright_'+fln+".png",img_AoLP_cmapped)
@@ -334,11 +344,16 @@ img_AoLP_colesque_inv = cv2.cvtColor(img_AoLP_colesque.astype(np.float32), cv2.C
 img_AoLP_Supercolesque = pa.applyColorToAoLP(img_AoLP_msk, value= img_displ_int, saturation = img_DoLP_msk*2)
 plt.imshow(img_AoLP_Supercolesque)
 img_AoLP_Supercolesque_inv = cv2.cvtColor(img_AoLP_Supercolesque.astype(np.float32), cv2.COLOR_RGB2BGR)
+parms = list()
+parms.append(cv2.IMWRITE_PNG_COMPRESSION)
+parms.append(0)
 #seems to work differently on Windows?
 if os.name == 'nt' :
-    cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque)
+    cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque,
+                params = parms)
 else :
-    cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque_inv)
+    cv2.imwrite(os.path.dirname(imfile)+'/HDR_PolSuperColesque_'+fln+".png",img_AoLP_Supercolesque_inv,
+                params = parms)
 
 """
 #Save as csv?
