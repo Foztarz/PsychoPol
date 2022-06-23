@@ -4,7 +4,7 @@ Created on Thu May  6 17:51:26 2021
 
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster        DATE: 2021 03 30
-#     MODIFIED:	James Foster        DATE: 2021 06 21
+#     MODIFIED:	James Foster        DATE: 2021 06 23
 #
 #  DESCRIPTION: Loads images capture exported from Lucid's Arena SDK. These 
 #               should consist of a bracket of images separated by 1–2EV. 
