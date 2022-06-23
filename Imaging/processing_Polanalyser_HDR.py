@@ -147,14 +147,7 @@ plt.imshow(img_HDR)
         # plt.imshow(np.log10(img_HDR+1))
         # plt.imshow(np.log10(np.float64(img_mid)+1))
 #hist_HDR = plt.hist(np.log10(img_HDR.ravel()+1),1000)
-nonzero = img_HDR.ravel()[img_HDR.ravel()>0]
-fig = plt.figure()
-ax = fig.add_subplot(111)
-ax.hist(  np.log10(nonzero), bins = 100)
-ax.set_title('HDR image')
-ax.set_xlabel("log10 pixel byte values / s")
-ax.set_ylabel("Frequency")
-fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.pdf')
+# nonzero = img_HDR.ravel()[img_HDR.ravel()>0]
 # fig.close()
 #create mask
 # msk = np.zeros(img_HDR.shape[:2], np.uint8)
@@ -201,9 +194,34 @@ lens_coords = [im_coords[i] for i in lens_ind]
 msk[[i[0] for i in lens_coords], [i[1] for i in lens_coords]] = 1
 img_DoLP_msk = img_DoLP.astype(np.float64) * msk
 img_AoLP_msk = img_AoLP.astype(np.float64) * msk
+img_HDR_msk = img_HDR.astype(np.float64) * msk
+plt.imshow(img_HDR_msk)
 # plt.imshow(img_DoLP_msk)
-plt.imshow(img_AoLP_msk)
+#plt.imshow(img_AoLP_msk)
 
+
+"""
+## make intensity histogram
+"""
+img_HDR_val = img_HDR_msk.ravel()
+fig = plt.figure()
+ax = fig.add_subplot(111)
+HDR_histogram = np.histogram(img_HDR_val, bins = np.uint8(1e3), 
+                             range = [0, 
+                                      np.nanmax(img_HDR_val)])
+ax.set_xscale('log')
+min_pos = np.min(np.where(HDR_histogram[0][1:-1] > 0))
+zero_pos = HDR_histogram[1][min_pos]/1.1
+brs = ax.bar(x =  np.append(zero_pos, HDR_histogram[1][1:-1]), 
+             height = HDR_histogram[0],
+             width= 0.5*np.log(np.append([1.3], 
+                                         HDR_histogram[1][1:-1])), 
+             ec="k", align="edge", color = ['tab:red'] + ['tab:blue'] * len(HDR_histogram[1][1:-1]) )
+ax.set_title('HDR image')
+ax.set_xlim([zero_pos/1.2, np.max(HDR_histogram[1][1:])*1.2] )
+ax.set_xlabel("log10 pixel byte values / s")
+ax.set_ylabel("Frequency")
+fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.pdf')
 
 """
 ## make DoLP histogram
