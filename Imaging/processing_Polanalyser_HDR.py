@@ -18,7 +18,7 @@ Created on Thu May  6 17:51:26 2021
 #               intensity, and AoLP scaled in brightness by linearised (or gamma-
 #               corrected) brightness and in saturation by DoLP.
 #               
-#      OUTPUTS: Images as bitmap (png).
+#      OUTPUTS: Images as bitmap (pdf).
 #
 #	   CHANGES: -double saturated versions
 #	            -sigmoid scaling
@@ -154,7 +154,7 @@ ax.hist(  np.log10(nonzero), bins = 100)
 ax.set_title('HDR image')
 ax.set_xlabel("log10 pixel byte values / s")
 ax.set_ylabel("Frequency")
-fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.png')
+fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.pdf')
 # fig.close()
 #create mask
 # msk = np.zeros(img_HDR.shape[:2], np.uint8)
@@ -218,7 +218,7 @@ DoLP_binc = [i + np.mean(np.diff(DoLP_bins))/2 for i in DoLP_bins[:(len(DoLP_bin
 ax.set_title('Image Pixels')
 ax.set_xlabel("Degree of Polarization")
 ax.set_ylabel("Frequency")
-fig.savefig( os.path.dirname(imfile)+ '/DoLP_histogram.png')
+fig.savefig( os.path.dirname(imfile)+ '/DoLP_histogram.pdf')
 np.savetxt(os.path.dirname(imfile)+"/DoLP_histogram.csv", 
           [DoLP_freq, DoLP_binc] , 
            delimiter=',')
@@ -236,7 +236,7 @@ max_height = 1102
 
 theta = np.linspace(0.0, np.pi, N, endpoint=False)
 radii = aop_hist[0] #/ np.product(img_AoLP_msk.shape)
-width = 0.5*(2*np.pi) / N
+width = 0.1*(2*np.pi) / N
     # width = (2*np.pi) / N
 fig = plt.figure()
 ax = fig.add_subplot(111, polar=True)
@@ -250,10 +250,10 @@ for r, bar in zip(radii, bars):
     # bar.set_alpha(0.8)
 ax.set_title('Image Pixels')
 ax.set_xlabel("Angle of Polarization")
-ax.set_ylabel("Frequency")
-fig.savefig( os.path.dirname(imfile)+ '/AoLP_histogram.png')
+# ax.set_ylabel("Frequency")
+fig.savefig( os.path.dirname(imfile)+ '/AoLP_histogram.pdf')
 np.savetxt(os.path.dirname(imfile)+"/AoLP_histogram.csv", 
-          [radii, theta* 180./np.pi] , 
+          [np.uint8(radii), np.uint8(np.round(theta* 180./np.pi))] , 
            delimiter=',')
 
 """
