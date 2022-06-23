@@ -73,6 +73,8 @@ edge_lim = 10#% bottom and top 10% replaced
 # gamma_corr = 1.0#gamma correction for final image#N.B. sigmoid scaling now used
 #Quantile to fit within display sigmoid
 max_val = 0.999#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
+#lens type, fisheye or zoom
+lens_type = 'fisheye'
 
 """
 ## Find files
@@ -182,16 +184,38 @@ img_AoLP      = pa.cvtStokesToAoLP(img_stokes)
 """
 ## create mask for lens shape
 """
-lens_radius = np.float64(img_DoLP.shape[1])/2 * (1 - 80/256)
-msk = np.empty(img_DoLP.shape[:2], np.float64)
-msk[:] = np.nan
-ctr = (np.float64(img_DoLP.shape[:2])+0)/2
-im_coords = [[row, col] for row in range(0, img_DoLP.shape[0] - 1) for col in range(img_DoLP.shape[1] - 1)]
-rowcol_distance2= [(np.square(i[0]), np.square(i[1]))  for i in (np.float64(im_coords)-ctr).tolist()]
-ctr_distance = [(np.sqrt(i[0] + i[1]))  for i in rowcol_distance2]
-lens_ind = np.where(ctr_distance < lens_radius)[0].tolist()
-lens_coords = [im_coords[i] for i in lens_ind]
-msk[[i[0] for i in lens_coords], [i[1] for i in lens_coords]] = 1
+if lens_type == 'fisheye' :
+    lens_radius = np.float64(img_DoLP.shape[1])/2 * (1 - 80/256)
+    msk = np.empty(img_DoLP.shape[:2], np.float64)
+    msk[:] = np.nan
+    ctr = (np.float64(img_DoLP.shape[:2])+0)/2
+    #these loops are VERY slow
+    # im_coords = [[row, col] for row in range(0, img_DoLP.shape[0] - 1) for col in range(img_DoLP.shape[1] - 1)]
+    # rowcol_distance2= [(np.square(i[0]), np.square(i[1]))  for i in (np.float64(im_coords)-ctr).tolist()]
+    # ctr_distance = [(np.sqrt(i[0] + i[1]))  for i in rowcol_distance2]
+    # lens_coords = [im_coords[i] for i in lens_ind]
+    #instead, construct the coordinates using an array function
+    im_coords = np.ones( np.append(2, img_DoLP.shape), dtype = np.int16)
+    im_coords[0] = im_coords[0] * np.array([range(img_DoLP.shape[0])]).T
+    im_coords[1] = im_coords[1] * np.array([range(img_DoLP.shape[1])])
+    im_coords = np.hstack((im_coords[0].reshape(-1, 1),
+                           im_coords[1].reshape(-1, 1)))
+    #set up a function to map onto these coordinates
+    Diag_dist  = lambda i: np.sqrt(np.square(i[0]) + np.square(i[1]))
+    #perform this function on the difference between coordinates and the centre
+    ctr_distance = np.array(list(map( Diag_dist,  
+                                     np.float64(im_coords)-ctr
+                                     )))
+    #select the indices of pixel illuminated by the lens
+    lens_ind = np.where(ctr_distance < lens_radius)[0].tolist()
+    #select those coordinates
+    lens_coords = im_coords[lens_ind]
+    #set those coordinates to one
+    msk[[i[0] for i in lens_coords], [i[1] for i in lens_coords]] = 1
+else:
+    msk = np.ones(img_DoLP.shape[:2], np.float64)
+    
+#apply the mask to the processed images   
 img_DoLP_msk = img_DoLP.astype(np.float64) * msk
 img_AoLP_msk = img_AoLP.astype(np.float64) * msk
 img_HDR_msk = img_HDR.astype(np.float64) * msk
@@ -266,6 +290,7 @@ width = 0.1*(2*np.pi) / N
     # width = (2*np.pi) / N
 fig = plt.figure()
 ax = fig.add_subplot(111, polar=True)
+# ax.set_theta_zero_location("N")
 bars = ax.bar(theta, radii, width=width, bottom=bottom)
 ax.set_rlabel_position(270)
 
