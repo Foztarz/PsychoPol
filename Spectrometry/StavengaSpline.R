@@ -25,3 +25,4 @@ StavengaSpline <- function(spec.range = c(300, 700), #bounds of spectrum in nano
   r.stav <- (a.band + b.band + g.band)/max(a.band + b.band + g.band)
   return(    smooth.spline(wlns, r.stav)    )
 }#StavengaSpline <- function(spec.range, lambda.max)
+#pointless comment
