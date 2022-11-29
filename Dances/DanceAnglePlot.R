@@ -1,10 +1,9 @@
 #FOR A 'CLEAN' RUN, RESTART Rstudio
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2022 02 17
+#     MODIFIED:	James Foster              DATE: 2022 11 29
 #
-#  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
-#               .
+#  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase.
 #               
 #       INPUTS: A ".csv" table with columns for experiment phase ("stimulus") and
 #               angle ("angle").
@@ -16,6 +15,8 @@
 #             - Use aggregate to sort and plot
 #             - stimulus orientation label: "orientation" -> "stim_ori"
 #             - correct for tilt and rotation
+#             - aggregate no longer takes arg "formula"
+#             - save ML results
 #
 #   REFERENCES: Batschelet E (1981).
 #               Graphical presentation, Chap 1.2, p. 4-6
@@ -24,7 +25,6 @@
 #               Academic Press (London)
 #
 #    EXAMPLES:  Fill out user input (lines 80-87), then press ctrl+shift+s to run
-#
 # 
 #TODO   ---------------------------------------------
 #TODO   
@@ -316,7 +316,7 @@ pdf(file = savepath,
 
 # . Set up plot parameters ------------------------------------------------
 #make a set of angles for each combinatino of stimulus, orientation, dance and bee
-df_lst = aggregate(formula = angle~stim_ori*stimulus*dance*bee*date,
+df_lst = aggregate( angle~stim_ori*stimulus*dance*bee*date,
           data = adata, 
           FUN = list
           )
@@ -403,3 +403,17 @@ invisible(
 dev.off()
 #show plot
 shell.exec.OS(savepath)
+
+
+# Save data with models ---------------------------------------------------
+bound_dt = within(df_lst, 
+                  {
+                    angle = sapply(angle, paste, collapse = ', ')
+                  })
+ml_par_df = do.call(what = rbind, args = ml_par)
+bound_dt = cbind(bound_dt, ml_par_df)
+res_path = paste0(path_file, '-MLE_dances.csv')
+write.csv(x = bound_dt,
+          file = res_path,
+          row.names = FALSE)
+shell.exec.OS(res_path)
