@@ -4,7 +4,7 @@ Created on Thu May  6 17:51:26 2021
 
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster        DATE: 2021 03 30
-#     MODIFIED:	James Foster        DATE: 2021 06 23
+#     MODIFIED:	James Foster        DATE: 2023 03 16
 #
 #  DESCRIPTION: Loads images capture exported from Lucid's Arena SDK. These 
 #               should consist of a bracket of images separated by 1–2EV. 
@@ -24,6 +24,7 @@ Created on Thu May  6 17:51:26 2021
 #	            -sigmoid scaling
 #	            -save DoLP histogram
 #	            -mask DoLP
+#	            -install polanalyser from pip
 #
 #   REFERENCES: Foster J.J., Temple S.E., How M.J., Daly I.M., Sharkey C.R.,
 #               Wilby D., Roberts N.W., (2018)
@@ -43,6 +44,7 @@ Created on Thu May  6 17:51:26 2021
 #- Test run  +
 #- Comment  
 #- HDR      +
+#- fix cv2.split
 #- Image filtering
 #- Dark subtraction
 #- Neaten up          
@@ -51,6 +53,7 @@ Created on Thu May  6 17:51:26 2021
 # conda install git
 
 # pip install git+https://github.com/elerac/polanalyser
+# pip install polanalyser
 # pip install numba
 
 import numpy as np
