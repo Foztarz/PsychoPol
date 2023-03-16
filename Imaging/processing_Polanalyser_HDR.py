@@ -166,7 +166,7 @@ plt.imshow(img_HDR)
 
 img_demosaiced = pa.demosaicing(img_HDR)
 
-img_000, img_045, img_090, img_135 = cv2.split(img_demosaiced)
+img_000, img_045, img_090, img_135 = pa.demosaicing(img_HDR, pa.COLOR_PolarMono)
 
 plt.imshow(img_000)
 
@@ -320,8 +320,8 @@ def  Scale_sigmoid(x, inflex = 0., width = 2., rang = 0.8):
     return(yy)
 
 
-nonzero = img_intensity_msk[np.nonzero(img_intensity_msk)].ravel()
-img_displ_int = Scale_sigmoid(img_intensity_msk, 
+nonzero = np.log10( img_intensity_msk[np.nonzero(img_intensity_msk)].ravel() )
+img_displ_int = Scale_sigmoid( np.log10( img_intensity_msk ), 
                               inflex= np.nanmedian(nonzero),
                               width = np.diff(np.nanquantile(nonzero, [(1-max_val)/2, 1-(1-max_val)/2])),
                               rang = max_val)
