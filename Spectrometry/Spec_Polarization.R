@@ -10,6 +10,7 @@ formals(data.frame)$stringsAsFactors <- FALSE
 #               Loads text files in counts/nm and calculates polarization
 #               parameters across the UV visible spectrum.
 #               
+#               
 #       INPUTS: Path to a master folder. Each subfolder should contain a set of 
 #               measurements of the same stimulus through a polarizer at 
 #               different angles. Each subfolder may also contain a set of dark 
