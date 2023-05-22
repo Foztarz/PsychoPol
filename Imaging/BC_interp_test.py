@@ -35,7 +35,7 @@ x =  np.linspace(0,img_orig.shape[1]-1,img_orig.shape[1])
 X, Y = np.meshgrid(x,y)
 
 # Choose npts random point from the discrete domain of our model function
-subs = 500#only one in every 500 px kept
+subs = 500#only one in every 500 px kept, becomes slow with large numbers of samples
 npts = int(img_orig.size/subs)#number of sample points
 px, py = np.random.choice(x, npts), np.random.choice(y, npts)
 #extract those image values
