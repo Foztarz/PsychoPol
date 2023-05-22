@@ -24,6 +24,7 @@ conda info --envs
 conda install -c menpo opencv
 
 pip install opencv-python
+#or conda install -c conda-forge opencv
 #conda install -c anaconda numpy -y
 conda install pandas -y
 conda install -c anaconda sqlalchemy -y
