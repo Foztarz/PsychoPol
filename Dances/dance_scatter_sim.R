@@ -34,13 +34,13 @@ set.seed(20230522)#today's date
 # Load packages -----------------------------------------------------------
 require(circular)
 require(data.table)
-require(beeswarm)
+# require(beeswarm)
 
 # Simulate data -----------------------------------------------------------
 n_sim = 1e2
 n_lev = 20
 n_runs = 15# average for naïve dancers
-log_kappa = seq(from = -0.3, to  = 2, length.out = n_lev) # von Mises distribution concentration parameter
+log_kappa = seq(from = -0.3, to  = log(20), length.out = n_lev) # von Mises distribution concentration parameter
 kappas = exp(log_kappa)
 # kappas = seq(from = 0, to = 20, length.out = n_lev)
 dance_data = replicate(n = n_sim,
@@ -56,10 +56,10 @@ dance_data = replicate(n = n_sim,
 # Plot data range ---------------------------------------------------------
 #worst oriented
 plot.circular(dance_data[[1]][[1]], template = 'geographics', main = paste0('kappa =', round(kappas[1],2)))
-arrows.circular(x = pi/2,length = 0)
+arrows.circular(x = circular(pi/2),length = 0)
 #best oriented
 plot.circular(dance_data[[1]][[n_lev]], template = 'geographics', main = paste0('kappa =', round(kappas[n_lev],2)))
-arrows.circular(x = pi/2,length = 0)
+arrows.circular(x = circular(pi/2),length = 0)
 
 
 
@@ -109,7 +109,7 @@ with(rho_data,
      plot(x = kappas,
           y = value,
            pch = 20, 
-           col = adjustcolor('darkblue', alpha.f = 0.2),
+           col = adjustcolor('darkblue', alpha.f = 0.05),
            ylab = 'mean vector length',
            xlab = 'von Mises concentration (kappa)',
            ylim = c(0,1),
@@ -125,7 +125,7 @@ boxplot(formula = value~kappas,
         add = TRUE,
         col = gray(0.7, 0.2),
         border = gray(0.1, 0.7),
-        pars = list(boxwex = 0.1, staplewex = 0.1, outwex = 0.1),
+        pars = list(boxwex = 0.3, staplewex = 0.1, outwex = 0.1),
         axes = F
 )
 
@@ -134,7 +134,7 @@ with(sd_data,
      plot(x = kappas,
           y = value,
            pch = 20, 
-           col = adjustcolor('darkblue', alpha.f = 0.2),
+           col = adjustcolor('darkblue', alpha.f = 0.05),
            ylab = 'circular SD (°)',
            xlab = 'von Mises concentration (kappa)',
            ylim = c(0,180),
@@ -150,7 +150,7 @@ boxplot(formula = value~kappas,
         add = TRUE,
         col = gray(0.7, 0.2),
         border = gray(0.1, 0.7),
-        pars = list(boxwex = 0.1, staplewex = 0.1, outwex = 0.1),
+        pars = list(boxwex = 0.3, staplewex = 0.1, outwex = 0.1),
         axes = F
 )
 # Plot max ----------------------------------------------------------------
@@ -158,7 +158,7 @@ with(mx_data,
      plot(x = kappas,
           y = value,
            pch = 20, 
-           col = adjustcolor('darkblue', alpha.f = 0.2),
+           col = adjustcolor('darkblue', alpha.f = 0.05),
            ylab = 'maxiumum error (°)',
            xlab = 'von Mises concentration (kappa)',
            ylim = c(0,180),
@@ -174,7 +174,7 @@ boxplot(formula = value~kappas,
         add = TRUE,
         col = gray(0.7, 0.2),
         border = gray(0.1, 0.7),
-        pars = list(boxwex = 0.1, staplewex = 0.1, outwex = 0.1),
+        pars = list(boxwex = 0.3, staplewex = 0.1, outwex = 0.1),
         axes = F
 )
 
@@ -185,7 +185,7 @@ boxplot(formula = value~kappas,
 plot(x = sd_data$value,
     y = mx_data$value,
     pch = 20, 
-    col = adjustcolor('darkblue', alpha.f = 0.2),
+    col = adjustcolor('darkblue', alpha.f = 0.05),
     xlab = 'circular sd (°)',
     ylab = 'maximum error (°)',
     xlim = c(0,180),
@@ -201,8 +201,19 @@ abline(h = c(0,180),
 
 # Check medians -----------------------------------------------------------
 
-
-round(range(aggregate(x = value~kappas, data = sd_data, FUN = median)$value),2)
+sd_mdn = aggregate(x = value~kappas, data = sd_data, FUN = median)
+mx_mdn = aggregate(x = value~kappas, data = mx_data, FUN = median)
+round(range(sd_mdn$value),2)
 # [1] 20.23 81.41
-round(range(aggregate(x = value~kappas, data = mx_data, FUN = median)$value),2)
+round(range(mx_mdn$value),2)
 # [1]   43.03 161.08
+
+#fit spline for predicting kappa from max error
+mx_spl = with(mx_mdn, 
+              smooth.spline(x = value,
+                            y = kappas)
+              )
+print(
+data.frame(predict(object = mx_spl,
+        x = c(10, 25, 30, 40, 65)))
+)
