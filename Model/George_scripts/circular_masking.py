@@ -20,7 +20,7 @@ def make_circular(im, radius=None):
     center_y = im.height // 2
 
     # Calculate the bounding box for the circle based on the specified radius
-    box = (center_x - radius, center_y - radius, center_x + radius, center_y + radius)
+    box = (center_x - int(radius), center_y - int(radius), center_x + int(radius), center_y + int(radius))
 
     # Draw a circular mask within the bounding box
     draw.ellipse(box, fill=255)
