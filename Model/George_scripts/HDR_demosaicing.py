@@ -234,7 +234,6 @@ cv2.imshow("img_135.png", img_135.astype(np.float64)/img_135.max())
 
 # Display the final HDR image using cv2.imshow()
 cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
-#cv2.imwrite('Final HDR Image.png', img_HDR) # this works, but the image is very bright, similarly if you do that for the demosaiced images
 
 # Wait for a key press and then close the window
 cv2.waitKey(0)
