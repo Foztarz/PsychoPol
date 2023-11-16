@@ -12,10 +12,10 @@ def convert_red_to_transparent(input_image_path, output_image_path):
     pixel_data = list(image.getdata())
 
     # Define the red color threshold
-    red_threshold = (255, 0, 0, 255)  # RGBA values for red (#ff0000)
+    white_threshold = (255, 255, 255, 255)  # RGBA values for red (#ff0000)
 
     # Create a new list of pixel data with red pixels converted to transparent
-    new_pixel_data = [(r, g, b, 0) if (r, g, b, a) == red_threshold else (r, g, b, a) for (r, g, b, a) in pixel_data]
+    new_pixel_data = [(r, g, b, 0) if (r, g, b, a) == white_threshold else (r, g, b, a) for (r, g, b, a) in pixel_data]
 
     # Update the image with the new pixel data
     image.putdata(new_pixel_data)

@@ -22,12 +22,12 @@ def main(image_path, output_path, coordinates_file, minor_axis):
         center_y = img_height // 2
 
         # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
-        M = cv2.getRotationMatrix2D((center_y,center_x),30,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
+        M = cv2.getRotationMatrix2D((center_y,center_x),0,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
         img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
 
         # Create a blank canvas with a white background
-        #canvas = np.full_like(img, (255, 255, 255), dtype=np.uint8) # activate this for white background
-        canvas = np.zeros_like(img) # activate this for transparent canvas (shows the image)
+        canvas = np.full_like(img, (255, 255, 255), dtype=np.uint8) # activate this for white background
+        #canvas = np.zeros_like(img) # activate this for transparent canvas (shows the image)
         
         # Draw the rotated ellipse on the canvas
         color = (0, 0, 255)  # Color red in BGR format
@@ -51,16 +51,17 @@ def main(image_path, output_path, coordinates_file, minor_axis):
                 #print(distortion)
                 major_axis = int(distortion * minor_axis)
                 #print(major_axis, minor_axis)
+                
                 # Draw the rotated ellipse on the canvas, filling the ellipse with red color
-                thickness = 2  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
+                thickness = -1  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
                 angle = azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
                 cv2.ellipse(canvas, (proj_x, proj_y), (major_axis, minor_axis), angle, 0, 360, color, thickness)
 
         # Overlay the canvas with the ellipses on the original image
-        result = cv2.addWeighted(img, 1, canvas, 1, 0)
+        #result = cv2.addWeighted(img, 1, canvas, 1, 0)
         #result = canvas # activate this for showing only the ommatidia (ellipses) without the image
         # Save the resulting image
-        cv2.imwrite(output_path, result)
+        cv2.imwrite(output_path, canvas)
         print(f"Projection image saved to {output_path}")
 
     except Exception as e:

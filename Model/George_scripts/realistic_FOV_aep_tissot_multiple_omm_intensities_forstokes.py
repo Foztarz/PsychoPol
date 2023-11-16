@@ -54,8 +54,8 @@ def main(image_path, coordinates_file, minor_axis):
                 canvas[canvas == 255] = 1 # Convert 255 to 1 to multiply afterwards
                 
                 result = np.multiply(img, canvas) # multiply the original img with the canvas (pixels that are outside of the ellipse are white on the canvas)
-                print(np.sum(result)) # prints the sum of intensities of each 'ommatiidum' image
-
+                #print(str(azimuth_deg) + '\t' +  str(elevation_deg) + '\t' + str(np.sum(result))) # prints the sum of intensities of each 'ommatiidum' image
+                print(np.sum(result))
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 

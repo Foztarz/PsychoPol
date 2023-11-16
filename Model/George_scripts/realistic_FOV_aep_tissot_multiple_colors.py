@@ -53,17 +53,17 @@ def main(image_path, output_path, coordinates_file, minor_axis):
                 #print(major_axis, minor_axis)
                 
                 # Interpolate color based on the color_value (DoLP)     ## ARE THESE CORRECT?
-                #colormap = matplotlib.colormaps["jet"]
-                #rgba_color = colormap(color_value)
-                #rgba_color = tuple(int(i * 255) for i in rgba_color)
+                colormap = matplotlib.colormaps["jet"]
+                rgba_color = colormap(color_value)
+                rgba_color = tuple(int(i * 255) for i in rgba_color)
 
                 # Activate these lines for interpolation for AoP #### THIS IS NOT WORKING ####
-                if color_value < 0: # in case of negative AoP
-                    color_value = color_value + np.pi
-                colormap = matplotlib.colormaps["hsv"]
-                color_value = color_value/np.pi # scale from 0 to 1
-                rgba_color = colormap(color_value)
-                rgba_color = tuple(int(i * 255) for i in rgba_color) # make to rgba
+##                if color_value < 0: # in case of negative AoP
+##                    color_value = color_value + np.pi
+##                colormap = matplotlib.colormaps["hsv"]
+##                color_value = color_value/np.pi # scale from 0 to 1
+##                rgba_color = colormap(color_value)
+##                rgba_color = tuple(int(i * 255) for i in rgba_color) # make to rgba
                 
                 # Draw the rotated ellipse on the canvas, filling the ellipse with red color
                 thickness = -1  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
