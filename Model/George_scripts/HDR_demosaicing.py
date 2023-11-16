@@ -5,12 +5,20 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.pylab import cm
 import cv2
+import sys
 from tkinter.filedialog import askopenfilename
 import os
 import warnings
-from typing import List
+from PIL import Image
 from dataclasses import dataclass
+from typing import List
 
+@dataclass
+class ColorConversionCode:
+    is_color: bool
+    suffix: str  # suffix for OpenCV's ColorConversionCodes (i.e. "", "_VNG", "_EA")
+
+    
 """
 ## Input params
 """
@@ -23,11 +31,6 @@ max_val = 0.999#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
 #lens type, fisheye or zoom
 lens_type = 'fisheye'
 
-@dataclass
-class ColorConversionCode:
-    is_color: bool
-    suffix: str  # suffix for OpenCV's ColorConversionCodes (i.e. "", "_VNG", "_EA")
-    
 """
 ## Find files
 """
@@ -153,7 +156,10 @@ imgs_raw  = [cv2.imread(os.path.dirname(imfile)+'/'+imfl,0) for imfl in tiffs[0]
 ## Check for over/underexposed pixels in middle exposure
 """
 img_mid = imgs_raw[np.where(exposures == np.median(exposures))[0][0]]
+#print(img_mid.max()) # this is 255
 img_mid_over = np.where(img_mid > np.round(256*(1-edge_lim/100))-1)
+hist_mid = plt.hist(img_mid.ravel(), 256, [0,256])
+#print(np.shape(img_mid_over))
 img_mid_under = np.where(img_mid < np.round(256*(edge_lim/100))-1)
 """
 ## Convert to units of pixel-byte-value/second
@@ -173,16 +179,65 @@ img_HDR = imgs_bytes_s[ind_mid]
 img_HDR[(img_mid_over[0],img_mid_over[1])] = imgs_bytes_s[ind_min][(img_mid_over[0],img_mid_over[1])]
 
 img_HDR[(img_mid_under[0],img_mid_under[1])] = imgs_bytes_s[ind_max][(img_mid_under[0],img_mid_under[1])]
+#print(ind_mid.size)
+#plt.imshow(img_HDR, cmap = 'gray')
 
+# histogram HDR
+img_HDR_val = img_HDR.ravel()
+fig = plt.figure()
+ax = fig.add_subplot(111)
+HDR_histogram = np.histogram(img_HDR_val, bins = np.uint8(1e3), 
+                             range = [0, 
+                                      np.nanmax(img_HDR_val)])
+ax.set_xscale('log')
+min_pos = np.min(np.where(HDR_histogram[0][1:-1] > 0))
+zero_pos = HDR_histogram[1][min_pos]/1.1
+brs = ax.bar(x =  np.append(zero_pos, HDR_histogram[1][1:-1]), 
+             height = HDR_histogram[0],
+             width= 0.5*np.log(np.append([1.3], 
+                                         HDR_histogram[1][1:-1])), 
+             ec="k", align="edge", color = ['tab:red'] + ['tab:blue'] * len(HDR_histogram[1][1:-1]) )
+ax.set_title('HDR image')
+ax.set_xlim([zero_pos/1.2, np.max(HDR_histogram[1][1:])*1.2] )
+ax.set_xlabel("log10 pixel byte values / s")
+ax.set_ylabel("Frequency")
+fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.pdf')
+
+# histogram img_mid
+img_mid_val = img_mid.ravel()
+fig = plt.figure()
+ax = fig.add_subplot(111)
+img_mid_histogram = np.histogram(img_mid_val, bins = np.uint8(1e3), 
+                             range = [0, 
+                                      np.nanmax(img_mid_val)])
+ax.set_xscale('log')
+min_pos = np.min(np.where(img_mid_histogram[0][1:-1] > 0))
+zero_pos = img_mid_histogram[1][min_pos]/1.1
+brs = ax.bar(x =  np.append(zero_pos, img_mid_histogram[1][1:-1]), 
+             height = img_mid_histogram[0],
+             width= 0.5*np.log(np.append([1.3], 
+                                         img_mid_histogram[1][1:-1])), 
+             ec="k", align="edge", color = ['tab:red'] + ['tab:blue'] * len(img_mid_histogram[1][1:-1]) )
+ax.set_title('img_mid image')
+ax.set_xlim([zero_pos/1.2, np.max(img_mid_histogram[1][1:])*1.2] )
+ax.set_xlabel("log10 pixel byte values / s")
+ax.set_ylabel("Frequency")
+fig.savefig( os.path.dirname(imfile)+ '/img_mid_histogram.pdf')
+
+# HDR image demosaicing
 img_000, img_045, img_090, img_135 = demosaicing(img_HDR)
 
-cv2.imshow("img_000.png", img_000)
-cv2.imshow("img_045.png", img_045)
-cv2.imshow("img_090.png", img_090)
-cv2.imshow("img_135.png", img_135)
+cv2.imshow("img_000.png", img_000.astype(np.float64)/img_000.max())
+cv2.imshow("img_045.png", img_045.astype(np.float64)/img_045.max())
+cv2.imshow("img_090.png", img_090.astype(np.float64)/img_090.max())
+cv2.imshow("img_135.png", img_135.astype(np.float64)/img_135.max())
+
+# Display the final HDR image using cv2.imshow()
+cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
+#cv2.imwrite('Final HDR Image.png', img_HDR) # this works, but the image is very bright, similarly if you do that for the demosaiced images
 
 # Wait for a key press and then close the window
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-
+#plt.show()
 
