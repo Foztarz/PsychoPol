@@ -41,7 +41,13 @@ def main(image_path, output_path, coordinates_file, minor_axis):
                 projection_radius = min(center_x, center_y)
                 proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
                 proj_x += center_x  # This is to set 0,0 to the north (top of the image)
-                
+
+                # this is for the second eye (mirrored)
+                if proj_x > center_x:
+                    proj_x2 = proj_x - 2*(proj_x-center_x)
+                elif proj_x < center_x:
+                    proj_x2 = proj_x + 2*(center_x-proj_x)
+                    
                 # Calculate the axes lengths for the ellipse and distortion based on azimuth
                 minor_axis = int(minor_axis)
                 if elevation_deg == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.
@@ -68,7 +74,7 @@ def main(image_path, output_path, coordinates_file, minor_axis):
                 # Draw the rotated ellipse on the canvas, filling the ellipse with red color
                 thickness = -1  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
                 angle = azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
-                cv2.ellipse(canvas, (proj_x, proj_y), (major_axis, minor_axis), angle, 0, 360, rgba_color, thickness)
+                cv2.ellipse(canvas, (proj_x2, proj_y), (major_axis, minor_axis), angle, 0, 360, rgba_color, thickness)
 
         canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
         # Save the resulting image
