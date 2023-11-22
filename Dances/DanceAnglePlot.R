@@ -1,22 +1,22 @@
 #FOR A 'CLEAN' RUN, RESTART Rstudio
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2021 08 12
-#     MODIFIED:	James Foster              DATE: 2022 11 29
+#     MODIFIED:	James Foster              DATE: 2023 11 23
 #
 #  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase.
-#               
+#
 #       INPUTS: A ".csv" table with columns for experiment phase ("stimulus") and
 #               angle ("angle").
 #               User should specify test details (line 80).
-#               
+#
 #      OUTPUTS: Results table (.csv).
 #
 #	   CHANGES: - Suppressed package loading messages (upsetting users)
 #             - Use aggregate to sort and plot
 #             - stimulus orientation label: "orientation" -> "stim_ori"
 #             - correct for tilt and rotation
-#             - aggregate no longer takes arg "formula"
-#             - save ML results
+#             - new R version aggregate(formula = ... -> (x =...
+#             - basic summary plots
 #
 #   REFERENCES: Batschelet E (1981).
 #               Graphical presentation, Chap 1.2, p. 4-6
@@ -25,14 +25,14 @@
 #               Academic Press (London)
 #
 #    EXAMPLES:  Fill out user input (lines 80-87), then press ctrl+shift+s to run
-# 
+#
 #TODO   ---------------------------------------------
-#TODO   
+#TODO
 #- Read in data   +
 #- Plot angles    +
-#- Subset by bee & day  +  
+#- Subset by bee & day  +
 #- Neat plot  +
-#- Save results + 
+#- Save results +
 #- Reorganise functions +
 #- Perspective correction ++
 #- Include dates in organisation +
@@ -55,7 +55,7 @@ if(!file.exists(fun_path))#If not found, ask the user
     Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
     fun_path = choose.files(
       default = file.path(gsub(pattern = '\\\\',
-                               replacement = '/', 
+                               replacement = '/',
                                x = Sys.getenv('USERPROFILE')),#user
                           'Documents'),#For some reason this is not possible in the "root" user
       caption = msg
@@ -68,7 +68,7 @@ if(!file.exists(fun_path))#If not found, ask the user
   }
 }
 #read in relevant functions
-source(file = fun_path, 
+source(file = fun_path,
        encoding = 'UTF-8')
 
 
@@ -84,7 +84,7 @@ angle_unit = "degrees" # "degrees" or "radians"
 angle_rot = 'clock' # counter' # 'counter' for anticlockwise (imageJ) 'clock' for clockwise
 angle_zero = pi/2 # 0 # angle start point: _0_ for right along x axis (imageJ) _pi/2_ for up along y axis (e.g. geographic North)
 point_col = 'darkblue' #colour for plot points
-speedup_data.table = TRUE #data.table handles Excel's CSV export issues better 
+speedup_data.table = TRUE #data.table handles Excel's CSV export issues better
 
 # . Load packages ----------------------------------------------------------
 #needs installing before first use (in Rstudio, see automatic message)
@@ -92,6 +92,7 @@ suppressMessages(#these are disturbing users unnecessarily
   {
     require(circular)#package for handling cirular data
     require(CircStats)#package for circular hypothesis tests
+    require(CircMLE)#package for circular hypothesis tests
     require(parallel)#package for parallel processing
   }
 )
@@ -168,7 +169,7 @@ ddata = within(ddata,
                }
                )
 #Excel makes empty rows, trim them
-adata = subset(x = adata, 
+adata = subset(x = adata,
                subset = !(is.na(angle)) # angle is an empty number, i.e. no data
 )
 #Convert date to character
@@ -184,7 +185,7 @@ adata = within(adata,
 shrink_val = sqrt(dim(adata)[1])/4
 par(mar = c(0,0,0,0),
     pty = 's')
-with(adata, 
+with(adata,
   plot.circular(x = Cformat(angle),
                  stack = T,
                 sep = 0.1,
@@ -214,7 +215,7 @@ with(ddata,
 #suggested tilt angle
 #TODO derive the tilt angle correctly
 #360 - ddata$Angle[8] + ddata$Angle[6]
-#ddata$Angle[4] - ddata$Angle[2] 
+#ddata$Angle[4] - ddata$Angle[2]
 # tilt_ang = 90-median(range(abs(ddata$Angle)))#mean(diff(ddata$Angle))
 tilt_rot = with(ddata,
                 PhiTheta_AlphaDeltaStretch(phi = rad(raw_angle),
@@ -232,7 +233,7 @@ adata = within(adata,
                {
                raw_angle = angle
                angle = deg(
-                 Theta(phi = 
+                 Theta(phi =
                            UnStre( phi = rad(raw_angle),
                                    stc = tilt_rot['stc'] ),
                        alpha = tilt_rot['alpha']) #+ tilt_rot['delta']
@@ -243,7 +244,7 @@ adata = within(adata,
 ddata = within(ddata,
                {
                angle = deg(
-                         Theta(phi = 
+                         Theta(phi =
                              UnStre( phi = rad(raw_angle),
                                      stc = tilt_rot['stc']),
                              alpha = tilt_rot['alpha']
@@ -252,7 +253,7 @@ ddata = within(ddata,
                }
 )
 
-with(adata, 
+with(adata,
      plot.circular(x = Cformat(angle),
                    stack = T,
                    sep = 0.1,
@@ -309,15 +310,15 @@ savepath = paste0(path_file, '-byBDSOD-corrected-MLE.pdf')
 #open the file
 pdf(file = savepath,
     paper = 'a4r',
-    bg = 'white', 
+    bg = 'white',
     useDingbats = FALSE,
     onefile = TRUE
     )
 
 # . Set up plot parameters ------------------------------------------------
-#make a set of angles for each combinatino of stimulus, orientation, dance and bee
-df_lst = aggregate( angle~stim_ori*stimulus*dance*bee*date,
-          data = adata, 
+#make a set of angles for each combination of stimulus, orientation, dance and bee
+df_lst = aggregate(x = angle~stim_ori*stimulus*dance*bee*date,
+          data = adata,
           FUN = list
           )
 dim(df_lst)
@@ -327,7 +328,7 @@ dim(df_lst)
 #circ_mle is painfully slow
 avail.cores = parallel::detectCores() - 1
 clt = makeCluster(avail.cores,# run as many as possible
-                  type="SOCK")
+                  type=if(sys_win){"SOCK"}else{"FORK"})
 clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
               list('df_lst',
                    'DA_MLpars',
@@ -357,46 +358,6 @@ invisible(
   apply(X = df_lst,
         MARGIN = 1,
        FUN = DA_BimodPlot
-       # FUN = function(dat)
-       #   {
-       #   with(dat,
-       #        {
-       #      plot.circular(
-       #        x = Cformat(  angle ),
-       #      bins = 360/5-1,
-       #      stack = T,
-       #      sep = 0.07,
-       #      col = point_col,
-       #      pch = 19,
-       #      shrink = shrk
-       #      )
-       #      mtext(text = paste0(as.character(date),
-       #                          '\n',
-       #                          'bee ',
-       #                         bee,
-       #                         ', dance ',
-       #                         dance, 
-       #                         '\n',
-       #                         stimulus,
-       #                         ', ',
-       #                         stim_ori,
-       #                         '°'),
-       #            line = -1.5,
-       #            cex = 2/sq_cond,#3/sq_cond,
-       #            col = switch (as.character(stim_ori),
-       #                          `0` = 'red',
-       #                          `90` = 'cyan3',
-       #                          'gray'
-       #                          )
-       #            )
-       #     arrows.circular(x = mean.circular(Cformat( angle )),
-       #                     shrink = rho.circular(Cformat( angle )),
-       #                     col = 2,
-       #                     length = 0.05
-       #                     )
-       #        }
-       #   )
-       # }
   )
 )
 #save plot
@@ -405,15 +366,89 @@ dev.off()
 shell.exec.OS(savepath)
 
 
-# Save data with models ---------------------------------------------------
-bound_dt = within(df_lst, 
-                  {
-                    angle = sapply(angle, paste, collapse = ', ')
-                  })
-ml_par_df = do.call(what = rbind, args = ml_par)
-bound_dt = cbind(bound_dt, ml_par_df)
-res_path = paste0(path_file, '-MLE_dances.csv')
-write.csv(x = bound_dt,
-          file = res_path,
-          row.names = FALSE)
-shell.exec.OS(res_path)
+# Extract parameters ------------------------------------------------------
+par_dt = do.call(what = rbind,
+                 args = ml_par)
+
+mle_data = data.frame(cbind(df_lst, par_dt))
+
+par(mfrow = c(2,2),
+    mar = c(0,0,0,0),
+    pty = 's')
+with(mle_data,
+     {
+     plot.circular(x = Cformat(m1[stim_ori == 0]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = point_col,
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+    text(x = 0, y = 0,
+         labels = 'Primary mean\n Stimulus: 0°')
+     plot.circular(x = Cformat(m1[stim_ori == 90]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = 'darkred',
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+     text(x = 0, y = 0,
+          labels = 'Primary mean\n Stimulus: 90°')
+     plot.circular(x = Cformat(m2[stim_ori == 0]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = point_col,
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+     text(x = 0, y = 0,
+          labels = 'Secondary mean\n Stimulus: 0°')
+     plot.circular(x = Cformat(m2[stim_ori == 90]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = 'darkred',
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+     text(x = 0, y = 0,
+          labels = 'Secondary mean\n Stimulus: 90°')
+     }
+     )
+
+
+
+par(mfrow = c(1,2),
+    mar = c(4,4,2.7,2.7))
+stripchart(x = A1(kappa = k1)~stimulus,
+          data = mle_data,
+          xlab = 'stimulus',
+          ylab = 'MLE rho',
+          main = 'Primary mean',
+          vertical  = TRUE,
+          method = 'stack',
+          pch = 19,
+          col= adjustcolor(point_col, alpha.f = 0.5),
+          # cex.axis = 0.3,
+          las = 2)
+abline(h = c(0,1))
+stripchart(x = A1(kappa = k2)~stimulus,
+          data = mle_data,
+          xlab = 'stimulus',
+          ylab = 'MLE rho',
+          main = 'Secondary mean',
+          vertical  = TRUE,
+          method = 'stack',
+          pch = 19,
+          col= adjustcolor(point_col, alpha.f = 0.5),
+          # cex.axis = 0.3,
+          las = 2)
+abline(h = c(0,1))
