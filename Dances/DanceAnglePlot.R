@@ -3,23 +3,22 @@
 #       AUTHOR:	James Foster              DATE: 2021 08 12
 #     MODIFIED:	James Foster              DATE: 2023 11 23
 #
-#  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
-#               .
-#
+#  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase.
+#               
 #       INPUTS: A ".csv" table with columns for experiment phase ("stimulus") and
 #               angle ("angle").
 #               User should specify test details (line 80).
-#
+#               
 #      OUTPUTS: Results table (.csv).
 #
 #	   CHANGES: - Suppressed package loading messages (upsetting users)
 #             - Use aggregate to sort and plot
 #             - stimulus orientation label: "orientation" -> "stim_ori"
 #             - correct for tilt and rotation
-#             - aggregate no longer takes arg "formula"
-#             - save ML results
 #             - new R version aggregate(formula = ... -> (x =...
 #             - basic summary plots
+#             - aggregate no longer takes arg "formula"
+#             - save ML results
 #
 #   REFERENCES: Batschelet E (1981).
 #               Graphical presentation, Chap 1.2, p. 4-6
@@ -28,15 +27,14 @@
 #               Academic Press (London)
 #
 #    EXAMPLES:  Fill out user input (lines 80-87), then press ctrl+shift+s to run
-#
-#
+# 
 #TODO   ---------------------------------------------
-#TODO
+#TODO   
 #- Read in data   +
 #- Plot angles    +
-#- Subset by bee & day  +
+#- Subset by bee & day  +  
 #- Neat plot  +
-#- Save results +
+#- Save results + 
 #- Reorganise functions +
 #- Perspective correction ++
 #- Include dates in organisation +
@@ -59,7 +57,7 @@ if(!file.exists(fun_path))#If not found, ask the user
     Sys.sleep(0.5)#goes too fast for the user to see the message on some computers
     fun_path = choose.files(
       default = file.path(gsub(pattern = '\\\\',
-                               replacement = '/',
+                               replacement = '/', 
                                x = Sys.getenv('USERPROFILE')),#user
                           'Documents'),#For some reason this is not possible in the "root" user
       caption = msg
@@ -72,7 +70,7 @@ if(!file.exists(fun_path))#If not found, ask the user
   }
 }
 #read in relevant functions
-source(file = fun_path,
+source(file = fun_path, 
        encoding = 'UTF-8')
 
 
@@ -88,7 +86,7 @@ angle_unit = "degrees" # "degrees" or "radians"
 angle_rot = 'clock' # counter' # 'counter' for anticlockwise (imageJ) 'clock' for clockwise
 angle_zero = pi/2 # 0 # angle start point: _0_ for right along x axis (imageJ) _pi/2_ for up along y axis (e.g. geographic North)
 point_col = 'darkblue' #colour for plot points
-speedup_data.table = TRUE #data.table handles Excel's CSV export issues better
+speedup_data.table = TRUE #data.table handles Excel's CSV export issues better 
 
 # . Load packages ----------------------------------------------------------
 #needs installing before first use (in Rstudio, see automatic message)
@@ -173,7 +171,7 @@ ddata = within(ddata,
                }
                )
 #Excel makes empty rows, trim them
-adata = subset(x = adata,
+adata = subset(x = adata, 
                subset = !(is.na(angle)) # angle is an empty number, i.e. no data
 )
 #Convert date to character
@@ -189,7 +187,7 @@ adata = within(adata,
 shrink_val = sqrt(dim(adata)[1])/4
 par(mar = c(0,0,0,0),
     pty = 's')
-with(adata,
+with(adata, 
   plot.circular(x = Cformat(angle),
                  stack = T,
                 sep = 0.1,
@@ -219,7 +217,7 @@ with(ddata,
 #suggested tilt angle
 #TODO derive the tilt angle correctly
 #360 - ddata$Angle[8] + ddata$Angle[6]
-#ddata$Angle[4] - ddata$Angle[2]
+#ddata$Angle[4] - ddata$Angle[2] 
 # tilt_ang = 90-median(range(abs(ddata$Angle)))#mean(diff(ddata$Angle))
 tilt_rot = with(ddata,
                 PhiTheta_AlphaDeltaStretch(phi = rad(raw_angle),
@@ -237,7 +235,7 @@ adata = within(adata,
                {
                raw_angle = angle
                angle = deg(
-                 Theta(phi =
+                 Theta(phi = 
                            UnStre( phi = rad(raw_angle),
                                    stc = tilt_rot['stc'] ),
                        alpha = tilt_rot['alpha']) #+ tilt_rot['delta']
@@ -248,7 +246,7 @@ adata = within(adata,
 ddata = within(ddata,
                {
                angle = deg(
-                         Theta(phi =
+                         Theta(phi = 
                              UnStre( phi = rad(raw_angle),
                                      stc = tilt_rot['stc']),
                              alpha = tilt_rot['alpha']
@@ -257,7 +255,7 @@ ddata = within(ddata,
                }
 )
 
-with(adata,
+with(adata, 
      plot.circular(x = Cformat(angle),
                    stack = T,
                    sep = 0.1,
@@ -413,7 +411,7 @@ with(mle_data,
                      shrink = 2,
                      bins = 360/5-1,
                      axes = FALSE
-       )
+       ) 
        text(x = 0, y = 0,
             labels = 'Primary mean\n Stimulus: 90°')
        plot.circular(x = Cformat(m2[stim_ori == 0]),
