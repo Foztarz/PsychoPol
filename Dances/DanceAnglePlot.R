@@ -3,7 +3,8 @@
 #       AUTHOR:	James Foster              DATE: 2021 08 12
 #     MODIFIED:	James Foster              DATE: 2023 11 23
 #
-#  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase.
+#  DESCRIPTION: Loads a text file and plots dance angles for each stimulus phase
+#               .
 #
 #       INPUTS: A ".csv" table with columns for experiment phase ("stimulus") and
 #               angle ("angle").
@@ -17,6 +18,8 @@
 #             - correct for tilt and rotation
 #             - aggregate no longer takes arg "formula"
 #             - save ML results
+#             - new R version aggregate(formula = ... -> (x =...
+#             - basic summary plots
 #
 #   REFERENCES: Batschelet E (1981).
 #               Graphical presentation, Chap 1.2, p. 4-6
@@ -25,6 +28,7 @@
 #               Academic Press (London)
 #
 #    EXAMPLES:  Fill out user input (lines 80-87), then press ctrl+shift+s to run
+#
 #
 #TODO   ---------------------------------------------
 #TODO
@@ -378,7 +382,6 @@ write.csv(x = bound_dt,
           file = res_path,
           row.names = FALSE)
 shell.exec.OS(res_path)
-<<<<<<< HEAD
 
 # Extract parameters ------------------------------------------------------
 par_dt = do.call(what = rbind,
@@ -438,11 +441,59 @@ with(mle_data,
      }
 )
 
+     plot.circular(x = Cformat(m1[stim_ori == 0]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = point_col,
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+    text(x = 0, y = 0,
+         labels = 'Primary mean\n Stimulus: 0°')
+     plot.circular(x = Cformat(m1[stim_ori == 90]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = 'darkred',
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+     text(x = 0, y = 0,
+          labels = 'Primary mean\n Stimulus: 90°')
+     plot.circular(x = Cformat(m2[stim_ori == 0]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = point_col,
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+     text(x = 0, y = 0,
+          labels = 'Secondary mean\n Stimulus: 0°')
+     plot.circular(x = Cformat(m2[stim_ori == 90]),
+                                      stack = T,
+                                      sep = 0.1,
+                                      col = 'darkred',
+                                      pch = 19,
+                                      shrink = 2,
+                                      bins = 360/5-1,
+                                      axes = FALSE
+     )
+     text(x = 0, y = 0,
+          labels = 'Secondary mean\n Stimulus: 90°')
+     }
+     )
+
 
 
 par(mfrow = c(1,2),
     mar = c(4,4,2.7,2.7))
 stripchart(x = A1(kappa = k1)~stimulus,
+
            data = mle_data,
            xlab = 'stimulus',
            ylab = 'MLE rho',
@@ -465,4 +516,28 @@ stripchart(x = A1(kappa = k2)~stimulus,
            col= adjustcolor(point_col, alpha.f = 0.5),
            # cex.axis = 0.3,
            las = 2)
+abline(h = c(0,1))
+
+          data = mle_data,
+          xlab = 'stimulus',
+          ylab = 'MLE rho',
+          main = 'Primary mean',
+          vertical  = TRUE,
+          method = 'stack',
+          pch = 19,
+          col= adjustcolor(point_col, alpha.f = 0.5),
+          # cex.axis = 0.3,
+          las = 2)
+abline(h = c(0,1))
+stripchart(x = A1(kappa = k2)~stimulus,
+          data = mle_data,
+          xlab = 'stimulus',
+          ylab = 'MLE rho',
+          main = 'Secondary mean',
+          vertical  = TRUE,
+          method = 'stack',
+          pch = 19,
+          col= adjustcolor(point_col, alpha.f = 0.5),
+          # cex.axis = 0.3,
+          las = 2)
 abline(h = c(0,1))
