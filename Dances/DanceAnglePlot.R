@@ -15,8 +15,6 @@
 #             - Use aggregate to sort and plot
 #             - stimulus orientation label: "orientation" -> "stim_ori"
 #             - correct for tilt and rotation
-#             - new R version aggregate(formula = ... -> (x =...
-#             - basic summary plots
 #             - aggregate no longer takes arg "formula"
 #             - save ML results
 #
@@ -368,7 +366,6 @@ dev.off()
 shell.exec.OS(savepath)
 
 
-
 # Save data with models ---------------------------------------------------
 bound_dt = within(df_lst,
                   {
@@ -381,6 +378,7 @@ write.csv(x = bound_dt,
           file = res_path,
           row.names = FALSE)
 shell.exec.OS(res_path)
+<<<<<<< HEAD
 
 # Extract parameters ------------------------------------------------------
 par_dt = do.call(what = rbind,
