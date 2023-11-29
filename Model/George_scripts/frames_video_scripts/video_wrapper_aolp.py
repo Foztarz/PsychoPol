@@ -1,4 +1,4 @@
-## usage: python video_wrapper.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt -o output.mp4
+## usage: python video_wrapper.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
 
 
 import os
@@ -13,10 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
-#parser.add_argument("-o", "--output", required=True, help="OUTPUT must be the output video file (.mp4). (required)")
 args=parser.parse_args()
 
-#video = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), 5, frame_size)
 
 azimuth_deg_list = []
 elevation_deg_list = []
@@ -59,14 +57,14 @@ for rotation_angle in range(0, 360, 5):
                     # Append each intensity to the list
                     img_135_intensities.append(line.strip())
         
-        for x, y in zip(img_000_intensities, img_090_intensities):
-            S1.append(float(x) - float(y))
-        for z, w in zip(img_045_intensities, img_135_intensities):
-            S2.append(float(z) - float(w))
+    for x, y in zip(img_000_intensities, img_090_intensities):
+        S1.append(float(x) - float(y))
+    for z, w in zip(img_045_intensities, img_135_intensities):
+        S2.append(float(z) - float(w))
 
-        S0 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities, img_045_intensities, img_090_intensities, img_135_intensities)]
-        dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
-        aolp = [ math.atan2(x3, y3) / 2 for x3, y3 in zip(S2, S1)] # this is opposite than excel atan2, in excel it should be zip(S2,S1)
+    S0 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities, img_045_intensities, img_090_intensities, img_135_intensities)]
+    dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
+    aolp = [ math.atan2(x3, y3) / 2 for x3, y3 in zip(S2, S1)] # this is opposite than excel atan2, in excel it should be zip(S2,S1)
 
     # this is for the second eye
     img_000_intensities_2 = []
@@ -98,14 +96,14 @@ for rotation_angle in range(0, 360, 5):
                     # Append each intensity to the list
                     img_135_intensities_2.append(line.strip())
         
-        for x, y in zip(img_000_intensities_2, img_090_intensities_2):
-            S1_2.append(float(x) - float(y))
-        for z, w in zip(img_045_intensities_2, img_135_intensities_2):
-            S2_2.append(float(z) - float(w))
+    for x, y in zip(img_000_intensities_2, img_090_intensities_2):
+        S1_2.append(float(x) - float(y))
+    for z, w in zip(img_045_intensities_2, img_135_intensities_2):
+        S2_2.append(float(z) - float(w))
 
-        S0_2 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities_2, img_045_intensities_2, img_090_intensities_2, img_135_intensities_2)]
-        dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
-        aolp_2 = [ math.atan2(x3, y3) / 2 for x3, y3 in zip(S2_2, S1_2)] # this is opposite than excel atan2, in excel it should be zip(S2,S1)
+    S0_2 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities_2, img_045_intensities_2, img_090_intensities_2, img_135_intensities_2)]
+    dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
+    aolp_2 = [ math.atan2(x3, y3) / 2 for x3, y3 in zip(S2_2, S1_2)] # this is opposite than excel atan2, in excel it should be zip(S2,S1)
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
