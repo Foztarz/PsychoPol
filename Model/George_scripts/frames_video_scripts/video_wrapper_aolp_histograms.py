@@ -9,6 +9,8 @@ import numpy as np
 import subprocess
 import math
 import matplotlib.pyplot as plt
+import scipy
+from scipy.stats import circmean
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
@@ -27,7 +29,9 @@ with open(args.coordinates, 'r') as crd:
         elevation_deg_list.append(float(x[1].strip()))
 #print(azimuth_deg_list)
 #print(elevation_deg_list)
-
+circmeans = []
+circmeans_2 = []
+circmeans_botheyes = []
 for rotation_angle in range(0, 360, 5):
     img_000_intensities = []
     img_045_intensities = []
@@ -170,36 +174,40 @@ for rotation_angle in range(0, 360, 5):
 
     aolp_both_eyes = aolp + aolp_2 
     
-    # Calculate the polar histogram for both eyes aolp list
+    # Calculate the polar histogram for both eyes
     N = 59
-    aop_hist = np.histogram(aolp_both_eyes, bins=N, range=[-np.pi, np.pi])
+    aop_hist_1 = np.histogram(aolp, bins=N, range=[-np.pi, np.pi])
+
+    # Calculate the polar histogram for the second set of AOLP values
+    aop_hist_2 = np.histogram(aolp_2, bins=N, range=[-np.pi, np.pi])
 
     bottom = 0
-    max_height = 1102
+    max_height = max(max(aop_hist_1[0]), max(aop_hist_2[0]))
 
     theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-    radii = aop_hist[0]
     width = 0.1 * (2 * np.pi) / N
 
-    # Plot the polar histogram
+    # Plot the polar histogram for the first set of AOLP values (in red)
     fig = plt.figure()
     ax = fig.add_subplot(111, polar=True)
-    bars = ax.bar(theta, radii, width=width, bottom=bottom)
-    ax.set_rlabel_position(270)
+    bars1 = ax.bar(theta, aop_hist_1[0], width=width, bottom=bottom)
+    for bar in bars1:
+        bar.set_facecolor('red') # red for one eye
 
-    # Use custom colors and opacity
-    for r, bar in zip(radii, bars):
-        bar.set_facecolor('red')
-        
-    # Set title with rotation angle
+    # Plot the polar histogram for the second set of AOLP values (in green)
+    bars2 = ax.bar(theta, aop_hist_2[0], width=width, bottom=bottom)
+    for bar in bars2:
+        bar.set_facecolor('blue') # blue for the other eye
+
+    ax.set_rlabel_position(270)
     ax.set_title('aolp_{}_both_eyes'.format(rotation_angle))
-    
     ax.set_xlabel("Angle of Polarization")
 
     # Save the polar histogram
     output_path = 'polar_histogram_{}_botheyes.png'.format(rotation_angle)
     fig.savefig(output_path)
     plt.close(fig)
+
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
@@ -232,6 +240,104 @@ for rotation_angle in range(0, 360, 5):
     os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
     os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
+
+    circmeans.append(scipy.stats.circmean(aolp, high = np.pi, low = -np.pi))
+    circmeans_2.append(scipy.stats.circmean(aolp_2, high = np.pi, low = -np.pi))
+    circmeans_botheyes.append(scipy.stats.circmean(aolp_both_eyes, high = np.pi, low = -np.pi))
+
+# Calculate the polar histogram for circmeans list
+N = 59
+aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
+
+bottom = 0
+max_height = 1102
+
+theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+radii = aop_hist[0]
+width = 0.1 * (2 * np.pi) / N
+
+# Plot the polar histogram
+fig = plt.figure()
+ax = fig.add_subplot(111, polar=True)
+bars = ax.bar(theta, radii, width=width, bottom=bottom)
+ax.set_rlabel_position(270)
+
+# Use custom colors and opacity
+for r, bar in zip(radii, bars):
+    bar.set_facecolor('red')
     
-    #print(S0_2)
-    #print(dolp)
+# Set title with rotation angle
+ax.set_title('aolp_left_eye_ommatidial_circular_means'.format(rotation_angle))
+
+ax.set_xlabel("Angle of Polarization")
+
+# Save the polar histogram
+output_path = 'polar_histogram_1steye_circmeans.png'
+fig.savefig(output_path)
+plt.close(fig)
+
+# Calculate the polar histogram for circmeans_2 list
+N = 59
+aop_hist = np.histogram(circmeans_2, bins=N, range=[-np.pi, np.pi])
+
+bottom = 0
+max_height = 1102
+
+theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+radii = aop_hist[0]
+width = 0.1 * (2 * np.pi) / N
+
+# Plot the polar histogram
+fig = plt.figure()
+ax = fig.add_subplot(111, polar=True)
+bars = ax.bar(theta, radii, width=width, bottom=bottom)
+ax.set_rlabel_position(270)
+
+# Use custom colors and opacity
+for r, bar in zip(radii, bars):
+    bar.set_facecolor('red')
+    
+# Set title with rotation angle
+ax.set_title('aolp_right_eye_ommatidial_circular_means'.format(rotation_angle))
+
+ax.set_xlabel("Angle of Polarization")
+
+# Save the polar histogram
+output_path = 'polar_histogram_2ndeye_circmeans.png'
+fig.savefig(output_path)
+plt.close(fig)
+
+
+# Calculate the polar histogram for circmeans both eyes
+N = 59
+aop_hist = np.histogram(circmeans_botheyes, bins=N, range=[-np.pi, np.pi])
+
+bottom = 0
+max_height = 1102
+
+theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+radii = aop_hist[0]
+width = 0.1 * (2 * np.pi) / N
+
+# Plot the polar histogram
+fig = plt.figure()
+ax = fig.add_subplot(111, polar=True)
+bars = ax.bar(theta, radii, width=width, bottom=bottom)
+ax.set_rlabel_position(270)
+
+# Use custom colors and opacity
+for r, bar in zip(radii, bars):
+    bar.set_facecolor('red')
+    
+# Set title with rotation angle
+ax.set_title('aolp_both_eyes_ommatidial_circular_means')
+
+ax.set_xlabel("Angle of Polarization")
+
+# Save the polar histogram
+output_path = 'polar_histogram_both_eyes_circmeans.png'
+fig.savefig(output_path)
+plt.close(fig)
+
+
+    
