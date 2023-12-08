@@ -39,7 +39,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, aolp_list, dolp_
 
             # Calculate line endpoints
             line_length = 15  # line length
-            angle_rad = aolp_value
+            angle_rad = aolp_value + np.radians(90)
             x1 = int(proj_x - line_length * np.cos(angle_rad))
             y1 = int(proj_y - line_length * np.sin(angle_rad))
             x2 = int(proj_x + line_length * np.cos(angle_rad))

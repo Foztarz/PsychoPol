@@ -38,14 +38,14 @@ def main(image_path, output_path, azimuth_list, elevation_list, aolp_list, dolp_
             proj_x += center_x  # This is to set 0,0 to the north (top of the image)
             
             # this is for the second eye (mirrored)
-            if proj_x > center_x:
+            if proj_x >= center_x:
                 proj_x2 = proj_x - 2*(proj_x-center_x)
             elif proj_x < center_x:
                 proj_x2 = proj_x + 2*(center_x-proj_x)
                 
             # Calculate line endpoints
             line_length = 15  # line length
-            angle_rad = aolp_value
+            angle_rad = aolp_value + np.radians(90)
             x1 = int(proj_x2 - line_length * np.cos(angle_rad))
             y1 = int(proj_y - line_length * np.sin(angle_rad))
             x2 = int(proj_x2 + line_length * np.cos(angle_rad))

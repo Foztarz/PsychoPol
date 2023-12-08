@@ -49,11 +49,9 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
             #print(major_axis, minor_axis)
             
 
-            # Activate these lines for interpolation for AoP 
-            if color_value < 0: # in case of negative AoP
-                color_value = color_value + np.pi
+            # Activate these lines for interpolation for AoP
             colormap = matplotlib.colormaps["hsv"]
-            color_value = color_value/np.pi # scale from 0 to 1
+            #color_value = color_value/np.pi # scale from 0 to 1
             rgba_color = colormap(color_value)
             rgba_color = tuple(int(i * 255) for i in rgba_color) # make to rgba
             

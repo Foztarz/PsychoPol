@@ -40,7 +40,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
             proj_x += center_x  # This is to set 0,0 to the north (top of the image)
 
             # this is for the second eye (mirrored)
-            if proj_x > center_x:
+            if proj_x >= center_x:
                 proj_x2 = proj_x - 2*(proj_x-center_x)
             elif proj_x < center_x:
                 proj_x2 = proj_x + 2*(center_x-proj_x)
@@ -55,11 +55,10 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
             major_axis = int(distortion * minor_axis)
             #print(major_axis, minor_axis)
             
-            # Activate these lines for interpolation for AoP 
-            if color_value < 0: # in case of negative AoP
-                color_value = color_value + np.pi
+            # Activate these lines for interpolation for AoP
+            #print(color_value)
             colormap = matplotlib.colormaps["hsv"]
-            color_value = color_value/np.pi # scale from 0 to 1
+            #color_value = color_value/np.pi # scale from 0 to 1
             rgba_color = colormap(color_value)
             rgba_color = tuple(int(i * 255) for i in rgba_color) # make to rgba
             
