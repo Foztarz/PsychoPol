@@ -1,3 +1,5 @@
+# this script prints the intensities of the pixels that correspond to the ommatidia of the first eye.
+
 import sys
 import numpy as np
 import cv2

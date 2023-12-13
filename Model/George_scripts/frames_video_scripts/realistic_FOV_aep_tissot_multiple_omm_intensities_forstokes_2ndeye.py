@@ -1,3 +1,5 @@
+# this script prints the intensities of the pixels that correspond to the ommatidia of the second eye.
+
 import sys
 import numpy as np
 import cv2
@@ -39,7 +41,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
                 proj_x += center_x  # This is to set 0,0 to the north (top of the image)
                 
                 # this is for the second eye (mirrored)
-                if proj_x > center_x:
+                if proj_x >= center_x:
                     proj_x2 = proj_x - 2*(proj_x-center_x)
                 elif proj_x < center_x:
                     proj_x2 = proj_x + 2*(center_x-proj_x)

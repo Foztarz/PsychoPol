@@ -1,3 +1,5 @@
+# this script makes FOVs/ellipses with colors based on DoLP for the second eye (jet colormap)
+
 import sys
 import numpy as np
 import cv2
@@ -41,7 +43,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
             proj_x += center_x  # This is to set 0,0 to the north (top of the image)
 
             # this is for the second eye (mirrored)
-            if proj_x > center_x:
+            if proj_x >= center_x:
                 proj_x2 = proj_x - 2*(proj_x-center_x)
             elif proj_x < center_x:
                 proj_x2 = proj_x + 2*(center_x-proj_x)

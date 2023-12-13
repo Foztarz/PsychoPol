@@ -1,3 +1,5 @@
+# this script makes the FOVs/ellipses for the second eye with colors based on AoLP (hsv colormap)
+
 import sys
 import numpy as np
 import cv2
@@ -44,7 +46,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
                 proj_x2 = proj_x - 2*(proj_x-center_x)
             elif proj_x < center_x:
                 proj_x2 = proj_x + 2*(center_x-proj_x)
-                
+            
             # Calculate the axes lengths for the ellipse and distortion based on azimuth
             minor_axis = int(minor_axis)
             if elevation_deg == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.

@@ -1,3 +1,5 @@
+# this script makes lines instead of ellipses that match the phi max values (orientations) of the ommatidia of the second eye (the phi max values should be the negative values of the first eye). Thickness of lines is uniform.
+
 import sys
 import numpy as np
 import cv2

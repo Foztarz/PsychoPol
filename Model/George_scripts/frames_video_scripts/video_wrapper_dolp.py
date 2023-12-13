@@ -1,5 +1,6 @@
-## usage: python video_wrapper.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
+## usage: python script.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
 
+# this script makes frames for rotation angles of 5deg (of the original image) and draws the FOVs based on DoLP
 
 import os
 import sys

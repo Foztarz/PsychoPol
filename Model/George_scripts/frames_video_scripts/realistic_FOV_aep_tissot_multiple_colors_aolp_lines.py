@@ -1,3 +1,5 @@
+# this script makes lines for AoLP instead of ellipses for the first eye, the width of the lines is relative to the DoLP
+
 import sys
 import numpy as np
 import cv2

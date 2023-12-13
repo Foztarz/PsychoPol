@@ -1,3 +1,5 @@
+# this script makes the FOVs/ellipses for the first eye with colors based on AoLP (hsv colormap)
+
 import sys
 import numpy as np
 import cv2

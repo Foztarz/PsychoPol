@@ -1,5 +1,7 @@
 ## usage: python video_wrapper.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
 
+# this script makes frames for rotation angles of 5deg (of the original image) and draws the FOVs based on (egocentric) AoLP as well as polar histograms for the two eyes separately and together (for each rotation) and for the circular means of each eye and both(for the whole image).
+# THESE ARE SCALED AoLP VALUES WITH DoLP.
 
 import os
 import sys

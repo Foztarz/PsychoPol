@@ -1,3 +1,5 @@
+# this script makes a .csv file that has columns for azimuth, elevation, slope (slope of the line that is defined by the center of each ommatidium of the second eye and the center of the image), phi_max and phi_max_2 (phi_max + 90deg)
+
 import sys
 import numpy as np
 import cv2

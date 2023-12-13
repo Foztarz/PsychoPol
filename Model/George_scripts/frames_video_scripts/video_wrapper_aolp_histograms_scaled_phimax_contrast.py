@@ -1,7 +1,7 @@
-## usage: python video_wrapper.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
+## usage: python script.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
 
-# this script makes frames for rotation angles of 5deg (of the original image) and draws the FOVs based on (geocentric) AoLP as well as polar histograms for the two eyes separately and together (for each rotation) and for the circular means of each eye and both(for the whole image).
-# CAREFUL!! THESE ARE NOT WEIGHTED AoLP VALUES WITH DoLP.
+# this script makes frames for each rotation angle (of the original image) where FOVs/ellipses are colored based on PRC (photoreceptor contrast) and in each FOV (ellipse) we have lines that correspond to AoLP (egocentric).
+# The thickness of the lines is based on DoLP
 
 import os
 import sys
@@ -12,8 +12,7 @@ import subprocess
 import math
 import matplotlib.pyplot as plt
 import scipy
-#from scipy.stats import circmean
-from astropy import circmean
+from astropy.units import Quantity
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
@@ -21,7 +20,39 @@ parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMO
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 args=parser.parse_args()
 
+Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
 
+def _components(data, p=1, phi=0.0, axis=None, weights=None):
+    # Utility function for computing the generalized rectangular components
+    # of the circular data.
+    if weights is None:
+        weights = np.ones((1,))
+    try:
+        weights = np.broadcast_to(weights, data.shape)
+    except ValueError:
+        raise ValueError("Weights and data have inconsistent shape.")
+
+    C = np.sum(weights * np.cos(p * (data - phi)), axis) / np.sum(weights, axis)
+    S = np.sum(weights * np.sin(p * (data - phi)), axis) / np.sum(weights, axis)
+
+    return C, S
+
+
+def _angle(data, p=1, phi=0.0, axis=None, weights=None):
+    # Utility function for computing the generalized sample mean angle
+    C, S = _components(data, p, phi, axis, weights)
+
+    # theta will be an angle in the interval [-np.pi, np.pi)
+    # [-180, 180)*u.deg in case data is a Quantity
+    theta = np.arctan2(S, C)
+
+    if isinstance(data, Quantity):
+        theta = theta.to(data.unit)
+
+    return theta
+
+def circmean(data, axis=None, weights=None):
+    return _angle(data, 1, 0.0, axis, weights)
 
 azimuth_deg_list = []
 elevation_deg_list = []
@@ -46,6 +77,11 @@ for rotation_angle in range(0, 360, 5):
     S0 = []
     dolp = []
     aolp = []
+    phimax_list = []
+    phimax_2_list = []
+    S_list = [] # polarization sensitivity
+    S2_list = [] # polarization sensitivity perpendicular to S
+    PRC = [] # photoreceptor contrast
     for img_dmc in args.demosaiced:
         # Open a subprocess to run the command and capture output line by line
         with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
@@ -73,8 +109,9 @@ for rotation_angle in range(0, 360, 5):
 
     S0 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities, img_045_intensities, img_090_intensities, img_135_intensities)]
     dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
-    aolp = [ math.atan2(x3, y3) / 2 for x3, y3 in zip(S2, S1)] # this is opposite than excel atan2, in excel it should be zip(S2,S1)
-
+    aolp = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] 
+    aolp_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
+    
     # Calculate the polar histogram for aolp list
     N = 59
     aop_hist = np.histogram(aolp, bins=N, range=[-np.pi, np.pi])
@@ -116,6 +153,9 @@ for rotation_angle in range(0, 360, 5):
     S0_2 = []
     dolp_2 = []
     aolp_2 = []
+    S_2_list = [] # polarization sensitivity
+    S2_2_list = [] # polarization sensitivity perpendicular to S
+    PRC_2 = [] # photoreceptor contrast second eye
     for img_dmc in args.demosaiced:
         # Open a subprocess to run the command and capture output line by line
         with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
@@ -135,7 +175,7 @@ for rotation_angle in range(0, 360, 5):
                 for line in process.stdout:
                     # Append each intensity to the list
                     img_135_intensities_2.append(line.strip())
-        
+      
     for x, y in zip(img_000_intensities_2, img_090_intensities_2):
         S1_2.append(float(x) - float(y))
     for z, w in zip(img_045_intensities_2, img_135_intensities_2):
@@ -143,7 +183,8 @@ for rotation_angle in range(0, 360, 5):
 
     S0_2 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities_2, img_045_intensities_2, img_090_intensities_2, img_135_intensities_2)]
     dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
-    aolp_2 = [ math.atan2(x3, y3) / 2 for x3, y3 in zip(S2_2, S1_2)] # this is opposite than excel atan2, in excel it should be zip(S2,S1)
+    aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)]
+    aolp_2_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
     
     # Calculate the polar histogram for aolp_2 list
     N = 59
@@ -177,6 +218,7 @@ for rotation_angle in range(0, 360, 5):
     plt.close(fig)
 
     aolp_both_eyes = aolp + aolp_2 
+    dolp_both_eyes = dolp + dolp_2
     
     # Calculate the polar histogram for both eyes
     N = 59
@@ -213,9 +255,38 @@ for rotation_angle in range(0, 360, 5):
     plt.close(fig)
 
     
-    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
+
+    with open("azimuth_elevation_slope_data.csv", 'r') as phimax_values:
+        for line in phimax_values:
+            x = line.split('\t')
+            phimax_list.append(float(x[3]))
+            phimax_2_list.append(float(x[4]))
+            
+    # for the first eye
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp, dolp, phimax_list, phimax_2_list):
+        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
+        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+    for S_value, S_2_value in zip(S_list, S2_list):
+        PRC.append(float(np.log(S_value / S_2_value)))
+    PRC_scaled = np.interp(PRC, (min(PRC), max(PRC)), (0,1))
+    PRC_scaled = PRC_scaled.tolist()
+    #print(PRC_scaled)
+    # for the second eye
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2, dolp_2, phimax_list, phimax_2_list):
+        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
+        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+    for S_value, S_2_value in zip(S_2_list, S2_2_list):
+        PRC_2.append(float(np.log(S_value / S_2_value)))
+    PRC_2_scaled = np.interp(PRC_2, (min(PRC_2), max(PRC_2)), (0,1))
+    PRC_2_scaled = PRC_2_scaled.tolist()
+    
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_scaled) + '" 25')   
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
+    os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '_lines.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines.png')
     
     # Open the circular image
     img = cv2.imread(args.input)        
@@ -230,24 +301,32 @@ for rotation_angle in range(0, 360, 5):
     cv2.imwrite('1steye_' + str(rotation_angle) + '_background.png', img)
 
     os.system('python image_superimposing.py 1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
+    os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
     os.system('rm 1steye_' + str(rotation_angle) + '_background.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
-    
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
 
-    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2) + '" 25')
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2_scaled) + '" 25')   
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
+    #os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2) + '" 25')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines.png')
 
+    os.system('python image_superimposing.py aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    
     os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_' + str(rotation_angle) + '_background.png')
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_background.png')
     os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
     os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
 
-    circmeans.append(scipy.stats.circmean(aolp, high = np.pi, low = -np.pi))
-    circmeans_2.append(scipy.stats.circmean(aolp_2, high = np.pi, low = -np.pi))
-    circmeans_botheyes.append(scipy.stats.circmean(aolp_both_eyes, high = np.pi, low = -np.pi))
+    circmeans.append(circmean(np.array(aolp), weights=np.array(dolp)))
+    circmeans_2.append(circmean(np.array(aolp_2), weights=np.array(dolp_2)))
+    circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
 
 # Calculate the polar histogram for circmeans list
 N = 59

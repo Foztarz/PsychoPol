@@ -1,3 +1,5 @@
+# this script makes FOVs/ellipses with colors based on DoLP for the first eye (jet colormap)
+
 import sys
 import numpy as np
 import cv2
