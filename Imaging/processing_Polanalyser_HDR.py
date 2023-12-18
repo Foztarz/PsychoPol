@@ -4,7 +4,7 @@ Created on Thu May  6 17:51:26 2021
 
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster        DATE: 2021 03 30
-#     MODIFIED:	James Foster        DATE: 2021 06 23
+#     MODIFIED:	James Foster        DATE: 2023 03 16
 #
 #  DESCRIPTION: Loads images capture exported from Lucid's Arena SDK. These 
 #               should consist of a bracket of images separated by 1–2EV. 
@@ -24,6 +24,7 @@ Created on Thu May  6 17:51:26 2021
 #	            -sigmoid scaling
 #	            -save DoLP histogram
 #	            -mask DoLP
+#	            -install polanalyser from pip
 #
 #   REFERENCES: Foster J.J., Temple S.E., How M.J., Daly I.M., Sharkey C.R.,
 #               Wilby D., Roberts N.W., (2018)
@@ -43,6 +44,7 @@ Created on Thu May  6 17:51:26 2021
 #- Test run  +
 #- Comment  
 #- HDR      +
+#- fix cv2.split
 #- Image filtering
 #- Dark subtraction
 #- Neaten up          
@@ -51,6 +53,7 @@ Created on Thu May  6 17:51:26 2021
 # conda install git
 
 # pip install git+https://github.com/elerac/polanalyser
+# pip install polanalyser
 # pip install numba
 
 import numpy as np
@@ -162,8 +165,8 @@ plt.imshow(img_HDR)
 """
 
 img_demosaiced = pa.demosaicing(img_HDR)
-
-img_000, img_045, img_090, img_135 = cv2.split(img_demosaiced)
+#this is an important change
+img_000, img_045, img_090, img_135 = pa.demosaicing(img_HDR, pa.COLOR_PolarMono)
 
 plt.imshow(img_000)
 
@@ -317,8 +320,8 @@ def  Scale_sigmoid(x, inflex = 0., width = 2., rang = 0.8):
     return(yy)
 
 
-nonzero = img_intensity_msk[np.nonzero(img_intensity_msk)].ravel()
-img_displ_int = Scale_sigmoid(img_intensity_msk, 
+nonzero = np.log10( img_intensity_msk[np.nonzero(img_intensity_msk)].ravel() )
+img_displ_int = Scale_sigmoid( np.log10( img_intensity_msk ), 
                               inflex= np.nanmedian(nonzero),
                               width = np.diff(np.nanquantile(nonzero, [(1-max_val)/2, 1-(1-max_val)/2])),
                               rang = max_val)
