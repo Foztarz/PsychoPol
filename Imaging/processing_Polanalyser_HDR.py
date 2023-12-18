@@ -165,7 +165,7 @@ plt.imshow(img_HDR)
 """
 
 img_demosaiced = pa.demosaicing(img_HDR)
-
+#this is an important change
 img_000, img_045, img_090, img_135 = pa.demosaicing(img_HDR, pa.COLOR_PolarMono)
 
 plt.imshow(img_000)
