@@ -2,10 +2,10 @@
 """
 # Details ---------------------------------------------------------------
 #       AUTHOR:	Lucid Vision Labs   DATE: 2021 04 07
-#     MODIFIED:	James Foster        DATE: 2021 06 25
+#     MODIFIED:	James Foster        DATE: 2023 03 14
 #
 #  DESCRIPTION: Captures images from a Lucid PHX050S1-P camera. Adapted from 
-#              py_image_buffer_save_mono12_to_png_with_PIL.py  and
+#              py_image_buffer_save_Mono8_to_png_with_PIL.py  and
 #              py_sequencer_HDR.py in Lucid's Arena SDK.
 #               
 #      OUTPUTS: Images as bitmap (png).
@@ -37,12 +37,12 @@
 # THE SOFTWARE.
 # -----------------------------------------------------------------------------
 """
-#user defined exposure time in s
-user_exposure = 100.0*1000000
+#user defined exposure time in us
+user_exposure = 5004.408#0.02*1000000
 #user exposure value steps
 user_ev_step = 2
 #user acquisition frame rate
-user_acquisition_rate_Hz = 0.1 #0.1 minimum
+user_acquisition_rate_Hz =0.5#0.1 minimum
 #user save directory, not yet implemented
 # user_savedir = 'C:/Users/jaf54iq/Documents/'
 
@@ -153,7 +153,7 @@ def acquire_and_save_buffers(device):
             not pixelformat_node.is_readable:
         raise Exception('Width, Height, or PixelFormat node is not readable')
 
-    pixelformat_node.value = 'Mono12'
+    pixelformat_node.value = 'Mono8'
 
     # Starting the stream allocates buffers, which can be passed in as
     # an argument (default: 10), and begins filling them with data.
@@ -196,12 +196,12 @@ def acquire_and_save_buffers(device):
             writer.save(buffer)
             print(f'Image saved {writer.saved_images[-1]}')
             
-            # FROM py_image_buffer_save_mono12_to_png_with_PIL.py
+            # FROM py_image_buffer_save_Mono8_to_png_with_PIL.py
             
             # image_buffer = buffer
             # # Buffer.pdata is a (uint8, ctypes.c_ubyte) type
             # # Buffer.data is a list of elements each represents one byte.
-            # # Since Mono12 uses 16Bits (2 bytes), It is easier to user Buffer.pdata
+            # # Since Mono8 uses 16Bits (2 bytes), It is easier to user Buffer.pdata
             # # over Buffer.data. Buffer.pdata must be cast to (uint16, c_ushort)
             # # so every element in the array would represent one pixel.
             # pdata_as16 = ctypes.cast(image_buffer.pdata,
