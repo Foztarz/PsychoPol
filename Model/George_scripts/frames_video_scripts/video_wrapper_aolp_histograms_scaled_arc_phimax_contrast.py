@@ -109,12 +109,14 @@ for rotation_angle in range(0, 360, 5):
 
     S0 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities, img_045_intensities, img_090_intensities, img_135_intensities)]
     dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
-    aolp = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] 
+    aolp = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] # divide by pi for colors, mod for values between 0 and 180
+    aolp_hist = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(rotation_angle) + np.radians(90)), np.pi) for x3, y3 in zip(S2, S1)] 
     aolp_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) - np.radians(90) for x3, y3 in zip(S2, S1)]
+    aolp_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
     
     # Calculate the polar histogram for aolp list
-    N = 59
-    aop_hist = np.histogram(aolp, bins=N, range=[-np.pi, np.pi])
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
 
     bottom = 0
     max_height = 1102
@@ -183,12 +185,14 @@ for rotation_angle in range(0, 360, 5):
 
     S0_2 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities_2, img_045_intensities_2, img_090_intensities_2, img_135_intensities_2)]
     dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
-    aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)]
+    aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)] # divide by pi for colors , mod for values between 0 and 180
+    aolp_2_hist = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(rotation_angle) + np.radians(90)), np.pi) for x3, y3 in zip(S2_2, S1_2)] 
     aolp_2_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) - np.radians(90) for x3, y3 in zip(S2_2, S1_2)]
+    aolp_2_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
     
     # Calculate the polar histogram for aolp_2 list
-    N = 59
-    aop_hist = np.histogram(aolp_2, bins=N, range=[-np.pi, np.pi])
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
 
     bottom = 0
     max_height = 1102
@@ -217,15 +221,15 @@ for rotation_angle in range(0, 360, 5):
     fig.savefig(output_path)
     plt.close(fig)
 
-    aolp_both_eyes = aolp + aolp_2
+    aolp_both_eyes = aolp_circmeans + aolp_2_circmeans
     dolp_both_eyes = dolp + dolp_2
     
     # Calculate the polar histogram for both eyes
-    N = 59
-    aop_hist_1 = np.histogram(aolp, bins=N, range=[-np.pi, np.pi])
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist_1 = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
 
     # Calculate the polar histogram for the second set of AOLP values
-    aop_hist_2 = np.histogram(aolp_2, bins=N, range=[-np.pi, np.pi])
+    aop_hist_2 = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
 
     bottom = 0
     max_height = max(max(aop_hist_1[0]), max(aop_hist_2[0]))
@@ -324,12 +328,12 @@ for rotation_angle in range(0, 360, 5):
     os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
 
-    circmeans.append(circmean(np.array(aolp), weights=np.array(dolp)))
-    circmeans_2.append(circmean(np.array(aolp_2), weights=np.array(dolp_2)))
+    circmeans.append(circmean(np.array(aolp_circmeans), weights=np.array(dolp)))
+    circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
     circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
 
 # Calculate the polar histogram for circmeans list
-N = 59
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
 
 bottom = 0
@@ -360,7 +364,7 @@ fig.savefig(output_path)
 plt.close(fig)
 
 # Calculate the polar histogram for circmeans_2 list
-N = 59
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans_2, bins=N, range=[-np.pi, np.pi])
 
 bottom = 0
@@ -392,7 +396,7 @@ plt.close(fig)
 
 
 # Calculate the polar histogram for circmeans both eyes
-N = 59
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans_botheyes, bins=N, range=[-np.pi, np.pi])
 
 bottom = 0
