@@ -13,6 +13,7 @@ import math
 import matplotlib.pyplot as plt
 import scipy
 from astropy.units import Quantity
+from scipy.interpolate import make_interp_spline
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
@@ -67,7 +68,15 @@ with open(args.coordinates, 'r') as crd:
 circmeans = []
 circmeans_2 = []
 circmeans_botheyes = []
+all_PRC_values = []
+all_PRC_2_values = []
+rotation_angles = []
 for rotation_angle in range(0, 360, 5):
+    solar_azimuth = 219 + rotation_angle # change this 219 with whatever the initial solar azimuth is in the image
+    if solar_azimuth < 360:
+        rotation_angles.append(solar_azimuth)
+    else:
+        rotation_angles.append(solar_azimuth -360)
     img_000_intensities = []
     img_045_intensities = []
     img_090_intensities = []
@@ -268,22 +277,24 @@ for rotation_angle in range(0, 360, 5):
             phimax_2_list.append(float(x[4]))
             
     # for the first eye
-    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp, dolp, phimax_list, phimax_2_list):
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
         S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
         S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_value / S_2_value)))
-    PRC_scaled = np.interp(PRC, (min(PRC), max(PRC)), (0,1))
+    PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
     PRC_scaled = PRC_scaled.tolist()
-    #print(PRC_scaled)
+    all_PRC_values.append(PRC)
+
     # for the second eye
-    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2, dolp_2, phimax_list, phimax_2_list):
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
         S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
         S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
         PRC_2.append(float(np.log(S_value / S_2_value)))
-    PRC_2_scaled = np.interp(PRC_2, (min(PRC_2), max(PRC_2)), (0,1))
+    PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
     PRC_2_scaled = PRC_2_scaled.tolist()
+    all_PRC_2_values.append(PRC_2)
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_scaled) + '" 25')   
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
@@ -426,5 +437,21 @@ output_path = 'polar_histogram_both_eyes_circmeans.png'
 fig.savefig(output_path)
 plt.close(fig)
 
+# Flatten the lists of PRC and PRC_2 values (make list out of list of lists)
+flat_PRC_values = [item for sublist in all_PRC_values for item in sublist]
+flat_PRC_2_values = [item for sublist in all_PRC_2_values for item in sublist]
+
+# Plotting the scatter plot
+plt.scatter(np.repeat(rotation_angles, len(PRC)), flat_PRC_values, c='blue', label='right_eye', s=5)
+plt.scatter(np.repeat(rotation_angles, len(PRC_2)), flat_PRC_2_values, c='red', label='left_eye', s=5)
+
+# Adding labels and legend
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC Values')
+plt.legend()
+
+plt.savefig('PRC_scatter_plot.png')
+# Display the plot
+plt.show()
 
     
