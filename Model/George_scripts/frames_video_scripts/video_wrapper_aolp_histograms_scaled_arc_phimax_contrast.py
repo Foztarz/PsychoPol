@@ -1,7 +1,7 @@
 ## usage: python script.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
 
 # this script makes frames for each rotation angle (of the original image) where FOVs/ellipses are colored based on PRC (photoreceptor contrast) and in each FOV (ellipse) we have lines that correspond to AoLP (egocentric).
-# The thickness of the lines is based on DoLP. The phi_max values are calculated based on Labhart 1985.
+# The thickness of the lines is based on DoLP. The phi_max values are calculated based on Labhart 1985. It also makes an azimuth/PRC scatterplot and line plots for pairs of ommatidia (x: solar azimuth, y:PRC)
 
 import os
 import sys
@@ -451,7 +451,35 @@ plt.ylabel('PRC Values')
 plt.legend()
 
 plt.savefig('PRC_scatter_plot.png')
-# Display the plot
-plt.show()
+
+# we need to sort the solar azimuths (rotation_angles) but simultaneously sort the PRC values.
+rotation_angles_PRC_values = list(zip(rotation_angles, all_PRC_values))
+rotation_angles_PRC_2_values = list(zip(rotation_angles, all_PRC_2_values))
+rotation_angles_PRC_values.sort(key=lambda x: x[0])
+rotation_angles_PRC_2_values.sort(key=lambda x: x[0])
+sorted_rotation_angles = [item[0] for item in rotation_angles_PRC_values]
+sorted_all_PRC_values = [item[1] for item in rotation_angles_PRC_values]
+sorted_all_PRC_2_values = [item[1] for item in rotation_angles_PRC_2_values]
+
+# Plot and save each element in a single plot
+
+for i in range(len(all_PRC_values[0])):
+    plt.figure()
+    
+    # Plot from list1
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_values], label=f'right eye - ommatidium {i+1}', c='blue')
+
+    # Plot from list2
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_2_values], label=f'left eye - ommatidium {i+1}', c='red')
+
+    plt.title(f'Graph for ommatidium {i+1}')
+    plt.xlabel('solar azimuth (degrees)')
+    plt.ylabel('PRC value')
+    plt.legend()
+
+    # Save the figure in the current working directory
+    figure_filename = f'ommatidium_{i+1}.png'
+    plt.savefig(figure_filename)
+    plt.close()
 
     
