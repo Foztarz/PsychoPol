@@ -1,4 +1,5 @@
-# this script makes a .csv file that has columns for azimuth, elevation, slope (slope of the line that is defined by the center of each ommatidium of the second eye and the center of the image), phi_max and phi_max_2 (phi_max + 90deg)
+# this script makes a .csv file that has columns for azimuth, elevation, slope (slope of the line that is defined by the center of each ommatidium of the second eye and the center of the image),
+# phi_max and phi_max_2 (phi_max + 90deg), phi max values are set to be perpendicular to each ommatidium's azimuth (Gkanias model)(slope is not actually needed in this script)
 
 import sys
 import numpy as np
@@ -83,7 +84,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
         max_slope = np.max(data_array[:, 2])
 
         # Map slope values to the range [0, 180] for the 4th column
-        data_array[:, 3] = np.interp(data_array[:, 2], [min_slope, max_slope], [0, 180])
+        data_array[:, 3] = data_array[:,0] + 90
 
         # Calculate phi_max_2 as phi_max + 90
         data_array[:, 4] = data_array[:, 3] + 90
