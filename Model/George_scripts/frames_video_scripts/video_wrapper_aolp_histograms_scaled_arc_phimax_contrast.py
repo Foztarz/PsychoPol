@@ -1,8 +1,9 @@
 ## usage: python script.py -i HDR.png -dmc img_000_cropped.png img_045_cropped.png img_090_cropped.png img_135_cropped.png -c coordinates.txt
 
 # this script makes frames for each rotation angle (of the original image) where FOVs/ellipses are colored based on PRC (photoreceptor contrast) and in each FOV (ellipse) we have lines that correspond to AoLP (egocentric).
-# The thickness of the lines is based on DoLP. The phi_max values are calculated based on Labhart 1985. It also makes an azimuth/PRC scatterplot and line plots for pairs of ommatidia (x: solar azimuth, y:PRC)
-
+# The thickness of the lines is based on DoLP. The phi_max values are calculated based on Labhart 1985. It also makes an azimuth/PRC scatterplot and line plots for pairs of ommatidia (including the
+# difference between the 2 ommatidia (x: solar azimuth, y:PRC) and line plots for both eyes (PRC values) and for each eye separately (PRC values)
+# Don't forget to change the true solar azimuth for the PRC plots!!
 import os
 import sys
 import argparse
@@ -63,8 +64,7 @@ with open(args.coordinates, 'r') as crd:
         x=line.split('\t')
         azimuth_deg_list.append(float(x[0]))
         elevation_deg_list.append(float(x[1].strip()))
-#print(azimuth_deg_list)
-#print(elevation_deg_list)
+
 circmeans = []
 circmeans_2 = []
 circmeans_botheyes = []
@@ -72,7 +72,7 @@ all_PRC_values = []
 all_PRC_2_values = []
 rotation_angles = []
 for rotation_angle in range(0, 360, 5):
-    solar_azimuth = 219 + rotation_angle # change this 219 with whatever the initial solar azimuth is in the image
+    solar_azimuth = 286 + rotation_angle # change this number with whatever the initial solar azimuth is in the image
     if solar_azimuth < 360:
         rotation_angles.append(solar_azimuth)
     else:
@@ -461,25 +461,84 @@ sorted_rotation_angles = [item[0] for item in rotation_angles_PRC_values]
 sorted_all_PRC_values = [item[1] for item in rotation_angles_PRC_values]
 sorted_all_PRC_2_values = [item[1] for item in rotation_angles_PRC_2_values]
 
-# Plot and save each element in a single plot
-
+# Plot and save for ommatidia pairs (PRC values)
 for i in range(len(all_PRC_values[0])):
     plt.figure()
     
-    # Plot from list1
+    # Plot for right eye (PRC values across all solar azimuths)
     plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_values], label=f'right eye - ommatidium {i+1}', c='blue')
 
-    # Plot from list2
+    # Plot for left eye (PRC values across all solar azimuths)
     plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_2_values], label=f'left eye - ommatidium {i+1}', c='red')
+    
+    # Plot the difference between right and left eye values
+    difference_PRC_values = [lst1[i] - lst2[i] for lst1, lst2 in zip(sorted_all_PRC_values, sorted_all_PRC_2_values)]
+    plt.plot(sorted_rotation_angles, difference_PRC_values, label=f'PRC_difference - ommatidium {i+1}', c='green')
 
     plt.title(f'Graph for ommatidium {i+1}')
     plt.xlabel('solar azimuth (degrees)')
     plt.ylabel('PRC value')
     plt.legend()
-
+    # Set x-axis ticks at every ten degrees
+    plt.xticks(range(0, 361, 30))
     # Save the figure in the current working directory
     figure_filename = f'ommatidium_{i+1}.png'
     plt.savefig(figure_filename)
     plt.close()
+
+# Create a single graph for all right eye ommatidia
+plt.figure()
+for i in range(len(all_PRC_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_values], c = 'blue')
+
+plt.title('All Right Eye Ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
+plt.savefig('all_right_eye_ommatidia.png')
+plt.close()
+
+# Create a single graph for all left eye ommatidia
+plt.figure()
+for i in range(len(all_PRC_2_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_2_values], c = 'red')
+
+plt.title('All Left Eye Ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC value')
+plt.savefig('all_left_eye_ommatidia.png')
+plt.close()
+
+# Create a single graph for both eyes
+plt.figure()
+for i in range(len(all_PRC_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_values], alpha=0.7, c = 'blue')
+
+for i in range(len(all_PRC_2_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_2_values], alpha=0.7, c = 'red')
+
+plt.title('Both Eyes - All Ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
+plt.savefig('both_eyes_all_ommatidia.png')
+plt.close()
+
+# Create a single graph for all PRC differences (between pairs of ommatidia)
+plt.figure()
+for i in range(len(all_PRC_2_values[0])):
+    # Plot the difference between right and left eye values
+    difference_PRC_values = [lst1[i] - lst2[i] for lst1, lst2 in zip(sorted_all_PRC_values, sorted_all_PRC_2_values)]
+    plt.plot(sorted_rotation_angles, difference_PRC_values, c='green')
+
+plt.title('PRC difference between pairs of ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC difference value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
+plt.savefig('PRC_difference.png')
+plt.close()
 
     
