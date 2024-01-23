@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
+parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
 args=parser.parse_args()
 
 Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
@@ -72,7 +73,7 @@ all_PRC_values = []
 all_PRC_2_values = []
 rotation_angles = []
 for rotation_angle in range(0, 360, 5):
-    solar_azimuth = 286 + rotation_angle # change this number with whatever the initial solar azimuth is in the image
+    solar_azimuth = float(args.solarazimuth) + rotation_angle - 180 # subtracting 180deg to have 0deg down on the image
     if solar_azimuth < 360:
         rotation_angles.append(solar_azimuth)
     else:
