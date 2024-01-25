@@ -8,7 +8,7 @@ import matplotlib.cm as cm
 import colorsys
 
 def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
-    s = radius * elevation_deg / 90  # distance from image edge
+    s = radius * elevation_deg / 90  # distance from the circle's circumference
     azimuth_rad = np.radians(azimuth_deg)
     elevation_rad = np.radians(elevation_deg)
     x = int((radius - s) * np.sin(azimuth_rad))
@@ -38,7 +38,6 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             projection_radius = min(center_x, center_y)
             proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
             proj_x += center_x  # This is to set 0,0 to the north (top of the image)
-            
             # Calculate the axes lengths for the ellipse and distortion based on azimuth
             minor_axis = int(minor_axis)
             if elevation_deg == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.

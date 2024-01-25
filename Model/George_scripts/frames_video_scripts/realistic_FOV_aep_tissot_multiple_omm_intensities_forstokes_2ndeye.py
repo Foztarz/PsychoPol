@@ -3,6 +3,8 @@
 import sys
 import numpy as np
 import cv2
+import scipy.stats
+import matplotlib.pyplot as plt
 
 def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
     s = radius * elevation_deg / 90  # distance from image edge
@@ -57,7 +59,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
                 
                 # Draw the rotated ellipse on the canvas
                 thickness = -1  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
-                angle = azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
+                angle = -azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
                 cv2.ellipse(canvas, (proj_x2, proj_y), (major_axis, minor_axis), angle, 0, 360, 255, thickness) # 255 corresponds to white, canvas has now black and white pixels (ellipses are white)
                 canvas[canvas == 255] = 1 # Convert 255 to 1 to multiply afterwards
                 

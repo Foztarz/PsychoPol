@@ -66,7 +66,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
             
             # Draw the rotated ellipse on the canvas, filling the ellipse with red color
             thickness = -1  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
-            angle = azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
+            angle = -azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
             cv2.ellipse(canvas, (proj_x2, proj_y), (major_axis, minor_axis), angle, 0, 360, rgba_color, thickness)
 
         canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
