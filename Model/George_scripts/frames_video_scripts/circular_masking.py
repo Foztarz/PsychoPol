@@ -1,4 +1,4 @@
-# usage: python circular_masking.py <infile_path> <desired_radius_in_pixels> <outfile_path>
+# usage: python circular_masking.py <infile_path> <outfile_path>
 # author: Georgios Kolyfetis
 
 from PIL import Image, ImageDraw

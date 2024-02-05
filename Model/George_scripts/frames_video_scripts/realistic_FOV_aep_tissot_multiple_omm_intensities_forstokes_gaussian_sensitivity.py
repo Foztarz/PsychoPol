@@ -60,12 +60,14 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
         # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
         M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
         img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
-        
+
+        # Create a blank canvas with a black background
+        canvas = np.zeros_like(img, dtype=np.float64)
+
         # Read the coordinates from the file
         with open(coordinates_file, 'r') as file:
             for line in file:
-                # Create a blank canvas with a black background
-                canvas = np.zeros_like(img, dtype=np.uint8)
+                
                 
                 azimuth_deg, elevation_deg = map(float, line.strip().split('\t'))
 
@@ -97,11 +99,8 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
 ##                # Print the coordinates
 ##                print(f"Max Value Coordinates: Pixel X = {max_pixel_x}, Pixel Y = {max_pixel_y}", proj_x,proj_y)
 
-##                # Plot the Gaussian matrix
-##                plt.imshow(gaussian_array, cmap='viridis', origin='upper')
-##                plt.title(f'Gaussian Matrix - Ommatidium {azimuth_deg:.2f}, {elevation_deg:.2f}')
-##                plt.colorbar()
-##                plt.show()
+                # Accumulate the Gaussian array to the canvas
+                canvas += gaussian_array
 
                 # Calculate the axes lengths for the ellipse and distortion based on azimuth
                 minor_axis = int(minor_axis)
@@ -111,16 +110,37 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
                     distortion = float(((np.pi/2) - np.pi * elevation_deg/180) / np.cos(np.pi * elevation_deg/180))
 
                 major_axis = int(distortion * minor_axis)
-                
-                # Draw the rotated ellipse on the canvas
-                thickness = -1  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
-                angle = azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
-                cv2.ellipse(canvas, (proj_x, proj_y), (major_axis, minor_axis), angle, 0, 360, 255, thickness) # 255 corresponds to white, canvas has now black and white pixels (ellipses are white)
-                canvas[canvas == 255] = 1 # Convert 255 to 1 to multiply afterwards
-                
+                                
                 result = np.multiply(img, gaussian_array) # multiply the original img with the canvas (pixels that are outside of the ellipse are white on the canvas)
                 #print(str(azimuth_deg) + '\t' +  str(elevation_deg) + '\t' + str(np.sum(result))) # prints the sum of intensities of each 'ommatiidum' image
                 print(np.sum(result))
+                
+            # Plot the Gaussian matrix
+            # Mirror the canvas with respect to the vertical axis
+            mirrored_canvas = np.flip(canvas, axis=1)
+
+            # Add the mirror image to the existing canvas
+            canvas = canvas + mirrored_canvas
+            canvas /= np.max(canvas)
+            canvas = np.multiply(canvas, img) # multiply with the original image if desired
+
+            # this shows the plot of the gaussians
+            #plt.imshow(canvas, cmap='viridis', origin='upper')
+            #plt.imshow(canvas, origin='upper')
+            #plt.title('Combined Gaussian Matrix for all Ommatidia')
+            #plt.colorbar()
+            #plt.show()
+
+            # Create a window to display the image
+            cv2.namedWindow('Canvas', cv2.WINDOW_NORMAL)
+
+            # Display the canvas image
+            cv2.imshow('Canvas', canvas.astype(np.float64)/canvas.max()) # this is to make it less bright for cv2
+
+            # Wait for a key event and close the window
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+            
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
