@@ -109,8 +109,8 @@ for rotation_angle in range(0, 360, 5):
 
     S0 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities, img_045_intensities, img_090_intensities, img_135_intensities)]
     dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
-    aolp = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] 
-    aolp_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
+    aolp = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] 
+    aolp_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
     
     # Calculate the polar histogram for aolp list
     N = 59
@@ -183,8 +183,8 @@ for rotation_angle in range(0, 360, 5):
 
     S0_2 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities_2, img_045_intensities_2, img_090_intensities_2, img_135_intensities_2)]
     dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
-    aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)]
-    aolp_2_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
+    aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)]
+    aolp_2_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
     
     # Calculate the polar histogram for aolp_2 list
     N = 59

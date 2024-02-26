@@ -122,7 +122,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
             # Add the mirror image to the existing canvas
             canvas = canvas + mirrored_canvas
             canvas /= np.max(canvas)
-            canvas = np.multiply(canvas, img) # multiply with the original image if desired
+            #canvas = np.multiply(canvas, img) # multiply with the original image if desired
 
             # this shows the plot of the gaussians
             #plt.imshow(canvas, cmap='viridis', origin='upper')
@@ -132,14 +132,14 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
             #plt.show()
 
             # Create a window to display the image
-            cv2.namedWindow('Canvas', cv2.WINDOW_NORMAL)
+            #cv2.namedWindow('Canvas', cv2.WINDOW_NORMAL)
 
             # Display the canvas image
-            cv2.imshow('Canvas', canvas.astype(np.float64)/canvas.max()) # this is to make it less bright for cv2
+            #cv2.imshow('Canvas', canvas.astype(np.float64)/canvas.max()) # this is to make it less bright for cv2
 
             # Wait for a key event and close the window
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            #cv2.waitKey(0)
+            #cv2.destroyAllWindows()
             
     except Exception as e:
         print(f"An error occurred: {str(e)}")

@@ -3,7 +3,7 @@
 # this script makes frames for each rotation angle (of the original image) where FOVs/ellipses are colored based on PRC (photoreceptor contrast) and in each FOV (ellipse) we have lines that correspond to AoLP (egocentric).
 # The thickness of the lines is based on DoLP. The phi_max values are calculated based on Labhart 1985. It also makes an azimuth/PRC scatterplot and line plots for pairs of ommatidia (including the
 # difference between the 2 ommatidia (x: solar azimuth, y:PRC) and line plots for both eyes (PRC values) and for each eye separately (PRC values)
-# Don't forget to change the true solar azimuth for the PRC plots!!
+# Don't forget to change the true solar azimuth for the PRC plots in the command !!
 import os
 import sys
 import argparse
@@ -119,41 +119,41 @@ for rotation_angle in range(0, 360, 5):
 
     S0 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities, img_045_intensities, img_090_intensities, img_135_intensities)]
     dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
-    aolp = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] # divide by pi for colors, mod for values between 0 and 180
+    aolp = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] # divide by pi for colors, mod for values between 0 and 180
     aolp_hist = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(rotation_angle) + np.radians(90)), np.pi) for x3, y3 in zip(S2, S1)] 
-    aolp_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) - np.radians(90) for x3, y3 in zip(S2, S1)]
+    aolp_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
     aolp_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
     
-##    # Calculate the polar histogram for aolp list
-##    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-##    aop_hist = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
-##
-##    bottom = 0
-##    max_height = 1102
-##
-##    theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-##    radii = aop_hist[0]
-##    width = 0.1 * (2 * np.pi) / N
-##
-##    # Plot the polar histogram
-##    fig = plt.figure()
-##    ax = fig.add_subplot(111, polar=True)
-##    bars = ax.bar(theta, radii, width=width, bottom=bottom)
-##    ax.set_rlabel_position(270)
-##
-##    # Use custom colors and opacity
-##    for r, bar in zip(radii, bars):
-##        bar.set_facecolor('red')
-##        
-##    # Set title with rotation angle
-##    ax.set_title('aolp_{}_right_eye'.format(rotation_angle))
-##    
-##    ax.set_xlabel("Angle of Polarization")
-##
-##    # Save the polar histogram
-##    output_path = 'polar_histogram_{}_1steye.png'.format(rotation_angle)
-##    fig.savefig(output_path)
-##    plt.close(fig)
+    # Calculate the polar histogram for aolp list
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
+
+    bottom = 0
+    max_height = 1102
+
+    theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+    radii = aop_hist[0]
+    width = 0.1 * (2 * np.pi) / N
+
+    # Plot the polar histogram
+    fig = plt.figure()
+    ax = fig.add_subplot(111, polar=True)
+    bars = ax.bar(theta, radii, width=width, bottom=bottom)
+    ax.set_rlabel_position(270)
+
+    # Use custom colors and opacity
+    for r, bar in zip(radii, bars):
+        bar.set_facecolor('red')
+        
+    # Set title with rotation angle
+    ax.set_title('aolp_{}_right_eye'.format(rotation_angle))
+    
+    ax.set_xlabel("Angle of Polarization")
+
+    # Save the polar histogram
+    output_path = 'polar_histogram_{}_1steye.png'.format(rotation_angle)
+    fig.savefig(output_path)
+    plt.close(fig)
         
     # this is for the second eye
     img_000_intensities_2 = []
@@ -195,78 +195,78 @@ for rotation_angle in range(0, 360, 5):
 
     S0_2 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities_2, img_045_intensities_2, img_090_intensities_2, img_135_intensities_2)]
     dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
-    aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) - np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)] # divide by pi for colors , mod for values between 0 and 180
+    aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)] # divide by pi for colors , mod for values between 0 and 180
     aolp_2_hist = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(rotation_angle) + np.radians(90)), np.pi) for x3, y3 in zip(S2_2, S1_2)] 
-    aolp_2_lines = [ (math.atan2(x3, y3) / 2) - np.radians(rotation_angle) - np.radians(90) for x3, y3 in zip(S2_2, S1_2)]
+    aolp_2_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
     aolp_2_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
     
-##    # Calculate the polar histogram for aolp_2 list
-##    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-##    aop_hist = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
-##
-##    bottom = 0
-##    max_height = 1102
-##
-##    theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-##    radii = aop_hist[0]
-##    width = 0.1 * (2 * np.pi) / N
-##
-##    # Plot the polar histogram
-##    fig = plt.figure()
-##    ax = fig.add_subplot(111, polar=True)
-##    bars = ax.bar(theta, radii, width=width, bottom=bottom)
-##    ax.set_rlabel_position(270)
-##
-##    # Use custom colors and opacity
-##    for r, bar in zip(radii, bars):
-##        bar.set_facecolor('red')
-##        
-##    # Set title with rotation angle
-##    ax.set_title('aolp_{}_left_eye'.format(rotation_angle))
-##    
-##    ax.set_xlabel("Angle of Polarization")
-##
-##    # Save the polar histogram
-##    output_path = 'polar_histogram_{}_2ndeye.png'.format(rotation_angle)
-##    fig.savefig(output_path)
-##    plt.close(fig)
-##
-##    aolp_both_eyes = aolp_circmeans + aolp_2_circmeans
-##    dolp_both_eyes = dolp + dolp_2
-##    
-##    # Calculate the polar histogram for both eyes
-##    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-##    aop_hist_1 = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
-##
-##    # Calculate the polar histogram for the second set of AOLP values
-##    aop_hist_2 = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
-##
-##    bottom = 0
-##    max_height = max(max(aop_hist_1[0]), max(aop_hist_2[0]))
-##
-##    theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-##    width = 0.1 * (2 * np.pi) / N
-##
-##    # Plot the polar histogram for the first set of AOLP values (in red)
-##    fig = plt.figure()
-##    ax = fig.add_subplot(111, polar=True)
-##    bars1 = ax.bar(theta, aop_hist_1[0], width=width, bottom=bottom)
-##    for bar in bars1:
-##        bar.set_facecolor('red') # red for one eye
-##
-##    # Plot the polar histogram for the second set of AOLP values (in green)
-##    bars2 = ax.bar(theta, aop_hist_2[0], width=width, bottom=bottom)
-##    for bar in bars2:
-##        bar.set_facecolor('blue') # blue for the other eye
-##
-##    ax.set_rlabel_position(270)
-##    ax.set_title('aolp_{}_both_eyes'.format(rotation_angle))
-##    ax.set_xlabel("Angle of Polarization")
-##
-##    # Save the polar histogram
-##    output_path = 'polar_histogram_{}_botheyes.png'.format(rotation_angle)
-##    fig.savefig(output_path)
-##    plt.close(fig)
+    # Calculate the polar histogram for aolp_2 list
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
+
+    bottom = 0
+    max_height = 1102
+
+    theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+    radii = aop_hist[0]
+    width = 0.1 * (2 * np.pi) / N
+
+    # Plot the polar histogram
+    fig = plt.figure()
+    ax = fig.add_subplot(111, polar=True)
+    bars = ax.bar(theta, radii, width=width, bottom=bottom)
+    ax.set_rlabel_position(270)
+
+    # Use custom colors and opacity
+    for r, bar in zip(radii, bars):
+        bar.set_facecolor('red')
+        
+    # Set title with rotation angle
+    ax.set_title('aolp_{}_left_eye'.format(rotation_angle))
+    
+    ax.set_xlabel("Angle of Polarization")
+
+    # Save the polar histogram
+    output_path = 'polar_histogram_{}_2ndeye.png'.format(rotation_angle)
+    fig.savefig(output_path)
+    plt.close(fig)
+
+    aolp_both_eyes = aolp_circmeans + aolp_2_circmeans
+    dolp_both_eyes = dolp + dolp_2
+    
+    # Calculate the polar histogram for both eyes
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist_1 = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
+
+    # Calculate the polar histogram for the second set of AOLP values
+    aop_hist_2 = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
+
+    bottom = 0
+    max_height = max(max(aop_hist_1[0]), max(aop_hist_2[0]))
+
+    theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+    width = 0.1 * (2 * np.pi) / N
+
+    # Plot the polar histogram for the first set of AOLP values (in red)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, polar=True)
+    bars1 = ax.bar(theta, aop_hist_1[0], width=width, bottom=bottom)
+    for bar in bars1:
+        bar.set_facecolor('red') # red for one eye
+
+    # Plot the polar histogram for the second set of AOLP values (in green)
+    bars2 = ax.bar(theta, aop_hist_2[0], width=width, bottom=bottom)
+    for bar in bars2:
+        bar.set_facecolor('blue') # blue for the other eye
+
+    ax.set_rlabel_position(270)
+    ax.set_title('aolp_{}_both_eyes'.format(rotation_angle))
+    ax.set_xlabel("Angle of Polarization")
+
+    # Save the polar histogram
+    output_path = 'polar_histogram_{}_botheyes.png'.format(rotation_angle)
+    fig.savefig(output_path)
+    plt.close(fig)
 
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_arcs.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
@@ -297,146 +297,146 @@ for rotation_angle in range(0, 360, 5):
     PRC_2_scaled = PRC_2_scaled.tolist()
     all_PRC_2_values.append(PRC_2)
     
-##    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_scaled) + '" 25')   
-##    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
-##    os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
-##    os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '_lines.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
-##    os.system('rm aolp_1steye_' + str(rotation_angle) + '.png')
-##    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines.png')
-##    
-##    # Open the circular image
-##    img = cv2.imread(args.input)        
-##    # Calculate the center of the projection
-##    img_height, img_width, _ = img.shape
-##    center_x = img_width // 2
-##    center_y = img_height // 2
-##
-##    # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
-##    M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
-##    img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
-##    cv2.imwrite('1steye_' + str(rotation_angle) + '_background.png', img)
-##
-##    os.system('python image_superimposing.py 1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
-##    os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
-##    os.system('rm 1steye_' + str(rotation_angle) + '_background.png')
-##    os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
-##    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
-##
-##    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2_scaled) + '" 25')   
-##    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
-##    #os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2) + '" 25')
-##    os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
-##    os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
-##    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')
-##    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines.png')
-##
-##    os.system('python image_superimposing.py aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
-##    
-##    os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_' + str(rotation_angle) + '_background.png')
-##    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
-##    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
-##    os.system('rm aolp_1steye_' + str(rotation_angle) + '_background.png')
-##    os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
-##    os.system('rm aolp_' + str(rotation_angle) + '_background.png')
-##    # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
-##
-##    circmeans.append(circmean(np.array(aolp_circmeans), weights=np.array(dolp)))
-##    circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
-##    circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
-##
-### Calculate the polar histogram for circmeans list
-##N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-##aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
-##
-##bottom = 0
-##max_height = 1102
-##
-##theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-##radii = aop_hist[0]
-##width = 0.1 * (2 * np.pi) / N
-##
-### Plot the polar histogram
-##fig = plt.figure()
-##ax = fig.add_subplot(111, polar=True)
-##bars = ax.bar(theta, radii, width=width, bottom=bottom)
-##ax.set_rlabel_position(270)
-##
-### Use custom colors and opacity
-##for r, bar in zip(radii, bars):
-##    bar.set_facecolor('red')
-##    
-### Set title with rotation angle
-##ax.set_title('aolp_left_eye_ommatidial_circular_means'.format(rotation_angle))
-##
-##ax.set_xlabel("Angle of Polarization")
-##
-### Save the polar histogram
-##output_path = 'polar_histogram_1steye_circmeans.png'
-##fig.savefig(output_path)
-##plt.close(fig)
-##
-### Calculate the polar histogram for circmeans_2 list
-##N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-##aop_hist = np.histogram(circmeans_2, bins=N, range=[-np.pi, np.pi])
-##
-##bottom = 0
-##max_height = 1102
-##
-##theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-##radii = aop_hist[0]
-##width = 0.1 * (2 * np.pi) / N
-##
-### Plot the polar histogram
-##fig = plt.figure()
-##ax = fig.add_subplot(111, polar=True)
-##bars = ax.bar(theta, radii, width=width, bottom=bottom)
-##ax.set_rlabel_position(270)
-##
-### Use custom colors and opacity
-##for r, bar in zip(radii, bars):
-##    bar.set_facecolor('red')
-##    
-### Set title with rotation angle
-##ax.set_title('aolp_right_eye_ommatidial_circular_means'.format(rotation_angle))
-##
-##ax.set_xlabel("Angle of Polarization")
-##
-### Save the polar histogram
-##output_path = 'polar_histogram_2ndeye_circmeans.png'
-##fig.savefig(output_path)
-##plt.close(fig)
-##
-##
-### Calculate the polar histogram for circmeans both eyes
-##N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-##aop_hist = np.histogram(circmeans_botheyes, bins=N, range=[-np.pi, np.pi])
-##
-##bottom = 0
-##max_height = 1102
-##
-##theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-##radii = aop_hist[0]
-##width = 0.1 * (2 * np.pi) / N
-##
-### Plot the polar histogram
-##fig = plt.figure()
-##ax = fig.add_subplot(111, polar=True)
-##bars = ax.bar(theta, radii, width=width, bottom=bottom)
-##ax.set_rlabel_position(270)
-##
-### Use custom colors and opacity
-##for r, bar in zip(radii, bars):
-##    bar.set_facecolor('red')
-##    
-### Set title with rotation angle
-##ax.set_title('aolp_both_eyes_ommatidial_circular_means')
-##
-##ax.set_xlabel("Angle of Polarization")
-##
-### Save the polar histogram
-##output_path = 'polar_histogram_both_eyes_circmeans.png'
-##fig.savefig(output_path)
-##plt.close(fig)
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_scaled) + '" 25')   
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
+    os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
+    os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '_lines.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines.png')
+    
+    # Open the circular image
+    img = cv2.imread(args.input)        
+    # Calculate the center of the projection
+    img_height, img_width, _ = img.shape
+    center_x = img_width // 2
+    center_y = img_height // 2
+
+    # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
+    M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
+    img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
+    cv2.imwrite('1steye_' + str(rotation_angle) + '_background.png', img)
+
+    os.system('python image_superimposing.py 1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
+    os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
+    os.system('rm 1steye_' + str(rotation_angle) + '_background.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
+
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2_scaled) + '" 25')   
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
+    #os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2) + '" 25')
+    os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines.png')
+
+    os.system('python image_superimposing.py aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    
+    os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_' + str(rotation_angle) + '_background.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_background.png')
+    os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
+    os.system('rm aolp_' + str(rotation_angle) + '_background.png')
+    # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
+
+    circmeans.append(circmean(np.array(aolp_circmeans), weights=np.array(dolp)))
+    circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
+    circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
+
+# Calculate the polar histogram for circmeans list
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
+
+bottom = 0
+max_height = 1102
+
+theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+radii = aop_hist[0]
+width = 0.1 * (2 * np.pi) / N
+
+# Plot the polar histogram
+fig = plt.figure()
+ax = fig.add_subplot(111, polar=True)
+bars = ax.bar(theta, radii, width=width, bottom=bottom)
+ax.set_rlabel_position(270)
+
+# Use custom colors and opacity
+for r, bar in zip(radii, bars):
+    bar.set_facecolor('red')
+    
+# Set title with rotation angle
+ax.set_title('aolp_left_eye_ommatidial_circular_means'.format(rotation_angle))
+
+ax.set_xlabel("Angle of Polarization")
+
+# Save the polar histogram
+output_path = 'polar_histogram_1steye_circmeans.png'
+fig.savefig(output_path)
+plt.close(fig)
+
+# Calculate the polar histogram for circmeans_2 list
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+aop_hist = np.histogram(circmeans_2, bins=N, range=[-np.pi, np.pi])
+
+bottom = 0
+max_height = 1102
+
+theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+radii = aop_hist[0]
+width = 0.1 * (2 * np.pi) / N
+
+# Plot the polar histogram
+fig = plt.figure()
+ax = fig.add_subplot(111, polar=True)
+bars = ax.bar(theta, radii, width=width, bottom=bottom)
+ax.set_rlabel_position(270)
+
+# Use custom colors and opacity
+for r, bar in zip(radii, bars):
+    bar.set_facecolor('red')
+    
+# Set title with rotation angle
+ax.set_title('aolp_right_eye_ommatidial_circular_means'.format(rotation_angle))
+
+ax.set_xlabel("Angle of Polarization")
+
+# Save the polar histogram
+output_path = 'polar_histogram_2ndeye_circmeans.png'
+fig.savefig(output_path)
+plt.close(fig)
+
+
+# Calculate the polar histogram for circmeans both eyes
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+aop_hist = np.histogram(circmeans_botheyes, bins=N, range=[-np.pi, np.pi])
+
+bottom = 0
+max_height = 1102
+
+theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
+radii = aop_hist[0]
+width = 0.1 * (2 * np.pi) / N
+
+# Plot the polar histogram
+fig = plt.figure()
+ax = fig.add_subplot(111, polar=True)
+bars = ax.bar(theta, radii, width=width, bottom=bottom)
+ax.set_rlabel_position(270)
+
+# Use custom colors and opacity
+for r, bar in zip(radii, bars):
+    bar.set_facecolor('red')
+    
+# Set title with rotation angle
+ax.set_title('aolp_both_eyes_ommatidial_circular_means')
+
+ax.set_xlabel("Angle of Polarization")
+
+# Save the polar histogram
+output_path = 'polar_histogram_both_eyes_circmeans.png'
+fig.savefig(output_path)
+plt.close(fig)
 
 # Flatten the lists of PRC and PRC_2 values (make list out of list of lists)
 flat_PRC_values = [item for sublist in all_PRC_values for item in sublist]
