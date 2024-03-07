@@ -1,25 +1,44 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.interpolate import BSpline, splrep, splev
-from sklearn.metrics import r2_score
 import sys
+import numpy as np
+from scipy.interpolate import UnivariateSpline
+import matplotlib.pyplot as plt
 
-# Load data from the tab-separated file
-data = np.loadtxt(sys.argv[1], delimiter='\t')
+# Check if the correct number of command-line arguments is provided
+if len(sys.argv) != 2:
+    print("Usage: python script.py <data_file>")
+    sys.exit(1)
+
+# Read data from the specified file
+data_file = sys.argv[1]
+data = np.loadtxt(data_file, delimiter='\t')
+
+# Extract x and y columns
 x = data[:, 0]
 y = data[:, 1]
 
-# Sort the x values and rearrange the corresponding y values
+# Sort data in increasing order
 sorted_indices = np.argsort(x)
-x = x[sorted_indices]
-y = y[sorted_indices]
+x_sorted = x[sorted_indices]
+y_sorted = y[sorted_indices]
 
+# Specify the degree of the polynomial for the spline (cubic spline in this case)
+k = 3
 
+# Create a cubic spline object
+spl = UnivariateSpline(x_sorted, y_sorted, s=0.015, k=k)
 
-# Plot the results
-plt.scatter(x, y, label="Labhart's data")
-plt.plot(x_smooth, y_smooth, label=f'B-Spline Fit\nR-squared (approximate)={r2:.2f}', color='red')
-plt.xlabel('position of stimulus (degrees)')
-plt.ylabel('linear angular sensitivity')
-plt.legend()
+# Get the coefficients of the spline function
+coefficients = spl.get_coeffs()
+
+# Construct a polynomial using the coefficients
+spline_function = np.poly1d(coefficients)
+
+# Print the constructed polynomial
+print("Spline Function:")
+print(spline_function)
+
+# Generate plot
+xs = np.linspace(x_sorted.min(), x_sorted.max(), 100)
+plt.plot(x_sorted, y_sorted, 'ro', ms=5)
+plt.plot(xs, spl(xs), 'black', lw=5, alpha=0.3)
 plt.show()
