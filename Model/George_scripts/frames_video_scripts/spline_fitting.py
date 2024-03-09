@@ -26,19 +26,17 @@ k = 3
 
 # Create a cubic spline object
 spl = UnivariateSpline(x_sorted, y_sorted, s=0.015, k=k)
-
-# Get the coefficients of the spline function
-coefficients = spl.get_coeffs()
-
-# Construct a polynomial using the coefficients
-spline_function = np.poly1d(coefficients)
-
-# Print the constructed polynomial
-print("Spline Function:")
-print(spline_function)
-
+print(spl(50))
 # Generate plot
-xs = np.linspace(x_sorted.min(), x_sorted.max(), 100)
+# Set a new range of x values extending beyond x=100
+x_range = np.linspace(x_sorted.min(), 110, 1000)
+
+# Evaluate the spline on the new x range
+ys = spl(x_range)
+
+# Plot the original data points and the extended range of the spline curve
 plt.plot(x_sorted, y_sorted, 'ro', ms=5)
-plt.plot(xs, spl(xs), 'black', lw=5, alpha=0.3)
+plt.plot(x_range, ys, 'black', lw=5, alpha=0.3)
+plt.xlim(x_sorted.min(), 110)  # Set x-axis limit to show values up to 110
 plt.show()
+
