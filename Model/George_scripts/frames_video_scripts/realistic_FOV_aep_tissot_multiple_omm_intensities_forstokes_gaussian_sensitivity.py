@@ -88,7 +88,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
 
                 
                 # Normalize the Gaussian array to have a maximum value of 1
-                gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value
+                #gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value
                 
 ##                # Find the coordinates of the maximum value in the Gaussian matrix
 ##                max_coords = np.unravel_index(np.argmax(gaussian_array), gaussian_array.shape)
