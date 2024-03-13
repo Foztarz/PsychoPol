@@ -264,21 +264,21 @@ for rotation_angle in range(0, 360, 5):
             phimax_2_list.append(float(x[4]))
             
     # for the first eye
-    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp, dolp, phimax_list, phimax_2_list):
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
         S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
         S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_list, S2_list):
-        PRC.append(float(np.log(S_value / S_2_value)))
-    PRC_scaled = np.interp(PRC, (min(PRC), max(PRC)), (0,1))
+        PRC.append(float(np.log(S_2_value / S_value)))
+    PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
     PRC_scaled = PRC_scaled.tolist()
-    #print(PRC_scaled)
+
     # for the second eye
-    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2, dolp_2, phimax_list, phimax_2_list):
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
         S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
         S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
-        PRC_2.append(float(np.log(S_value / S_2_value)))
-    PRC_2_scaled = np.interp(PRC_2, (min(PRC_2), max(PRC_2)), (0,1))
+        PRC_2.append(float(np.log(S_2_value / S_value)))
+    PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
     PRC_2_scaled = PRC_2_scaled.tolist()
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_scaled) + '" 25')   
