@@ -6,7 +6,40 @@ import cv2
 import matplotlib
 import matplotlib.cm as cm
 import colorsys
+import math
+from astropy.units import Quantity
 
+def _components(data, p=1, phi=0.0, axis=None, weights=None):
+    # Utility function for computing the generalized rectangular components
+    # of the circular data.
+    if weights is None:
+        weights = np.ones((1,))
+    try:
+        weights = np.broadcast_to(weights, data.shape)
+    except ValueError:
+        raise ValueError("Weights and data have inconsistent shape.")
+
+    C = np.sum(weights * np.cos(p * (data - phi)), axis) / np.sum(weights, axis)
+    S = np.sum(weights * np.sin(p * (data - phi)), axis) / np.sum(weights, axis)
+
+    return C, S
+
+
+def _angle(data, p=1, phi=0.0, axis=None, weights=None):
+    # Utility function for computing the generalized sample mean angle
+    C, S = _components(data, p, phi, axis, weights)
+
+    # theta will be an angle in the interval [-np.pi, np.pi)
+    # [-180, 180)*u.deg in case data is a Quantity
+    theta = np.arctan2(S, C)
+
+    if isinstance(data, Quantity):
+        theta = theta.to(data.unit)
+
+    return theta
+
+def circmean(data, axis=None, weights=None):
+    return _angle(data, 1, 0.0, axis, weights)
 
 def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
     s = radius * elevation_deg / 90  # distance from image edge
@@ -16,7 +49,7 @@ def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
     y = int(radius - (radius - s) * np.cos(azimuth_rad))
     return x, y
 
-def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_axis, rotation_angle):
+def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_axis, rotation_angle, first_eye_saz_x, first_eye_saz_y, PRC_colors_list):
     try:
 
         # Open the circular image
@@ -34,11 +67,11 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         canvas = np.full_like(img, (255, 255, 255), dtype=np.uint8) # activate this for white background
         #canvas = np.zeros_like(img) # activate this for transparent canvas (shows the image)
 
-        # Initialize the total solar azimuth vector components
+        # Initialize the total solar azimuth vector components (for all ommatidia of this eye)
         total_vector_x = 0
         total_vector_y = 0
         
-        for azimuth_deg, elevation_deg, PRC_value in zip(azimuth_list, elevation_list, PRC_list):
+        for azimuth_deg, elevation_deg, PRC_value, PRC_color in zip(azimuth_list, elevation_list, PRC_list, PRC_colors_list):
        
             # Calculate the pixel coordinates for the projection
             projection_radius = min(center_x, center_y)
@@ -65,7 +98,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             #print(color_value)
             colormap = matplotlib.colormaps["bwr"]
             #color_value = color_value/np.pi # scale from 0 to 1
-            rgba_color = colormap(PRC_value)
+            rgba_color = colormap(PRC_color) # using scaled PRC values for colors
             rgba_color = tuple(int(i * 255) for i in rgba_color) # make to rgba
 
             # Calculate the vector components for each ommatidium
@@ -82,12 +115,17 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             cv2.ellipse(canvas, (proj_x2, proj_y), (major_axis, minor_axis), angle, 0, 360, rgba_color, thickness)
 
         # Calculate the end point of the total vector (normalized to the image size)
-        total_vector_length = np.sqrt(total_vector_x**2 + total_vector_y**2)
-        end_x = int(center_x + (total_vector_x / total_vector_length) * center_x)
-        end_y = int(center_y + (total_vector_y / total_vector_length) * center_y)
-
+        total_vector_angle = math.atan2(total_vector_x, total_vector_y)
+        total_vector_angle_botheyes = math.atan2(float(total_vector_x) + float(first_eye_saz_x), float(total_vector_y) + float(first_eye_saz_y)) # adding the components from the 1st eye
+        end_x = int(center_x + center_x * np.cos(total_vector_angle)) # this is for the 2nd eye
+        end_y = int(center_y + center_x * np.sin(total_vector_angle)) # this is for the 2nd eye
+        end_x2 = int(center_x + center_x * np.cos(total_vector_angle_botheyes)) # this is for both eyes
+        end_y2 = int(center_y + center_x * np.sin(total_vector_angle_botheyes)) # this is for both eyes
+        
+        #print('yes', total_vector_angle)
         # Draw the line on the canvas
         cv2.line(canvas, (center_x, center_y), (end_x, end_y), color=(255, 0, 0), thickness=2)
+        cv2.line(canvas, (center_x, center_y), (end_x2, end_y2), color=(0, 255, 0), thickness=2) # combined saz
         
         canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
         # Save the resulting image
@@ -98,8 +136,8 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         print(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 8:
-        print("Usage: python script.py <input_image> <output_image> <azimuth_list> <elevation_list> <PRC_list> <minor_axis> <rotation_angle>")
+    if len(sys.argv) != 11:
+        print("Usage: python script.py <input_image> <output_image> <azimuth_list> <elevation_list> <PRC_list> <minor_axis> <rotation_angle> <first_eye_saz_x> <first_eye_saz_y> <PRC_colors_list>")
         sys.exit(1)
 
     input_image = sys.argv[1]
@@ -109,5 +147,8 @@ if __name__ == "__main__":
     PRC_list = [float(x.strip('[]')) for x in sys.argv[5].split(',')]
     minor_axis = sys.argv[6]
     rotation_angle = sys.argv[7]
+    first_eye_saz_x = sys.argv[8]
+    first_eye_saz_y = sys.argv[9]
+    PRC_colors_list = [float(x.strip('[]')) for x in sys.argv[10].split(',')]
     
-    main(input_image, output_image, azimuth_list, elevation_list, PRC_list, minor_axis, rotation_angle)
+    main(input_image, output_image, azimuth_list, elevation_list, PRC_list, minor_axis, rotation_angle, first_eye_saz_x, first_eye_saz_y, PRC_colors_list)
