@@ -117,6 +117,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         # Calculate the end point of the total vector (normalized to the image size)
         total_vector_angle = math.atan2(total_vector_x, total_vector_y)
         total_vector_angle_botheyes = math.atan2(float(total_vector_x) + float(first_eye_saz_x), float(total_vector_y) + float(first_eye_saz_y)) # adding the components from the 1st eye
+        total_vector_length_both_eyes = math.hypot(float(total_vector_x) + float(first_eye_saz_x), float(total_vector_x) + float(first_eye_saz_x))
         end_x = int(center_x + center_x * np.cos(total_vector_angle)) # this is for the 2nd eye
         end_y = int(center_y + center_x * np.sin(total_vector_angle)) # this is for the 2nd eye
         end_x2 = int(center_x + center_x * np.cos(total_vector_angle_botheyes)) # this is for both eyes
@@ -130,7 +131,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
         # Save the resulting image
         cv2.imwrite(output_path, canvas)
-        #print(f"Projection image saved to {output_path}")
+        print(total_vector_angle_botheyes, total_vector_length_both_eyes)
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")

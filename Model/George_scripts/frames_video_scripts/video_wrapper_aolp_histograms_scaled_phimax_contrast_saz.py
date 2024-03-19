@@ -13,11 +13,13 @@ import math
 import matplotlib.pyplot as plt
 import scipy
 from astropy.units import Quantity
+from scipy.stats import circstd
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
+parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
 args=parser.parse_args()
 
 Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
@@ -62,12 +64,20 @@ with open(args.coordinates, 'r') as crd:
         x=line.split('\t')
         azimuth_deg_list.append(float(x[0]))
         elevation_deg_list.append(float(x[1].strip()))
-#print(azimuth_deg_list)
-#print(elevation_deg_list)
+
 circmeans = []
 circmeans_2 = []
 circmeans_botheyes = []
+all_PRC_values = []
+all_PRC_2_values = []
+rotation_angles = []
+all_saz_estimates = []
 for rotation_angle in range(0, 360, 5):
+    solar_azimuth = float(args.solarazimuth) + rotation_angle - 180 # subtracting 180deg to have 0deg down on the image
+    if solar_azimuth < 360:
+        rotation_angles.append(solar_azimuth)
+    else:
+        rotation_angles.append(solar_azimuth -360)
     img_000_intensities = []
     img_045_intensities = []
     img_090_intensities = []
@@ -111,10 +121,12 @@ for rotation_angle in range(0, 360, 5):
     dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
     aolp = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] 
     aolp_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
+    aolp_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
+    aolp_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2, S1)]
     
     # Calculate the polar histogram for aolp list
-    N = 59
-    aop_hist = np.histogram(aolp, bins=N, range=[-np.pi, np.pi])
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
 
     bottom = 0
     max_height = 1102
@@ -185,10 +197,12 @@ for rotation_angle in range(0, 360, 5):
     dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
     aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)]
     aolp_2_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
+    aolp_2_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
+    aolp_2_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2_2, S1_2)]
     
     # Calculate the polar histogram for aolp_2 list
-    N = 59
-    aop_hist = np.histogram(aolp_2, bins=N, range=[-np.pi, np.pi])
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
 
     bottom = 0
     max_height = 1102
@@ -217,15 +231,15 @@ for rotation_angle in range(0, 360, 5):
     fig.savefig(output_path)
     plt.close(fig)
 
-    aolp_both_eyes = aolp + aolp_2 
+    aolp_both_eyes = aolp_circmeans + aolp_2_circmeans
     dolp_both_eyes = dolp + dolp_2
     
     # Calculate the polar histogram for both eyes
-    N = 59
-    aop_hist_1 = np.histogram(aolp, bins=N, range=[-np.pi, np.pi])
+    N = 60 # change this to 60 (from 59) to have a bin for every 5deg
+    aop_hist_1 = np.histogram(aolp_hist, bins=N, range=[-np.pi, np.pi])
 
     # Calculate the polar histogram for the second set of AOLP values
-    aop_hist_2 = np.histogram(aolp_2, bins=N, range=[-np.pi, np.pi])
+    aop_hist_2 = np.histogram(aolp_2_hist, bins=N, range=[-np.pi, np.pi])
 
     bottom = 0
     max_height = max(max(aop_hist_1[0]), max(aop_hist_2[0]))
@@ -269,17 +283,19 @@ for rotation_angle in range(0, 360, 5):
         S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_2_value / S_value)))
-    PRC_scaled = np.interp(PRC, (min(PRC), max(PRC)), (0,1))
+    PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1))
     PRC_scaled = PRC_scaled.tolist()
-    #print(PRC_scaled)
+    all_PRC_values.append(PRC)
+    
     # for the second eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
         S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
         S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
         PRC_2.append(float(np.log(S_2_value / S_value)))
-    PRC_2_scaled = np.interp(PRC_2, (min(PRC_2), max(PRC_2)), (0,1))
+    PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1))
     PRC_2_scaled = PRC_2_scaled.tolist()
+    all_PRC_2_values.append(PRC_2)
     
     #os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' ' + str(PRC_scaled))   
     command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '"')
@@ -311,7 +327,13 @@ for rotation_angle in range(0, 360, 5):
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
 
-    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '"')   
+    command = str('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '"')
+    with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
+        output = process.stdout.read().strip()
+    total_vector_angle, total_vector_length = output.split(' ')
+
+    all_saz_estimates.append(float(total_vector_angle)+float(np.radians(rotation_angle)))
+
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
@@ -328,12 +350,12 @@ for rotation_angle in range(0, 360, 5):
     os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
 
-    circmeans.append(circmean(np.array(aolp), weights=np.array(dolp)))
-    circmeans_2.append(circmean(np.array(aolp_2), weights=np.array(dolp_2)))
+    circmeans.append(circmean(np.array(aolp_circmeans), weights=np.array(dolp)))
+    circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
     circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
 
 # Calculate the polar histogram for circmeans list
-N = 59
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
 
 bottom = 0
@@ -364,7 +386,7 @@ fig.savefig(output_path)
 plt.close(fig)
 
 # Calculate the polar histogram for circmeans_2 list
-N = 59
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans_2, bins=N, range=[-np.pi, np.pi])
 
 bottom = 0
@@ -396,7 +418,7 @@ plt.close(fig)
 
 
 # Calculate the polar histogram for circmeans both eyes
-N = 59
+N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans_botheyes, bins=N, range=[-np.pi, np.pi])
 
 bottom = 0
@@ -426,5 +448,131 @@ output_path = 'polar_histogram_both_eyes_circmeans.png'
 fig.savefig(output_path)
 plt.close(fig)
 
+# Flatten the lists of PRC and PRC_2 values (make list out of list of lists)
+flat_PRC_values = [item for sublist in all_PRC_values for item in sublist]
+flat_PRC_2_values = [item for sublist in all_PRC_2_values for item in sublist]
 
+# Plotting the scatter plot
+plt.scatter(np.repeat(rotation_angles, len(PRC)), flat_PRC_values, c='blue', label='right_eye', s=5)
+plt.scatter(np.repeat(rotation_angles, len(PRC_2)), flat_PRC_2_values, c='red', label='left_eye', s=5)
+
+# Adding labels and legend
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC Values')
+plt.legend()
+
+plt.savefig('PRC_scatter_plot.png')
+
+# we need to sort the solar azimuths (rotation_angles) but simultaneously sort the PRC values.
+rotation_angles_PRC_values = list(zip(rotation_angles, all_PRC_values))
+rotation_angles_PRC_2_values = list(zip(rotation_angles, all_PRC_2_values))
+rotation_angles_PRC_values.sort(key=lambda x: x[0])
+rotation_angles_PRC_2_values.sort(key=lambda x: x[0])
+sorted_rotation_angles = [item[0] for item in rotation_angles_PRC_values]
+sorted_all_PRC_values = [item[1] for item in rotation_angles_PRC_values]
+sorted_all_PRC_2_values = [item[1] for item in rotation_angles_PRC_2_values]
+
+# Plot and save for ommatidia pairs (PRC values)
+for i in range(len(all_PRC_values[0])):
+    plt.figure()
     
+    # Plot for right eye (PRC values across all solar azimuths)
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_values], label=f'right eye - ommatidium {i+1}', c='blue')
+
+    # Plot for left eye (PRC values across all solar azimuths)
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_2_values], label=f'left eye - ommatidium {i+1}', c='red')
+    
+    # Plot the difference between right and left eye values
+    difference_PRC_values = [lst1[i] - lst2[i] for lst1, lst2 in zip(sorted_all_PRC_values, sorted_all_PRC_2_values)]
+    plt.plot(sorted_rotation_angles, difference_PRC_values, label=f'PRC_difference - ommatidium {i+1}', c='green')
+
+    plt.title(f'Graph for ommatidium {i+1}')
+    plt.xlabel('solar azimuth (degrees)')
+    plt.ylabel('PRC value')
+    plt.legend()
+    # Set x-axis ticks at every ten degrees
+    plt.xticks(range(0, 361, 30))
+    # Save the figure in the current working directory
+    figure_filename = f'ommatidium_{i+1}.png'
+    plt.savefig(figure_filename)
+    plt.close()
+
+# Create a single graph for all right eye ommatidia
+plt.figure()
+for i in range(len(all_PRC_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_values], c = 'blue')
+
+plt.title('All Right Eye Ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
+plt.savefig('all_right_eye_ommatidia.png')
+plt.close()
+
+# Create a single graph for all left eye ommatidia
+plt.figure()
+for i in range(len(all_PRC_2_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_2_values], c = 'red')
+
+plt.title('All Left Eye Ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC value')
+plt.savefig('all_left_eye_ommatidia.png')
+plt.close()
+
+# Create a single graph for both eyes
+plt.figure()
+for i in range(len(all_PRC_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_values], alpha=0.7, c = 'blue')
+
+for i in range(len(all_PRC_2_values[0])):
+    plt.plot(sorted_rotation_angles, [lst[i] for lst in sorted_all_PRC_2_values], alpha=0.7, c = 'red')
+
+plt.title('Both Eyes - All Ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
+plt.savefig('both_eyes_all_ommatidia.png')
+plt.close()
+
+# Create a single graph for all PRC differences (between pairs of ommatidia)
+plt.figure()
+for i in range(len(all_PRC_2_values[0])):
+    # Plot the difference between right and left eye values
+    difference_PRC_values = [lst1[i] - lst2[i] for lst1, lst2 in zip(sorted_all_PRC_values, sorted_all_PRC_2_values)]
+    plt.plot(sorted_rotation_angles, difference_PRC_values, c='green')
+
+plt.title('PRC difference between pairs of ommatidia')
+plt.xlabel('solar azimuth (degrees)')
+plt.ylabel('PRC difference value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
+plt.savefig('PRC_difference.png')
+plt.close()
+
+all_saz_estimates = -np.array(all_saz_estimates) # negative to comply with scatter plot
+circstd_value = circstd(all_saz_estimates) # circular standard deviation
+
+# plot the saz estimates along with the circstd
+fig, ax = plt.subplots()
+
+ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
+        np.sin(np.linspace(0, 2*np.pi, 500)),
+        c='k')
+
+ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15)
+ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
+ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}", y=1.05)
+
+# Add labels
+ax.text(0, 1.1, '0°', ha='center')
+ax.text(-1.1, 0, '90°', va='center', ha='right')
+ax.text(0, -1.1, '180°', ha='center', va='top')
+ax.text(1.1, 0, '270°', va='center')
+ax.axis('equal')
+ax.axis('off')
+
+plt.savefig('circstd.png')
+plt.close()

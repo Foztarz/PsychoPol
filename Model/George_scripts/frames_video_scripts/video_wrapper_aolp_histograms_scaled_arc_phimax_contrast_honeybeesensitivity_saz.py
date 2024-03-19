@@ -13,6 +13,7 @@ import math
 import matplotlib.pyplot as plt
 import scipy
 from astropy.units import Quantity
+from scipy.interpolate import make_interp_spline
 from scipy.stats import circstd
 
 parser = argparse.ArgumentParser()
@@ -20,6 +21,7 @@ parser.add_argument("-i", "--input", required=True, help="INPUT must be the inpu
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
+parser.add_argument("-spl", "--splinedata", required=True, help="SPLINEDATA is the tsv file containing the spline data based on which the angular sensitivity function is being calculated. (required)")
 args=parser.parse_args()
 
 Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
@@ -95,7 +97,7 @@ for rotation_angle in range(0, 360, 5):
     PRC = [] # photoreceptor contrast
     for img_dmc in args.demosaiced:
         # Open a subprocess to run the command and capture output line by line
-        with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
+        with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_honeybee_sensitivity.py ' + args.splinedata + ' ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
             if '000' in img_dmc:
                 for line in process.stdout:
                     # Append each intensity to the list
@@ -171,7 +173,7 @@ for rotation_angle in range(0, 360, 5):
     PRC_2 = [] # photoreceptor contrast second eye
     for img_dmc in args.demosaiced:
         # Open a subprocess to run the command and capture output line by line
-        with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
+        with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye_honeybee_sensitivity.py ' + args.splinedata + ' ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
             if '000' in img_dmc:
                 for line in process.stdout:
                     # Append each intensity to the list
@@ -298,6 +300,7 @@ for rotation_angle in range(0, 360, 5):
     PRC_2_scaled = PRC_2_scaled.tolist()
     all_PRC_2_values.append(PRC_2)
     
+    #os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' ' + str(PRC_scaled))   
     command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '"')
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
