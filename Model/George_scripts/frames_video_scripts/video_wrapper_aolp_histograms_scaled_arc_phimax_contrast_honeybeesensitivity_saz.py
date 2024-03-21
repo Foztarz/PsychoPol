@@ -67,6 +67,21 @@ with open(args.coordinates, 'r') as crd:
         azimuth_deg_list.append(float(x[0]))
         elevation_deg_list.append(float(x[1].strip()))
 
+def min_angle_difference(angle1, angle2):
+    # Calculate the absolute difference between the angles
+    absolute_difference = abs(angle1 - angle2)
+    
+    # If the absolute difference is greater than 360 degrees,
+    # take the modulus by 360 to find the smallest rotational difference
+    if absolute_difference > 360:
+        return absolute_difference % 360
+    # If the absolute difference is greater than 180 degrees,
+    # subtract it from 360 degrees to get the minimum difference
+    elif absolute_difference > 180:
+        return 360 - absolute_difference
+    else:
+        return absolute_difference
+    
 circmeans = []
 circmeans_2 = []
 circmeans_botheyes = []
@@ -74,6 +89,8 @@ all_PRC_values = []
 all_PRC_2_values = []
 rotation_angles = []
 all_saz_estimates = []
+absolute_errors = []
+total_vector_lengths = []
 
 for rotation_angle in range(0, 360, 5):
     solar_azimuth = float(args.solarazimuth) + rotation_angle - 180 # subtracting 180deg to have 0deg down on the image
@@ -336,7 +353,9 @@ for rotation_angle in range(0, 360, 5):
     total_vector_angle, total_vector_length = output.split(' ')
 
     all_saz_estimates.append(float(total_vector_angle)+float(np.radians(rotation_angle)))
-    
+    total_vector_lengths.append(float(total_vector_length))
+    absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)-270), np.degrees(float(total_vector_angle)+float(np.radians(rotation_angle))))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
+
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
@@ -580,3 +599,18 @@ ax.axis('off')
 plt.savefig('circstd.png')
 plt.close()
     
+# plot absolute errors (saz-estimate) as a function of total vector lengths of estimates
+plt.figure(figsize=(8, 6))
+plt.plot(total_vector_lengths,  absolute_errors, 'o', markersize=8)
+
+# Perform linear regression
+slope, intercept, r_value, p_value, std_err = stats.linregress(total_vector_lengths, absolute_errors)
+line = slope * np.array(total_vector_lengths) + intercept
+plt.plot(total_vector_lengths, line, 'r', label='Regression line')
+
+plt.xlabel('Vector Length (Azimuth estimate)')
+plt.ylabel('Absolute Error (degrees)')
+plt.grid(True)
+plt.legend()
+plt.savefig('saz_vector_lengths_errors_with_regression.png')
+plt.close()

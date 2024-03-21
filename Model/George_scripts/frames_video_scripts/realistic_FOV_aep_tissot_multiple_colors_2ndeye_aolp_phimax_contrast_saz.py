@@ -117,7 +117,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         # Calculate the end point of the total vector (normalized to the image size)
         total_vector_angle = math.atan2(total_vector_x, total_vector_y)
         total_vector_angle_botheyes = math.atan2(float(total_vector_x) + float(first_eye_saz_x), float(total_vector_y) + float(first_eye_saz_y)) # adding the components from the 1st eye
-        total_vector_length_both_eyes = math.hypot(float(total_vector_x) + float(first_eye_saz_x), float(total_vector_x) + float(first_eye_saz_x))
+        total_vector_length_both_eyes = math.hypot(float(float(total_vector_x) + float(first_eye_saz_x)), float(float(total_vector_y) + float(first_eye_saz_y)))
         end_x = int(center_x + center_x * np.cos(total_vector_angle)) # this is for the 2nd eye
         end_y = int(center_y + center_x * np.sin(total_vector_angle)) # this is for the 2nd eye
         end_x2 = int(center_x + center_x * np.cos(total_vector_angle_botheyes)) # this is for both eyes
