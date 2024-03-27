@@ -26,7 +26,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
         img_height, img_width, _ = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
-
+        
         # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
         M = cv2.getRotationMatrix2D((center_y,center_x),0,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
         img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
@@ -36,14 +36,19 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
         #canvas = np.zeros_like(img) # activate this for transparent canvas (shows the image)
 
         data_array = np.ones((len(azimuth_list), 5))  # Initialize an array with 4 columns
-
+        
         for i, (azimuth_deg, elevation_deg, color_value) in enumerate(zip(azimuth_list, elevation_list, color_value_list)):
             # Calculate the pixel coordinates for the projection
             projection_radius = min(center_x, center_y)
             proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
             proj_x += center_x  # This is to set 0,0 to the north (top of the image)
-            
-            slope = (proj_y - center_y)/(proj_x - center_x)
+    
+            # Handle the case where proj_x is equal to center_x
+            if proj_x == center_x:
+                slope = np.inf if proj_y > center_y else -np.inf  # Set slope to positive or negative infinity
+            else:
+                slope = (proj_y - center_y) / (proj_x - center_x)  # Calculate slope as usual
+
             
             # Append azimuth, elevation, and slope to the data array
             data_array[i, 0] = azimuth_deg

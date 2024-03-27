@@ -122,7 +122,7 @@ for rotation_angle in range(0, 360, 5):
     aolp = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] # divide by pi for colors, mod for values between 0 and 180
     aolp_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2, S1)] 
     aolp_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
-    aolp_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
+    aolp_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
     
     # Calculate the polar histogram for aolp list
     N = 60 # change this to 60 (from 59) to have a bin for every 5deg
@@ -198,7 +198,7 @@ for rotation_angle in range(0, 360, 5):
     aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)] # divide by pi for colors , mod for values between 0 and 180
     aolp_2_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2_2, S1_2)] 
     aolp_2_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
-    aolp_2_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
+    aolp_2_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
     
     # Calculate the polar histogram for aolp_2 list
     N = 60 # change this to 60 (from 59) to have a bin for every 5deg
@@ -324,7 +324,6 @@ for rotation_angle in range(0, 360, 5):
 
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2_scaled) + '" 25')   
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
-    #os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2) + '" 25')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')

@@ -168,7 +168,7 @@ for rotation_angle in range(0, 360, 5):
     os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
     os.system('rm 1steye_' + str(rotation_angle) + '_background.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
-    #os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
 
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2) + '" 25')
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
@@ -181,10 +181,10 @@ for rotation_angle in range(0, 360, 5):
     
     os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_' + str(rotation_angle) + '_background.png')
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
-    #os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_background.png')
     os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
-    #os.system('rm aolp_' + str(rotation_angle) + '_background.png')
+    os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
 
     

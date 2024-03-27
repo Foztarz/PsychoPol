@@ -49,9 +49,13 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
                 proj_x2 = proj_x - 2*(proj_x-center_x)
             elif proj_x < center_x:
                 proj_x2 = proj_x + 2*(center_x-proj_x)
-
-            slope = -(proj_y - center_y)/(proj_x2 - center_x) # mirrored ommatidia should have the same phi_max, that's why we do negative slope, to match the other eye
-            
+                
+            # Handle the case where proj_x is equal to center_x 
+            if proj_x == center_x:
+                slope = np.inf if proj_y > center_y else -np.inf  # Set slope to positive or negative infinity
+            else:
+                slope = -(proj_y - center_y) / (proj_x2 - center_x)  # Calculate slope as usual, mirrored ommatidia should have the same phi_max, that's why we do negative slope, to match the other eye
+                
             # Append azimuth, elevation, and slope to the data array
             data_array[i, 0] = azimuth_deg
             data_array[i, 1] = elevation_deg
