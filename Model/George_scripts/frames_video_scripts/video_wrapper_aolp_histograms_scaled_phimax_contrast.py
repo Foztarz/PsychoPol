@@ -260,13 +260,13 @@ for rotation_angle in range(0, 360, 5):
     with open("azimuth_elevation_slope_data.csv", 'r') as phimax_values:
         for line in phimax_values:
             x = line.split('\t')
-            phimax_list.append(float(x[3]))
-            phimax_2_list.append(float(x[4]))
-            
+            phimax_list.append(float(x[3])) # perpendicular to ommatidium's azimuth (+90deg)
+            phimax_2_list.append(float(x[4])) # equal to ommatidium's azimuth
+           
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
-        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(phimax_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
+        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(phimax_2_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_2_value / S_value)))
     PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
@@ -274,8 +274,8 @@ for rotation_angle in range(0, 360, 5):
 
     # for the second eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(-phimax_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
+        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(-phimax_2_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
         PRC_2.append(float(np.log(S_2_value / S_value)))
     PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
@@ -308,7 +308,6 @@ for rotation_angle in range(0, 360, 5):
 
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2_scaled) + '" 25')   
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
-    #os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2) + '" 25')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')
