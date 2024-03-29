@@ -62,8 +62,8 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             rgba_color = tuple(int(i * 255) for i in rgba_color) # make to rgba
 
             # Calculate the vector components for each ommatidium
-            vector_x = -PRC_value * np.cos(np.radians(azimuth_deg-float(rotation_angle))) # negative PRC value to match Evri's model (pointing to the inside), subtracting rotation angle to correct for body rotation
-            vector_y = -PRC_value * np.sin(np.radians(azimuth_deg-float(rotation_angle))) # negative PRC value to match Evri's model (pointing to the inside), subtracting rotation angle to correct for body rotation
+            vector_x = -PRC_value * np.sin(np.radians(azimuth_deg)) # negative PRC value to match Evri's model (pointing to the inside), subtracting rotation angle to correct for body rotation
+            vector_y = -PRC_value * np.cos(np.radians(azimuth_deg)) # negative PRC value to match Evri's model (pointing to the inside), subtracting rotation angle to correct for body rotation
     
             # Add the vector components to the total
             total_vector_x += vector_x
@@ -75,9 +75,9 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             cv2.ellipse(canvas, (proj_x, proj_y), (major_axis, minor_axis), angle, 0, 360, rgba_color, thickness)
 
         # Calculate the end point of the total vector (normalized to the image size)
-        total_vector_angle = math.atan2(total_vector_x, total_vector_y)
-        end_x = int(center_x + center_x * np.cos(total_vector_angle))
-        end_y = int(center_y + center_x * np.sin(total_vector_angle))
+        total_vector_angle = float(np.pi - math.atan2(float(total_vector_y), float(total_vector_x)) + np.radians(float(rotation_angle))) # np.pi-vector_angle to correct for different frames of reference between lines and vector angle
+        end_x = int(center_x + center_x * np.sin(total_vector_angle))
+        end_y = int(center_y + center_x * np.cos(total_vector_angle))
         print(total_vector_x, total_vector_y) # sending the components to the second eye
         # Draw the line on the canvas
         cv2.line(canvas, (center_x, center_y), (end_x, end_y), color=(0, 0, 255), thickness=2)

@@ -265,19 +265,19 @@ for rotation_angle in range(0, 360, 5):
            
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
-        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(phimax_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
-        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(phimax_2_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
+        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
+        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_2_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
     for S_value, S_2_value in zip(S_list, S2_list):
-        PRC.append(float(np.log(S_2_value / S_value)))
+        PRC.append(float(np.log(S_value / S_2_value)))
     PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
     PRC_scaled = PRC_scaled.tolist()
 
     # for the second eye
-    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(-phimax_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
-        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(270-aolp_value) - 2*np.radians(-phimax_2_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list): # negative phi max below to mirror them with the first eye
+        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
+        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_2_value)))) # 270-aolp because we have two different frames of reference for AoP and phi max (AoP increases counterclockwise from left, phi max increases clockwise from up)
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
-        PRC_2.append(float(np.log(S_2_value / S_value)))
+        PRC_2.append(float(np.log(S_value / S_2_value)))
     PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
     PRC_2_scaled = PRC_2_scaled.tolist()
     

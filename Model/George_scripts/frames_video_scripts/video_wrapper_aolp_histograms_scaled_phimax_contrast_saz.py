@@ -297,20 +297,20 @@ for rotation_angle in range(0, 360, 5):
            
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
-        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_value)))) 
+        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_2_value)))) 
     for S_value, S_2_value in zip(S_list, S2_list):
-        PRC.append(float(np.log(S_2_value / S_value)))
+        PRC.append(float(np.log(S_value / S_2_value)))
     PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1))
     PRC_scaled = PRC_scaled.tolist()
     all_PRC_values.append(PRC)
-    
+     
     # for the second eye
-    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list): # negative phi max below to mirror them with the first eye
+        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_value)))) 
+        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_2_value))))
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
-        PRC_2.append(float(np.log(S_2_value / S_value)))
+        PRC_2.append(float(np.log(S_value / S_2_value)))
     PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1))
     PRC_2_scaled = PRC_2_scaled.tolist()
     all_PRC_2_values.append(PRC_2)
@@ -349,7 +349,7 @@ for rotation_angle in range(0, 360, 5):
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     total_vector_angle, total_vector_length = output.split(' ')
-
+    print(total_vector_angle)
     all_saz_estimates.append(float(total_vector_angle)+float(np.radians(rotation_angle)))
     total_vector_lengths.append(float(total_vector_length))
     absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)-270), np.degrees(float(total_vector_angle)+float(np.radians(rotation_angle))))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
@@ -597,7 +597,7 @@ ax.axis('off')
 plt.savefig('circstd.png')
 plt.close()
 
-print(total_vector_lengths,  absolute_errors)
+#print(total_vector_lengths,  absolute_errors)
 # plot absolute errors (saz-estimate) as a function of total vector lengths of estimates
 plt.figure(figsize=(8, 6))
 plt.plot(total_vector_lengths,  absolute_errors, 'o', markersize=8)
