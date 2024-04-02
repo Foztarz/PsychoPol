@@ -319,8 +319,8 @@ for rotation_angle in range(0, 360, 5):
     command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '"')
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
-    first_eye_saz_x, first_eye_saz_y = output.split(' ')
-
+    first_eye_saz_x, first_eye_saz_y, tt = output.split(' ')
+    
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '_lines.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
@@ -349,7 +349,7 @@ for rotation_angle in range(0, 360, 5):
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     total_vector_angle, total_vector_length = output.split(' ')
-    print(total_vector_angle)
+    
     all_saz_estimates.append(float(total_vector_angle)+float(np.radians(rotation_angle)))
     total_vector_lengths.append(float(total_vector_length))
     absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)-270), np.degrees(float(total_vector_angle)+float(np.radians(rotation_angle))))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)

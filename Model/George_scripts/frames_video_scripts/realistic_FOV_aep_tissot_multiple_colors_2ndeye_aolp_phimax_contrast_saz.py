@@ -102,9 +102,9 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             rgba_color = tuple(int(i * 255) for i in rgba_color) # make to rgba
 
             # Calculate the vector components for each ommatidium
-            vector_x = -PRC_value * np.sin(np.radians(azimuth_deg)) # negative PRC value to match Evri's model (pointing to the inside), subtracting rotation angle to correct for body rotation
-            vector_y = -PRC_value * np.cos(np.radians(azimuth_deg)) # negative PRC value to match Evri's model (pointing to the inside), subtracting rotation angle to correct for body rotation
-
+            vector_x = -PRC_value * np.sin(np.radians(-azimuth_deg)) # negative PRC value to match Evri's model (pointing to the inside)
+            vector_y = -PRC_value * np.cos(np.radians(-azimuth_deg)) # negative PRC value to match Evri's model (pointing to the inside)
+                
             # Add the vector components to the total
             total_vector_x += vector_x
             total_vector_y += vector_y
@@ -115,15 +115,14 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             cv2.ellipse(canvas, (proj_x2, proj_y), (major_axis, minor_axis), angle, 0, 360, rgba_color, thickness)
 
         # Calculate the end point of the total vector (normalized to the image size)
-        total_vector_angle = float(np.pi - math.atan2(float(total_vector_x),float(total_vector_y)) + np.radians(float(rotation_angle)))
-        total_vector_angle_botheyes = float(np.pi - math.atan2(float(float(total_vector_y) + float(first_eye_saz_y)) , float(float(total_vector_x) + float(first_eye_saz_x))) + np.radians(float(rotation_angle))) # adding the components from the 1st eye
+        total_vector_angle = float(math.atan2(float(total_vector_x),float(total_vector_y))) # atan2(x, y) because we're using sky coordinates (x axis is vertical) and not mathematical/geometrical (x axis is horizontal)
+        total_vector_angle_botheyes = float(math.atan2(float(float(total_vector_x) + float(first_eye_saz_x)) , float(float(total_vector_y) + float(first_eye_saz_y)))) # adding the components from the 1st eye, # atan2(x, y) because we're using sky coordinates (x axis is vertical) and not mathematical/geometrical (x axis is horizontal)
         total_vector_length_both_eyes = math.hypot(float(float(total_vector_x) + float(first_eye_saz_x)), float(float(total_vector_y) + float(first_eye_saz_y)))
-        end_x = int(center_x + center_x * np.sin(total_vector_angle)) # this is for the 2nd eye
-        end_y = int(center_y + center_x * np.cos(total_vector_angle)) # this is for the 2nd eye
-        end_x2 = int(center_x + center_x * np.sin(total_vector_angle_botheyes)) # this is for both eyes
-        end_y2 = int(center_y + center_x * np.cos(total_vector_angle_botheyes)) # this is for both eyes
+        end_x = int(center_x + center_x * np.sin(float(total_vector_angle))) # this is for the second eye
+        end_y = int(center_x - center_x * np.cos(float(total_vector_angle))) # this is for the second eye, minus for the y coordinate because the center of the image is not 0,0
+        end_x2 = int(center_x + center_x * np.sin(float(total_vector_angle_botheyes))) # this is for both eyes        
+        end_y2 = int(center_x - center_x * np.cos(float(total_vector_angle_botheyes))) # this is for both eyes, minus for the y coordinate because the center of the image is not 0,0        
         
-        #print('yes', total_vector_angle)
         # Draw the line on the canvas
         cv2.line(canvas, (center_x, center_y), (end_x, end_y), color=(255, 0, 0), thickness=2)
         cv2.line(canvas, (center_x, center_y), (end_x2, end_y2), color=(0, 255, 0), thickness=2) # combined saz
