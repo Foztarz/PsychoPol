@@ -67,16 +67,16 @@ with open(args.coordinates, 'r') as crd:
         elevation_deg_list.append(float(x[1].strip()))
         
 def min_angle_difference(angle1, angle2):
-    # Calculate the absolute difference between the angles
+    # Normalize angles to be between 0 and 360 degrees
+    angle1 %= 360
+    angle2 %= 360
+    
+    # Calculate the absolute difference between the normalized angles
     absolute_difference = abs(angle1 - angle2)
     
-    # If the absolute difference is greater than 360 degrees,
-    # take the modulus by 360 to find the smallest rotational difference
-    if absolute_difference > 360:
-        return absolute_difference % 360
     # If the absolute difference is greater than 180 degrees,
     # subtract it from 360 degrees to get the minimum difference
-    elif absolute_difference > 180:
+    if absolute_difference > 180:
         return 360 - absolute_difference
     else:
         return absolute_difference
@@ -352,7 +352,7 @@ for rotation_angle in range(0, 360, 5):
     
     all_saz_estimates.append(float(total_vector_angle)+float(np.radians(rotation_angle)))
     total_vector_lengths.append(float(total_vector_length))
-    absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)-270), np.degrees(float(total_vector_angle)+float(np.radians(rotation_angle))))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
+    absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)+float(rotation_angle)), np.degrees(float(total_vector_angle)))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
@@ -572,7 +572,8 @@ plt.xticks(range(0, 361, 30))
 plt.savefig('PRC_difference.png')
 plt.close()
 
-all_saz_estimates = -np.array(all_saz_estimates) # negative to comply with scatter plot
+all_saz_estimates = np.array(all_saz_estimates) 
+all_saz_estimates = np.pi/2 - all_saz_estimates # modify the estimates to match the scatter plot which has 0deg right increasing counterclockwise
 circstd_value = circstd(all_saz_estimates) # circular standard deviation
 
 # plot the saz estimates along with the circstd
