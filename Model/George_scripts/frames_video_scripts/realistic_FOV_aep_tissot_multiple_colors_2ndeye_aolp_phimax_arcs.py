@@ -98,10 +98,10 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
         max_intercept = np.max(data_array[:, 2])
 
         # Map slope values to the range [0, 180] for the 4th column
-        data_array[:, 3] = np.interp(data_array[:, 2], [min_intercept, max_intercept], [135, 0])
+        data_array[:, 4] = np.interp(data_array[:, 2], [min_intercept, max_intercept], [135, 0])
 
         # Calculate phi_max_2 as phi_max + 90
-        data_array[:, 4] = data_array[:, 3] + 90
+        data_array[:, 3] = data_array[:, 4] + 90
         
         # Convert data array to NumPy array
         data_array = np.array(data_array)

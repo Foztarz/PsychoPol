@@ -122,7 +122,7 @@ for rotation_angle in range(0, 360, 5):
     aolp = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] # divide by pi for colors, mod for values between 0 and 180
     aolp_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2, S1)] 
     aolp_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
-    aolp_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
+    aolp_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
     
     # Calculate the polar histogram for aolp list
     N = 60 # change this to 60 (from 59) to have a bin for every 5deg
@@ -198,7 +198,7 @@ for rotation_angle in range(0, 360, 5):
     aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)] # divide by pi for colors , mod for values between 0 and 180
     aolp_2_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2_2, S1_2)] 
     aolp_2_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
-    aolp_2_circmeans = [ np.mod(((-math.atan2(x3, y3) / 2) + np.radians(90)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
+    aolp_2_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
     
     # Calculate the polar histogram for aolp_2 list
     N = 60 # change this to 60 (from 59) to have a bin for every 5deg
@@ -279,8 +279,8 @@ for rotation_angle in range(0, 360, 5):
             
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
-        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_value))))
+        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_value / S_2_value)))
     PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
@@ -289,8 +289,8 @@ for rotation_angle in range(0, 360, 5):
 
     # for the second eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_value))))
+        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_2_value))))
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
         PRC_2.append(float(np.log(S_value / S_2_value)))
     PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky

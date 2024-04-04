@@ -79,7 +79,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         total_vector_angle = float(math.atan2(float(total_vector_x), float(total_vector_y))) # atan2(x, y) because we're using sky coordinates (x axis is vertical) and not mathematical/geometrical (x axis is horizontal)
         end_x = int(center_x + center_x * np.sin(total_vector_angle))
         end_y = int(center_x - center_x * np.cos(total_vector_angle)) # minus for the y coordinate because the center of the image is not 0,0
-        print(total_vector_x, total_vector_y, total_vector_angle) # sending the components to the second eye
+        print(total_vector_x, total_vector_y) # sending the components to the second eye
         # Draw the line on the canvas
         cv2.line(canvas, (center_x, center_y), (end_x, end_y), color=(0, 0, 255), thickness=2)
         
