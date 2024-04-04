@@ -583,7 +583,7 @@ ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
         np.sin(np.linspace(0, 2*np.pi, 500)),
         c='k')
 
-ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15)
+ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, a=0.5)
 ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
 ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}", y=1.05)
 
