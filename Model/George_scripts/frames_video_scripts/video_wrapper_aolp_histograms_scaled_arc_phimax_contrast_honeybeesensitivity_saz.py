@@ -15,6 +15,7 @@ import scipy
 from astropy.units import Quantity
 from scipy.interpolate import make_interp_spline
 from scipy.stats import circstd
+from scipy import stats
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
@@ -68,16 +69,16 @@ with open(args.coordinates, 'r') as crd:
         elevation_deg_list.append(float(x[1].strip()))
 
 def min_angle_difference(angle1, angle2):
-    # Calculate the absolute difference between the angles
+    # Normalize angles to be between 0 and 360 degrees
+    angle1 %= 360
+    angle2 %= 360
+    
+    # Calculate the absolute difference between the normalized angles
     absolute_difference = abs(angle1 - angle2)
     
-    # If the absolute difference is greater than 360 degrees,
-    # take the modulus by 360 to find the smallest rotational difference
-    if absolute_difference > 360:
-        return absolute_difference % 360
     # If the absolute difference is greater than 180 degrees,
     # subtract it from 360 degrees to get the minimum difference
-    elif absolute_difference > 180:
+    if absolute_difference > 180:
         return 360 - absolute_difference
     else:
         return absolute_difference
@@ -299,8 +300,8 @@ for rotation_angle in range(0, 360, 5):
             
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
-        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_value))))
+        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_2_value))))
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_value / S_2_value)))
     PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
@@ -309,8 +310,8 @@ for rotation_angle in range(0, 360, 5):
     
     # for the second eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_value))))
-        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*aolp_value - 2*np.radians(phimax_2_value))))
+        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_value))))
+        S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_2_value))))
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
         PRC_2.append(float(np.log(S_value / S_2_value)))
     PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
@@ -354,7 +355,7 @@ for rotation_angle in range(0, 360, 5):
 
     all_saz_estimates.append(float(total_vector_angle)+float(np.radians(rotation_angle)))
     total_vector_lengths.append(float(total_vector_length))
-    absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)-270), np.degrees(float(total_vector_angle)+float(np.radians(rotation_angle))))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
+    absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)+float(rotation_angle)), np.degrees(float(total_vector_angle)))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
 
     os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
@@ -574,7 +575,8 @@ plt.xticks(range(0, 361, 30))
 plt.savefig('PRC_difference.png')
 plt.close()
 
-all_saz_estimates = -np.array(all_saz_estimates) # negative to comply with scatter plot
+all_saz_estimates = np.array(all_saz_estimates) 
+all_saz_estimates = np.pi/2 - all_saz_estimates # modify the estimates to match the scatter plot which has 0deg right increasing counterclockwise
 circstd_value = circstd(all_saz_estimates) # circular standard deviation
 
 # plot the saz estimates along with the circstd
@@ -584,7 +586,7 @@ ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
         np.sin(np.linspace(0, 2*np.pi, 500)),
         c='k')
 
-ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15)
+ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, a=0.5)
 ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
 ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}", y=1.05)
 
