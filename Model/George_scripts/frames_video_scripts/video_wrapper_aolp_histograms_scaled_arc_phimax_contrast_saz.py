@@ -92,7 +92,7 @@ absolute_errors = []
 total_vector_lengths = []
 
 for rotation_angle in range(0, 360, 5):
-    solar_azimuth = float(args.solarazimuth) + rotation_angle - 180 # subtracting 180deg to have 0deg down on the image
+    solar_azimuth = float(args.solarazimuth) + rotation_angle # this is for the PRC plots x-axis. Frame of reference basically coincides with normal solar azimuth reference (increasing counterclockwise from north/up)
     if solar_azimuth < 360:
         rotation_angles.append(solar_azimuth)
     else:
@@ -480,7 +480,7 @@ plt.scatter(np.repeat(rotation_angles, len(PRC_2)), flat_PRC_2_values, c='red', 
 plt.xlabel('solar azimuth (degrees)')
 plt.ylabel('PRC Values')
 plt.legend()
-
+plt.xlim(0, 360)
 plt.savefig('PRC_scatter_plot.png')
 
 # we need to sort the solar azimuths (rotation_angles) but simultaneously sort the PRC values.
@@ -514,6 +514,7 @@ for i in range(len(all_PRC_values[0])):
     plt.xticks(range(0, 361, 30))
     # Save the figure in the current working directory
     figure_filename = f'ommatidium_{i+1}.png'
+    plt.xlim(0, 360)
     plt.savefig(figure_filename)
     plt.close()
 
@@ -527,6 +528,7 @@ plt.xlabel('solar azimuth (degrees)')
 plt.ylabel('PRC value')
 # Set x-axis ticks at every ten degrees
 plt.xticks(range(0, 361, 30))
+plt.xlim(0, 360)
 plt.savefig('all_right_eye_ommatidia.png')
 plt.close()
 
@@ -538,6 +540,9 @@ for i in range(len(all_PRC_2_values[0])):
 plt.title('All Left Eye Ommatidia')
 plt.xlabel('solar azimuth (degrees)')
 plt.ylabel('PRC value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
+plt.xlim(0, 360)
 plt.savefig('all_left_eye_ommatidia.png')
 plt.close()
 
@@ -554,6 +559,7 @@ plt.xlabel('solar azimuth (degrees)')
 plt.ylabel('PRC value')
 # Set x-axis ticks at every ten degrees
 plt.xticks(range(0, 361, 30))
+plt.xlim(0, 360)
 plt.savefig('both_eyes_all_ommatidia.png')
 plt.close()
 
@@ -569,6 +575,7 @@ plt.xlabel('solar azimuth (degrees)')
 plt.ylabel('PRC difference value')
 # Set x-axis ticks at every ten degrees
 plt.xticks(range(0, 361, 30))
+plt.xlim(0, 360)
 plt.savefig('PRC_difference.png')
 plt.close()
 

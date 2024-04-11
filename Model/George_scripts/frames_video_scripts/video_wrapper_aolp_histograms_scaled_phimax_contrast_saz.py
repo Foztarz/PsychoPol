@@ -91,7 +91,7 @@ all_saz_estimates = []
 absolute_errors = []
 total_vector_lengths = []
 for rotation_angle in range(0, 360, 5):
-    solar_azimuth = float(args.solarazimuth) + rotation_angle - 180 # subtracting 180deg to have 0deg down on the image
+    solar_azimuth = float(args.solarazimuth) + rotation_angle # this is for the PRC plots x-axis. Frame of reference basically coincides with normal solar azimuth reference (increasing counterclockwise from north/up)
     if solar_azimuth < 360:
         rotation_angles.append(solar_azimuth)
     else:
@@ -319,7 +319,7 @@ for rotation_angle in range(0, 360, 5):
     command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '"')
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
-    first_eye_saz_x, first_eye_saz_y, tt = output.split(' ')
+    first_eye_saz_x, first_eye_saz_y = output.split(' ')
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
@@ -538,6 +538,8 @@ for i in range(len(all_PRC_2_values[0])):
 plt.title('All Left Eye Ommatidia')
 plt.xlabel('solar azimuth (degrees)')
 plt.ylabel('PRC value')
+# Set x-axis ticks at every ten degrees
+plt.xticks(range(0, 361, 30))
 plt.savefig('all_left_eye_ommatidia.png')
 plt.close()
 
@@ -583,7 +585,7 @@ ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
         np.sin(np.linspace(0, 2*np.pi, 500)),
         c='k')
 
-ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, a=0.5)
+ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, alpha=0.5)
 ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
 ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}", y=1.05)
 
