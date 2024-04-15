@@ -1,3 +1,5 @@
+# this script prints the intensities of the pixels that correspond to the ommatidia of the second eye, but using a gaussian relative sensitivity function.
+# for usage check below
 import sys
 import numpy as np
 import cv2
