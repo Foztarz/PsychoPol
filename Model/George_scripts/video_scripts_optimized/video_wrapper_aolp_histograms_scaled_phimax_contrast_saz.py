@@ -130,7 +130,7 @@ all_saz_estimates = []
 absolute_errors = []
 total_vector_lengths = []
 for rotation_angle in range(0, 360, 5):
-    solar_azimuth = float(args.solarazimuth) + rotation_angle - 180 # subtracting 180deg to have 0deg down on the image
+    solar_azimuth = float(args.solarazimuth) + rotation_angle # frame of reference same as normal solar azimuth (increasing counterclockwise from up)
     if solar_azimuth < 360:
         rotation_angles.append(solar_azimuth)
     else:
