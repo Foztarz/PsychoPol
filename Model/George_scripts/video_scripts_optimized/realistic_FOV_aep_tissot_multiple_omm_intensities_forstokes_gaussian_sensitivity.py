@@ -51,14 +51,14 @@ def process_line(args): # this function processes each line in the text file wit
         proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
         proj_x += center_x # adding the radius of the image to bring 0 at the center
 
-        x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y)) # create 2-D gaussian array
+        x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y))
         distance_matrix = spherical_distance(x + center_x, y + center_y, proj_x, proj_y, center_x, center_y) # make a spherical-distance-matrix (distance between all pixels) assuming center of the surface of the sphere is zenith
         distance_matrix = np.degrees(distance_matrix)
         
         distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
         
         sigma = 2.3184 # change this if different relative sensitivity, in degrees
-        gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # location 0 to have the max value at the coordinates of the ommatidium
+        gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
         
         gaussian_array[(x)**2 + (y)**2 > center_x**2] = 0 # set values outside the circular region to 0
@@ -85,8 +85,8 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
         img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
-        M = cv2.getRotationMatrix2D((center_y, center_x), rotation_angle, 1) # change this in case you want to rotate the image
-        img = cv2.warpAffine(img, M, (img_width, img_height), flags=cv2.INTER_CUBIC)
+        #M = cv2.getRotationMatrix2D((center_y, center_x), rotation_angle, 1) # change this in case you want to rotate the image
+        #img = cv2.warpAffine(img, M, (img_width, img_height), flags=cv2.INTER_CUBIC)
 
         with open(coordinates_file, 'r') as file:
             lines = file.readlines()

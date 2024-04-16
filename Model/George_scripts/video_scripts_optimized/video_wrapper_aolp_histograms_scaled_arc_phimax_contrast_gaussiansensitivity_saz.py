@@ -16,6 +16,8 @@ import scipy
 from astropy.units import Quantity
 from scipy.interpolate import make_interp_spline
 from scipy.stats import circstd
+from multiprocessing import Pool
+import statistics
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
@@ -542,7 +544,7 @@ ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
 
 ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, alpha=0.5)
 ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
-ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}", y=1.05)
+ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}, mean error: {np.round(statistics.mean(absolute_errors), 2)!r}", y=1.05)
 
 # Add labels
 ax.text(0, 1.1, '0°', ha='center')

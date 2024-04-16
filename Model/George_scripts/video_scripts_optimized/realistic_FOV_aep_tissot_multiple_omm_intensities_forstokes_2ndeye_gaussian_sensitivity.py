@@ -53,14 +53,14 @@ def process_line(args): # this function processes each line in the text file wit
         elif proj_x < center_x:
             proj_x2 = proj_x + 2*(center_x-proj_x)
         
-        x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y)) # create 2-D gaussian array
+        x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y)) 
         distance_matrix = spherical_distance(x + center_x, y + center_y, proj_x2, proj_y, center_x, center_y)
         distance_matrix = np.degrees(distance_matrix)
         
         distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
 
         sigma = 2.3184 # change this if different relative sensitivity, in degrees
-        gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # location 0 to have the max value at the coordinates of the ommatidium
+        gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
 
         gaussian_array[(x)**2 + (y)**2 > center_x**2] = 0 # set values outside the circular region to 0
@@ -83,8 +83,8 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
         center_y = img_height // 2
 
         # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
-        M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
-        img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
+        #M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
+        #img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
         
         # Read the coordinates from the file
         with open(coordinates_file, 'r') as file:
