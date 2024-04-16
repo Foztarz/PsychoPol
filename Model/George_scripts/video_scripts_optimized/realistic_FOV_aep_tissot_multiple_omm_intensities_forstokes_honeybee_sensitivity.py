@@ -90,8 +90,8 @@ def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle):
         center_x = img_width // 2
         center_y = img_height // 2
         
-        #M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # change this in case you want to rotate the image
-        #img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
+        M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # rotate the image
+        img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
         
         with open(coordinates_file, 'r') as file:
             lines = file.readlines()

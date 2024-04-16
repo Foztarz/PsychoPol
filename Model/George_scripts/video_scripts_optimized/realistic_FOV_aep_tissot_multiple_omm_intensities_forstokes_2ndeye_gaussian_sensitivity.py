@@ -82,9 +82,9 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
         center_x = img_width // 2
         center_y = img_height // 2
 
-        # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
-        #M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
-        #img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
+        # this is for rotating the image (bicubic interpolation). Note that it rotates counterclockwise for positive angles
+        M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
+        img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
         
         # Read the coordinates from the file
         with open(coordinates_file, 'r') as file:
