@@ -13,11 +13,13 @@ import subprocess
 import math
 import matplotlib.pyplot as plt
 import scipy
+from scipy import stats
 from astropy.units import Quantity
 from scipy.interpolate import make_interp_spline
 from scipy.stats import circstd
 from multiprocessing import Pool
 import statistics
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
@@ -533,7 +535,7 @@ plt.close()
 
 all_saz_estimates = np.array(all_saz_estimates) 
 all_saz_estimates = np.pi/2 - all_saz_estimates # modify the estimates to match the scatter plot which has 0deg right increasing counterclockwise
-circstd_value = circstd(all_saz_estimates) # circular standard deviation
+circstd_value = np.degrees(float(circstd(all_saz_estimates))) # circular standard deviation
 
 # plot the saz estimates along with the circstd
 fig, ax = plt.subplots()
@@ -544,7 +546,7 @@ ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
 
 ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, alpha=0.5)
 ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
-ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}, mean error: {np.round(statistics.mean(absolute_errors), 2)!r}", y=1.05)
+ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}°, mean error: {np.round(statistics.mean(absolute_errors), 2)!r}°", y=1.05)
 
 # Add labels
 ax.text(0, 1.1, '0°', ha='center')
