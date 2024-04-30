@@ -1,9 +1,11 @@
+# this script makes a .csv file that has columns for azimuth, elevation, slope (slope of the line that is defined by the center of each ommatidium of the first eye and the center of the image),
+# phi_max and phi_max_2 (phi_max + 90deg), phi max values are set to be perpendicular to each ommatidium's azimuth (Gkanias model) (slope is not actually needed in this script)
+
 import sys
-import cv2
 import numpy as np
+import cv2
 import matplotlib
 import matplotlib.cm as cm
-import colorsys
 from multiprocessing import Pool
 
 def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
@@ -14,11 +16,6 @@ def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
     y = int(radius - (radius - s) * np.cos(azimuth_rad))
     return x, y
 
-def fit_curve(x, y): 
-    coefficients = np.polyfit(x, y, 2)
-    curve = np.poly1d(coefficients)
-    return curve
-
 def process_pixel(args):
     azimuth_deg, elevation_deg, color_value, center_x, center_y, img_width, img_height, minor_axis = args
 
@@ -26,28 +23,18 @@ def process_pixel(args):
     proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
     proj_x += center_x  
     
-    x_points = [0, img_width, proj_x]
-    y_points = [center_y, img_height // 2, proj_y]
-
-    curve = fit_curve(x_points, y_points)
-    intercept = curve(center_x)
-    
-    if elevation_deg == 90: 
-        distortion = 1
+    if proj_x == center_x:
+        slope = np.inf if proj_y > center_y else -np.inf
     else:
-        distortion = float(((np.pi/2) - np.pi * elevation_deg/180) / np.cos(np.pi * elevation_deg/180))
-    major_axis = int(float(distortion) * int(minor_axis))
-
+        slope = (proj_y - center_y) / (proj_x - center_x)
+    
     colormap = matplotlib.colormaps["hsv"]
     rgba_color = colormap(color_value)
     rgba_color = tuple(int(i * 255) for i in rgba_color)
     
-    thickness = -1
-    angle = azimuth_deg
-    
-    return azimuth_deg, elevation_deg, intercept
+    return azimuth_deg, elevation_deg, slope
 
-def main(image_path, output_path, azimuth_list, elevation_list, color_value_list, minor_axis):
+def main(image_path, output_image, azimuth_list, elevation_list, color_value_list, minor_axis):
     try:
         img = cv2.imread(image_path)        
         img_height, img_width, _ = img.shape
@@ -67,20 +54,16 @@ def main(image_path, output_path, azimuth_list, elevation_list, color_value_list
 
         data_array = np.zeros((len(results), 5))  # Initialize with 5 columns
 
-        for i, (azimuth_deg, elevation_deg, intercept) in enumerate(results):
+        for i, (azimuth_deg, elevation_deg, slope) in enumerate(results):
             data_array[i, 0] = azimuth_deg
             data_array[i, 1] = elevation_deg
-            data_array[i, 2] = intercept
+            data_array[i, 2] = slope
 
-        min_intercept = np.min(data_array[:, 2])
-        max_intercept = np.max(data_array[:, 2])
-        max_phi_max = -0.4387 * int(min_intercept) + 470.8149
-            
-        data_array[:, 4] = np.interp(data_array[:, 2], [min_intercept, max_intercept], [float(max_phi_max), 0])
-        data_array[:, 3] = data_array[:, 4] + 90
+        data_array[:, 3] = data_array[:, 0] + 90
+        data_array[:, 4] = data_array[:, 0]
 
-        np.savetxt("azimuth_elevation_arc_intercepts_data.csv", data_array, delimiter="\t", comments="")
-        
+        output_csv = "azimuth_elevation_slope_data.csv"
+        np.savetxt(output_csv, data_array, delimiter="\t", comments="") 
 
     except Exception as e:
         print(f"An error occurred: {str(e)}")
@@ -98,3 +81,4 @@ if __name__ == "__main__":
     minor_axis = sys.argv[6]
 
     main(input_image, output_image, azimuth_list, elevation_list, color_value_list, minor_axis)
+
