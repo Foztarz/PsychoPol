@@ -331,6 +331,37 @@ for rotation_angle in range(0, 360, 5):
     circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
     circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
 
+    # Create the histogram with DoLP values
+    # Define the bin edges with a fixed width of 0.025
+    bin_width = 0.025
+    bins = np.arange(0, 1 + bin_width, bin_width)
+     
+    n, bins, patches = plt.hist(dolp, bins=bins, range=(0, 1), edgecolor='black')
+    
+    # Calculate sky_purity
+    num_ge_03 = np.sum(np.array(dolp) >= 0.2)
+    num_lt_03 = np.sum(np.array(dolp) < 0.2)
+    sky_purity = num_ge_03 / num_lt_03 if num_lt_03 != 0 else np.inf
+    # Normalize the values to 0..1 for the colormap
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+    col = bin_centers - min(bin_centers)
+    col /= max(col)
+
+    # Apply the jet colormap
+    cm = plt.cm.get_cmap('jet')
+
+    for c, p in zip(col, patches):
+        plt.setp(p, 'facecolor', cm(c))
+
+    # Add titles and labels
+    plt.title(f'DoLP Histogram\nSky Purity: {sky_purity:.2f}')
+    plt.xlabel('DoLP')
+    plt.ylabel('n of ommatidia')
+
+    # save the histogram
+    plt.savefig('dolp_ommatidia.png')
+    plt.clf()
+    
 # Calculate the polar histogram for circmeans list
 N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
@@ -570,4 +601,16 @@ plt.grid(True)
 plt.legend()
 plt.savefig('saz_vector_lengths_errors_with_regression.png')
 plt.close()
+
+# plot absolute errors (saz-estimate) as a function of solar azimuth estimates
+plt.figure(figsize=(8, 6))
+plt.plot(rotation_angles,  absolute_errors, 'o', markersize=8)
+
+plt.xlabel('Solar azimuth (degrees)')
+plt.ylabel('Absolute Error (degrees)')
+plt.grid(True)
+plt.savefig('saz_error.png')
+plt.close()
+
+
 
