@@ -250,11 +250,12 @@ for rotation_angle in range(0, 360, 5):
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_arcs.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
 
-    with open("azimuth_elevation_arc_intercepts_data.csv", 'r') as phimax_values:
-        for line in phimax_values:
-            x = line.split('\t')
-            phimax_list.append(float(x[3]))
-            phimax_2_list.append(float(x[4]))
+    if len(phimax_list) == 0: # don't run the script if it already exists
+        with open("azimuth_elevation_arc_intercepts_data.csv", 'r') as phimax_values:
+            for line in phimax_values:
+                x = line.split('\t')
+                phimax_list.append(float(x[3]))
+                phimax_2_list.append(float(x[4]))
             
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
@@ -535,7 +536,7 @@ plt.close()
 
 all_saz_estimates = np.array(all_saz_estimates) 
 all_saz_estimates = np.pi/2 - all_saz_estimates # modify the estimates to match the scatter plot which has 0deg right increasing counterclockwise
-circstd_value = circstd(all_saz_estimates) # circular standard deviation
+circstd_value = np.degrees(float(circstd(all_saz_estimates))) # circular standard deviation
 
 # plot the saz estimates along with the circstd
 fig, ax = plt.subplots()
@@ -546,9 +547,8 @@ ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
 
 ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, alpha=0.5)
 ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
-ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}, mean error: {np.round(statistics.mean(absolute_errors), 2)!r}", y=1.05)
+ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}°, mean error: {np.round(statistics.mean(absolute_errors), 2)!r}°", y=1.05)
 
-# Add labels
 ax.text(0, 1.1, '0°', ha='center')
 ax.text(-1.1, 0, '90°', va='center', ha='right')
 ax.text(0, -1.1, '180°', ha='center', va='top')
@@ -573,4 +573,14 @@ plt.ylabel('Absolute Error (degrees)')
 plt.grid(True)
 plt.legend()
 plt.savefig('saz_vector_lengths_errors_with_regression.png')
+plt.close()
+
+# plot absolute errors (saz-estimate) as a function of solar azimuth estimates
+plt.figure(figsize=(8, 6))
+plt.plot(rotation_angles,  absolute_errors, 'o', markersize=8)
+
+plt.xlabel('Solar azimuth (degrees)')
+plt.ylabel('Absolute Error (degrees)')
+plt.grid(True)
+plt.savefig('saz_error.png')
 plt.close()

@@ -248,10 +248,10 @@ for rotation_angle in range(0, 360, 5):
     plt.close(fig)
 
     
-    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_random.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
 
     if len(phimax_list) == 0: # don't run the script if it already exists
-        with open("azimuth_elevation_slope_data.csv", 'r') as phimax_values:
+        with open("azimuth_elevation_phimax_random_data.csv", 'r') as phimax_values:
             for line in phimax_values:
                 x = line.split('\t')
                 phimax_list.append(float(x[3]))
