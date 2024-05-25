@@ -2,7 +2,7 @@ import numpy as np
 import os
 import sys
 
-def spherical_to_cartesian(azimuth, elevation):
+def spherical_to_cartesian(azimuth, elevation): # turns the initial azimuth, elevation coordinates into x,y,z spherical coordinates
     azimuth_rad = np.deg2rad(azimuth)
     elevation_rad = np.deg2rad(elevation)
     x = np.cos(elevation_rad) * np.cos(azimuth_rad)
@@ -10,14 +10,14 @@ def spherical_to_cartesian(azimuth, elevation):
     z = np.sin(elevation_rad)
     return np.array([x, y, z])
 
-def cartesian_to_spherical(x, y, z):
+def cartesian_to_spherical(x, y, z): # turns the x,y,z spherical coordinates back to azimuth, elevation
     hxy = np.hypot(x, y)
     azimuth = np.rad2deg(np.arctan2(y, x))
     elevation = np.rad2deg(np.arctan2(z, hxy))
     return azimuth, elevation
 
-def roll_rotation(points, roll_angle):
-    roll_rad = np.deg2rad(roll_angle)
+def roll_rotation(points, roll_angle): # performs the roll (as in yaw, pitch, roll) rotation using a rotation matrix. change the axis for pitch or yaw
+    roll_rad = np.deg2rad(roll_angle) 
     rotation_matrix = np.array([
         [1, 0, 0],
         [0, np.cos(roll_rad), -np.sin(roll_rad)],
@@ -26,7 +26,7 @@ def roll_rotation(points, roll_angle):
     rotated_points = np.dot(points, rotation_matrix.T)
     return rotated_points
 
-def read_coordinates(filename):
+def read_coordinates(filename): # reads the coordinates (both eyes!!) from the text file
     with open(filename, 'r') as file:
         lines = file.readlines()
     azimuths, elevations = [], []
@@ -36,12 +36,12 @@ def read_coordinates(filename):
         elevations.append(el)
     return azimuths, elevations
 
-def write_coordinates(filename, azimuths, elevations):
+def write_coordinates(filename, azimuths, elevations): # writes the new azimuth elevations in the new text files
     with open(filename, 'w') as file:
         for az, el in zip(azimuths, elevations):
             file.write(f"{az}\t{el}\n")
 
-def process_file(filename):
+def process_file(filename): # main function that reads the initial azimuth elevations, rotates (rolls) the xyz coordinates and writes azimuth elevation coordinates again.
     azimuths, elevations = read_coordinates(filename)
     cartesian_points = np.array([spherical_to_cartesian(az, el) for az, el in zip(azimuths, elevations)])
     
