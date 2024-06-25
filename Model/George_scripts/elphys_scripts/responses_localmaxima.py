@@ -60,6 +60,7 @@ filtered_responses_list = []
 block = reader.read_block()
 
 # Iterate over segments in the block
+min_overall_response = 0 # initiate a minimum response variable
 for segment in block.segments:
     # Ensure segment has at least two analog signals
     if len(segment.analogsignals) >= 2:
@@ -76,12 +77,14 @@ for segment in block.segments:
         if stimulus_signal is not None and response_signal is not None:
             # Convert signals to NumPy arrays
             response_data = np.array(response_signal).flatten()
-            min_value = np.min(response_data)
-            response_data = response_data - min_value
-
+            min_local_response = min(response_data)
+            
+            if min_overall_response > min_local_response:
+                min_overall_response = min_local_response
+            
             # Determine the size of each part
             part_size = len(response_data) // 21
-
+            
             # Find the maximum value in each part and store in filtered_responses
             filtered_responses = []
             for i in range(21):
@@ -95,19 +98,23 @@ for segment in block.segments:
 # Convert the list of arrays to a 2D NumPy array
 all_responses_array = np.array(filtered_responses_list)
 
-# Normalize the responses
-max_value = np.max(all_responses_array)
-all_responses_array = all_responses_array / max_value
+all_responses_array = all_responses_array - min_overall_response
+
+
+print(all_responses_array)
+
 
 # Create a meshgrid for plotting
-time_grid, trial_grid = np.meshgrid(np.arange(all_responses_array.shape[1]), np.arange(all_responses_array.shape[0]))
-
+#time_grid, trial_grid = np.meshgrid(np.arange(all_responses_array.shape[1]), np.arange(all_responses_array.shape[0]))
+time = np.arange(0, 21, 1)
+sample = np.arange(0, 21, 1)
+time, sample = np.meshgrid(time, sample)
 # Create a 3D plot
 fig = plt.figure(figsize=(10, 6))
 ax = fig.add_subplot(111, projection='3d')
 
 # Plot the surface
-surf = ax.plot_surface(time_grid, trial_grid, all_responses_array, cmap='coolwarm')
+surf = ax.plot_surface(time, sample, all_responses_array, cmap='coolwarm', vmin=0, vmax=1)
 
 # Add labels and title
 ax.set_xlabel('Time (samples)')
@@ -121,4 +128,4 @@ fig.colorbar(surf, shrink=0.5, aspect=5)
 #plt.show()
 
 # Create an animated gif (20ms between frames)
-rotanimate(ax, angles, f'{os.path.basename(filename)}.gif', delay=20)
+#rotanimate(ax, angles, f'{os.path.basename(filename)}.gif', delay=20)
