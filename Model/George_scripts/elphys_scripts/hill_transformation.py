@@ -39,10 +39,11 @@ max_sensitivity_value = np.max(sensitivity_values)
 #relative_sensitivity = sensitivity_values / max_sensitivity_value
 
 plt.figure(figsize=(8, 6))
-plt.scatter(intensity_log, sensitivity_values, color='blue', label='Relative Sensitivity Values')
+plt.scatter(intensity_log, sensitivity_values, color='blue', label='Hill transformed responses')
+plt.scatter(intensity_log, response_values, color='red', label='Response Values')
 plt.xlabel('Intensity (log scale)')
-plt.ylabel('Relative Sensitivity')
-plt.title('Relative Sensitivity vs Intensity')
+plt.ylabel('Response')
+plt.title('PR responses vs Intensity')
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
@@ -77,7 +78,7 @@ def moving_average(data, window_size):
     return scipy.ndimage.uniform_filter(data, size=window_size)
 
 bicubic_output = bicubic_interpolation(output_values)
-gaussian_output = gaussian_filtering(output_values, sigma=1)
+gaussian_output = gaussian_filtering(output_values, sigma=0.75)
 moving_average_output = moving_average(output_values, window_size=3)
 
 def normalize_mV(smoothed_values, Emax_opt):
