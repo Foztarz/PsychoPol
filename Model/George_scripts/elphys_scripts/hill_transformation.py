@@ -53,12 +53,12 @@ plt.show()
 # to get local maxima from the spatial recording
 command = f'python responses_localmaxima.py {sys.argv[2]}'  
 output = subprocess.check_output(command, shell=True, text=True) # a 21 by 21 array with spatial sensitivity data
-#print(output) # this is a string
 
 output = output.replace('[', '').replace(']', '').replace('\n', ' ')
 
 #convert cleaned string into a numpy array
 output_values = np.fromstring(output, dtype=float, sep=' ').reshape(21, 21)
+
 
 # smoothing methods
 def bicubic_interpolation(data):
@@ -77,10 +77,6 @@ def gaussian_filtering(data, sigma):
 def moving_average(data, window_size):
     return scipy.ndimage.uniform_filter(data, size=window_size)
 
-bicubic_output = bicubic_interpolation(output_values)
-gaussian_output = gaussian_filtering(output_values, sigma=0.75)
-moving_average_output = moving_average(output_values, window_size=3)
-
 def normalize_mV(smoothed_values, Emax_opt):
     mV_ratio = np.max(smoothed_values) / Emax_opt
     if mV_ratio > 1.05:
@@ -92,44 +88,48 @@ def normalize_mV(smoothed_values, Emax_opt):
         normalized_mV = np.where(normalized_mV > 1, 1, normalized_mV)
     return normalized_mV
 
-bicubic_normalized_mV = normalize_mV(bicubic_output, Emax_opt)
+##bicubic_output = bicubic_interpolation(output_values)
+gaussian_output = gaussian_filtering(output_values, sigma=1)
+moving_average_output = moving_average(output_values, window_size=3)
+
+##bicubic_normalized_mV = normalize_mV(bicubic_output, Emax_opt)
 gaussian_normalized_mV = normalize_mV(gaussian_output, Emax_opt)
 moving_average_normalized_mV = normalize_mV(moving_average_output, Emax_opt)
 
+
 # spatial sensitivity for each normalized result
 def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
-    spatial_sensitivity = Khalf_opt * (normalized_mV / (1 - normalized_mV)) ** (1 / n_opt)
+    spatial_sensitivity = np.zeros_like(normalized_mV)
+    non_one_indices = normalized_mV != 1
+    spatial_sensitivity[non_one_indices] = Khalf_opt * (normalized_mV[non_one_indices] / (1 - normalized_mV[non_one_indices])) ** (1 / n_opt)
+    spatial_sensitivity[~non_one_indices] = 1
     return spatial_sensitivity / np.max(spatial_sensitivity)
 
-bicubic_sensitivity = compute_spatial_sensitivity(bicubic_normalized_mV, Khalf_opt, n_opt)
+##bicubic_sensitivity = compute_spatial_sensitivity(bicubic_normalized_mV, Khalf_opt, n_opt)
 gaussian_sensitivity = compute_spatial_sensitivity(gaussian_normalized_mV, Khalf_opt, n_opt)
 moving_average_sensitivity = compute_spatial_sensitivity(moving_average_normalized_mV, Khalf_opt, n_opt)
 
 # plot the results
 plt.figure(figsize=(15, 10))
+##
+##plt.subplot(2, 2, 1)
+##plt.imshow(bicubic_sensitivity, cmap='coolwarm', aspect='auto', vmin=0, vmax=1)
+##plt.title('Bicubic Interpolation Sensitivity')
+##plt.colorbar()
 
-plt.subplot(2, 2, 1)
-plt.imshow(bicubic_sensitivity, cmap='coolwarm', aspect='auto', vmin=0, vmax=1)
-plt.title('Bicubic Interpolation Sensitivity')
-plt.colorbar()
-
-plt.subplot(2, 2, 2)
-plt.imshow(gaussian_sensitivity, cmap='coolwarm', aspect='auto', vmin=0, vmax=1)
+plt.subplot(1, 2, 1)
+img1 = plt.imshow(gaussian_sensitivity, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
 plt.title('Gaussian Filtering Sensitivity')
-plt.colorbar()
+plt.colorbar(img1, fraction=0.046, pad=0.04)
 
-plt.subplot(2, 2, 3)
-plt.imshow(moving_average_sensitivity, cmap='coolwarm', aspect='auto', vmin=0, vmax=1)
+# Moving Average Sensitivity heatmap
+plt.subplot(1, 2, 2)
+img2 = plt.imshow(moving_average_sensitivity, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
 plt.title('Moving Average Sensitivity')
-plt.colorbar()
+plt.colorbar(img2, fraction=0.046, pad=0.04)
 
 plt.tight_layout()
+
 plt.show()
-
-    
-    
-
-
-
 
 
