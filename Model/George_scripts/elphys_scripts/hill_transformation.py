@@ -109,7 +109,7 @@ def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
 gaussian_sensitivity = compute_spatial_sensitivity(gaussian_normalized_mV, Khalf_opt, n_opt)
 moving_average_sensitivity = compute_spatial_sensitivity(moving_average_normalized_mV, Khalf_opt, n_opt)
 
-# 2D Gaussian function
+# 2D Gaussian 
 def gaussian_2d(xy, amp, xo, yo, sigma_x, sigma_y, theta, offset):
     (x, y) = xy
     x0 = float(xo)
@@ -130,11 +130,29 @@ xy = (x, y)
 initial_guess_gaussian = (1, 10, 10, 3, 3, 0, 0)
 initial_guess_moving_avg = (1, 10, 10, 3, 3, 0, 0)
 
-bounds = ([0, 0, 0, 0, 0, 0, 0], [np.inf, 20, 20, np.inf, np.inf, np.inf, 1]) # to bind the parameters for efficient optimization
+bounds = ([0, 0, 0, 0, 0, -np.inf, 0], [1, 20, 20, 10, 10, np.inf, 0.5]) # to bind the parameters for efficient optimization
 
 # fit the Gaussian model to the data
 popt_gaussian, _ = curve_fit(gaussian_2d, xy, gaussian_sensitivity.ravel(), p0=initial_guess_gaussian,bounds=bounds)
 popt_moving_avg, _ = curve_fit(gaussian_2d, xy, moving_average_sensitivity.ravel(), p0=initial_guess_moving_avg,bounds=bounds)
+
+
+
+def gaussian_value_at_mean(popt):
+    amp, xo, yo, sigma_x, sigma_y, theta, offset = popt
+    return offset + amp * np.exp(0)  # exp(0) is 1, since we evaluate at the mean (xo, yo)
+
+# values for the fitted Gaussians at their means
+value_at_mean_gaussian = gaussian_value_at_mean(popt_gaussian)
+value_at_mean_moving_avg = gaussian_value_at_mean(popt_moving_avg)
+
+
+# generate fitted data
+fitted_gaussian = gaussian_2d((x, y), *popt_gaussian).reshape(21, 21)
+fitted_moving_avg = gaussian_2d((x, y), *popt_moving_avg).reshape(21, 21)
+# normalize by the value at the mean and subtract the offset and then divide by the amplitude to get the actual gaussian only
+fitted_gaussian = ((fitted_gaussian / value_at_mean_gaussian) - popt_gaussian[6]) / popt_gaussian[0]
+fitted_moving_avg = ((fitted_moving_avg / value_at_mean_moving_avg) - popt_moving_avg[6]) / popt_moving_avg[0]
 
 # theta represents the angle of the major axis and the x-axis
 def adjust_theta(popt):
@@ -148,14 +166,6 @@ def adjust_theta(popt):
 popt_gaussian = adjust_theta(popt_gaussian)
 popt_moving_avg = adjust_theta(popt_moving_avg)
 
-def gaussian_value_at_mean(popt):
-    amp, xo, yo, sigma_x, sigma_y, theta, offset = popt
-    return offset + amp * np.exp(0)  # exp(0) is 1, since we evaluate at the mean (xo, yo)
-
-# Compute the values for the fitted Gaussians at their means
-value_at_mean_gaussian = gaussian_value_at_mean(popt_gaussian)
-value_at_mean_moving_avg = gaussian_value_at_mean(popt_moving_avg)
-
 print("\nGaussian Sensitivity - Optimized Parameters:")
 print(f"Amplitude: {popt_gaussian[0]}")
 print(f"x0: {popt_gaussian[1]}")
@@ -163,7 +173,7 @@ print(f"y0: {popt_gaussian[2]}")
 print(f"sigma_x: {popt_gaussian[3]}")
 print(f"sigma_y: {popt_gaussian[4]}")
 print(f"theta: {popt_gaussian[5]}")
-print(f"Offset: {popt_gaussian[6]}")
+print(f"offset: {popt_gaussian[6]}")
 
 print("\nMoving Average Sensitivity - Optimized Parameters:")
 print(f"Amplitude: {popt_moving_avg[0]}")
@@ -172,15 +182,7 @@ print(f"y0: {popt_moving_avg[2]}")
 print(f"sigma_x: {popt_moving_avg[3]}")
 print(f"sigma_y: {popt_moving_avg[4]}")
 print(f"theta: {popt_moving_avg[5]}")
-print(f"Offset: {popt_moving_avg[6]}")
-
-# generate fitted data
-fitted_gaussian = gaussian_2d((x, y), *popt_gaussian).reshape(21, 21)
-fitted_moving_avg = gaussian_2d((x, y), *popt_moving_avg).reshape(21, 21)
-# normalize by the value at the mean
-fitted_gaussian = fitted_gaussian / value_at_mean_gaussian
-fitted_moving_avg = fitted_moving_avg / value_at_mean_moving_avg
-
+print(f"offset: {popt_moving_avg[6]}")
 
 plt.figure(figsize=(15, 10))
 
