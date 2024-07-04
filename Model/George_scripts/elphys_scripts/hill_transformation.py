@@ -130,7 +130,7 @@ xy = (x, y)
 initial_guess_gaussian = (1, 10, 10, 3, 3, 0, 0)
 initial_guess_moving_avg = (1, 10, 10, 3, 3, 0, 0)
 
-bounds = ([0, 0, 0, 0, 0, 0, 0], [np.inf, 20, 20, np.inf, np.inf, np.inf, 1])
+bounds = ([0, 0, 0, 0, 0, 0, 0], [np.inf, 20, 20, np.inf, np.inf, np.inf, 1]) # to bind the parameters for efficient optimization
 
 # fit the Gaussian model to the data
 popt_gaussian, _ = curve_fit(gaussian_2d, xy, gaussian_sensitivity.ravel(), p0=initial_guess_gaussian,bounds=bounds)
@@ -147,6 +147,14 @@ def adjust_theta(popt):
 
 popt_gaussian = adjust_theta(popt_gaussian)
 popt_moving_avg = adjust_theta(popt_moving_avg)
+
+def gaussian_value_at_mean(popt):
+    amp, xo, yo, sigma_x, sigma_y, theta, offset = popt
+    return offset + amp * np.exp(0)  # exp(0) is 1, since we evaluate at the mean (xo, yo)
+
+# Compute the values for the fitted Gaussians at their means
+value_at_mean_gaussian = gaussian_value_at_mean(popt_gaussian)
+value_at_mean_moving_avg = gaussian_value_at_mean(popt_moving_avg)
 
 print("\nGaussian Sensitivity - Optimized Parameters:")
 print(f"Amplitude: {popt_gaussian[0]}")
@@ -169,6 +177,10 @@ print(f"Offset: {popt_moving_avg[6]}")
 # generate fitted data
 fitted_gaussian = gaussian_2d((x, y), *popt_gaussian).reshape(21, 21)
 fitted_moving_avg = gaussian_2d((x, y), *popt_moving_avg).reshape(21, 21)
+# normalize by the value at the mean
+fitted_gaussian = fitted_gaussian / value_at_mean_gaussian
+fitted_moving_avg = fitted_moving_avg / value_at_mean_moving_avg
+
 
 plt.figure(figsize=(15, 10))
 
@@ -178,7 +190,7 @@ plt.title('Gaussian Filtering Sensitivity')
 plt.colorbar(fraction=0.046, pad=0.04)
 
 plt.subplot(2, 2, 2)
-plt.imshow(fitted_gaussian, cmap='coolwarm', aspect='equal')
+plt.imshow(fitted_gaussian, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
 plt.title('Fitted Gaussian Filtering Sensitivity')
 plt.colorbar(fraction=0.046, pad=0.04)
 
@@ -188,7 +200,7 @@ plt.title('Moving Average Sensitivity')
 plt.colorbar(fraction=0.046, pad=0.04)
 
 plt.subplot(2, 2, 4)
-plt.imshow(fitted_moving_avg, cmap='coolwarm', aspect='equal')
+plt.imshow(fitted_moving_avg, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
 plt.title('Fitted Moving Average Sensitivity')
 plt.colorbar(fraction=0.046, pad=0.04)
 
