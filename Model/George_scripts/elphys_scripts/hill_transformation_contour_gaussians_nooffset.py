@@ -137,20 +137,19 @@ plt.show()
 
 
 # 2D Gaussians (mixture and single)
-def gaussian_2d(xy, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting):
+def gaussian_2d(xy, xo, yo, sigma_x, sigma_y, theta, amp, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting):
     (x, y) = xy
     x0 = float(xo)
     y0 = float(yo)
     x02 = float(xo2)
     y02 = float(yo2)
-    amp = 1 - offset
     a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
     b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
     c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
     a2 = (np.cos(theta2)**2)/(2*sigma_x2**2) + (np.sin(theta2)**2)/(2*sigma_y2**2)
     b2 = -(np.sin(2*theta2))/(4*sigma_x2**2) + (np.sin(2*theta2))/(4*sigma_y2**2)
     c2 = (np.sin(theta2)**2)/(2*sigma_x2**2) + (np.cos(theta2)**2)/(2*sigma_y2**2)
-    g = offset + amp*(np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) + c*((y-yo)**2)))*weighting + np.exp( - (a2*((x-xo2)**2) + 2*b2*(x-xo2)*(y-yo2) 
+    g = amp*(np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo) + c*((y-yo)**2)))*weighting + np.exp( - (a2*((x-xo2)**2) + 2*b2*(x-xo2)*(y-yo2) 
                             + c2*((y-yo2)**2)))*(1- weighting)) # weighting should be between 0 and 1 so that the area under the two distributions adds to 1.0
     return g.ravel()
 
@@ -231,16 +230,15 @@ if len(centroids) == 2:
     weighting_gaussian = popt[11]
     
     def gaussian_value_at_means(popt):
-        xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting = popt
-        amp = 1 - offset
+        xo, yo, sigma_x, sigma_y, theta, amp, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting = popt
         a = (np.cos(theta)**2)/(2*sigma_x**2) + (np.sin(theta)**2)/(2*sigma_y**2)
         b = -(np.sin(2*theta))/(4*sigma_x**2) + (np.sin(2*theta))/(4*sigma_y**2)
         c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
         a2 = (np.cos(theta2)**2)/(2*sigma_x2**2) + (np.sin(theta2)**2)/(2*sigma_y2**2)
         b2 = -(np.sin(2*theta2))/(4*sigma_x2**2) + (np.sin(2*theta2))/(4*sigma_y2**2)
         c2 = (np.sin(theta2)**2)/(2*sigma_x2**2) + (np.cos(theta2)**2)/(2*sigma_y2**2)
-        value_at_mean1 = offset + amp * (np.exp(0)*weighting + np.exp( - (a2*((xo-xo2)**2) + 2*b2*(xo-xo2)*(yo-yo2) + c2*((yo-yo2)**2)))*(1- weighting))
-        value_at_mean2 = offset + amp * (np.exp( - (a*((xo2-xo)**2) + 2*b*(xo2-xo)*(yo2-yo) + c*((yo2-yo)**2)))*weighting + np.exp(0)*(1-weighting))
+        value_at_mean1 = amp * (np.exp(0)*weighting + np.exp( - (a2*((xo-xo2)**2) + 2*b2*(xo-xo2)*(yo-yo2) + c2*((yo-yo2)**2)))*(1- weighting))
+        value_at_mean2 = amp * (np.exp( - (a*((xo2-xo)**2) + 2*b*(xo2-xo)*(yo2-yo) + c*((yo2-yo)**2)))*weighting + np.exp(0)*(1-weighting))
         return value_at_mean1, value_at_mean2  # exp(0) is 1, since we evaluate at the mean (xo, yo)
 
     # values for the fitted Gaussians at their means
@@ -249,9 +247,9 @@ if len(centroids) == 2:
 
     # normalize by the value at the 'primary' mean (the one cell we are recording from) and subtract the offset and then divide by the amplitude to get the actual gaussian only
     if weighting_gaussian >= 0.5:
-        fitted_gaussian = ((fitted_gaussian / value_at_mean1_gaussian) - popt[5]) / (1 - popt[5])
+        fitted_gaussian = (fitted_gaussian / value_at_mean1_gaussian) / popt[5]
     else:
-        fitted_gaussian = ((fitted_gaussian / value_at_mean2_gaussian) - popt[5]) / (1 - popt[5])
+        fitted_gaussian = (fitted_gaussian / value_at_mean2_gaussian) / popt[5]
 
     # theta represents the angle of the major axis and the x-axis for the two gaussians
     def adjust_theta(popt):
@@ -267,16 +265,15 @@ if len(centroids) == 2:
         return popt
 
     popt = adjust_theta(popt)
-    amp_gaussian = 1 - popt[5]
+    amp_gaussian = popt[5]
 
     print("\nGaussian Sensitivity - Optimized Parameters:")
-    print(f"Amplitude: {amp_gaussian}")
+    print(f"Amplitude: {popt[5]}")
     print(f"x0: {popt[0]}")
     print(f"y0: {popt[1]}")
     print(f"sigma_x: {popt[2]}")
     print(f"sigma_y: {popt[3]}")
     print(f"theta: {popt[4]}")
-    print(f"offset: {popt[5]}")
     print(f"x02: {popt[6]}")
     print(f"y02: {popt[7]}")
     print(f"sigma_x2: {popt[8]}")
@@ -298,4 +295,5 @@ if len(centroids) == 2:
 
     plt.tight_layout()
     plt.show()
+
 
