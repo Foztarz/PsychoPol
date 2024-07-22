@@ -12,6 +12,7 @@ from scipy.stats.distributions import chi2
 from scipy.ndimage import label, center_of_mass
 from matplotlib.patches import Ellipse
 from matplotlib.lines import Line2D
+from scipy.optimize import minimize
 
 # Hill equation
 def hill_equation(I, Emax, Khalf, n):
@@ -190,15 +191,40 @@ def gaussian_2d_triple(xy, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, si
 
 def negative_log_likelihood_single(params, xy, data):
     xo, yo, sigma_x, sigma_y, theta, offset = params
-    
-    # Gaussian
     model = gaussian_2d_single(xy, xo, yo, sigma_x, sigma_y, theta, offset)
-    
-    # negative log likelihood
-    nll = -np.sum(np.log(model) * data)
-    
+    model = model.reshape(data.shape)
+    residuals = data - model
+    prior_xo = norm.logpdf(xo, loc=0, scale=2)
+    prior_yo = norm.logpdf(yo, loc=0, scale=2)
+    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo)
     return nll
 
+def negative_log_likelihood_double(params, xy, data):
+    xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting = params
+    model = gaussian_2d(xy, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting)
+    model = model.reshape(data.shape)
+    residuals = data - model
+    prior_xo = norm.logpdf(xo, loc=0, scale=2)
+    prior_yo = norm.logpdf(yo, loc=0, scale=2)
+    prior_xo2 = norm.logpdf(xo2, loc=0, scale=2)
+    prior_yo2 = norm.logpdf(yo2, loc=0, scale=2)
+    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_xo2 + prior_yo2)
+    return nll
+
+def negative_log_likelihood_triple(params, xy, data):
+    xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting, xo3, yo3, sigma_x3, sigma_y3, theta3, weighting2 = params
+    model = gaussian_2d_triple(xy, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting, xo3, yo3, sigma_x3, sigma_y3, theta3, weighting2)
+    model = model.reshape(data.shape)
+    residuals = data - model
+    prior_xo = norm.logpdf(xo, loc=0, scale=3)
+    prior_yo = norm.logpdf(yo, loc=0, scale=3)
+    prior_xo2 = norm.logpdf(xo2, loc=0, scale=3)
+    prior_yo2 = norm.logpdf(yo2, loc=0, scale=3)
+    prior_xo3 = norm.logpdf(xo3, loc=0, scale=3)
+    prior_yo3 = norm.logpdf(yo3, loc=0, scale=3)
+    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_xo2 + prior_yo2) - (prior_xo3 + prior_yo3)
+    return nll
+    
 # mesh grid
 x = np.linspace(0, 20, 21)
 y = np.linspace(0, 20, 21)
@@ -206,17 +232,19 @@ x, y = np.meshgrid(x, y)
 xy = (x, y)
 
 # to bind the parameters for efficient optimization: amp, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting
-bounds = ([0, 0, 1, 1, -np.inf, 0, 0, 0, 1, 1, -np.inf, 0], [20, 20, 6, 6, np.inf, 1, 20, 20, 6, 6, np.inf, 0.9])
-bounds_single = ([0, 0, 1, 1, -np.inf, 0], [20, 20, 6, 6, np.inf, 1])
-bounds_triple = ([0, 0, 1, 1, -np.inf, 0, 0, 0, 1, 1, -np.inf, 0, 0, 0, 1, 1, -np.inf, 0], [20, 20, 6, 6, np.inf, 1, 20, 20, 6, 6, np.inf, 0.9, 20, 20, 6, 6, np.inf, 0.9 ])
+bounds = [(0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 1), (0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 0.9)]
+bounds_single = [(0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 1)]
+bounds_triple = [(0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 1), (0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 0.9), (0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 0.9)]
 
 
 initial_params_single = (centroid[1], centroid[0], 1, 1, 0, 0)
 
 if len(centroids) == 1:
-    result = minimize(negative_log_likelihood_single, initial_params_single, args=(xy, gaussian_sensitivity), bounds=bounds_single)
-    popt, _ = curve_fit(gaussian_2d_single, xy, gaussian_sensitivity.ravel(), p0=initial_params_single, bounds=bounds_single)
+    result = minimize(negative_log_likelihood_single, initial_params_single, args=(xy, gaussian_sensitivity), bounds = bounds_single, method = 'L-BFGS-B', options={"disp": True})
+    popt = result.x
     fitted_gaussian = gaussian_2d_single((x, y), *popt).reshape(21, 21)
+    
+    # Function to compute Gaussian value at the mean
     def gaussian_value_at_mean(popt):
         xo, yo, sigma_x, sigma_y, theta, offset = popt
         amp = 1 - offset
@@ -225,7 +253,7 @@ if len(centroids) == 1:
     value_at_mean_gaussian = gaussian_value_at_mean(popt)
     fitted_gaussian = ((fitted_gaussian / value_at_mean_gaussian) - popt[5]) / (1 - popt[5])
 
-    # theta represents the angle of the major axis and the x-axis
+    # Function to adjust theta and sigma values
     def adjust_theta(popt):
         sigma_x, sigma_y = popt[2], popt[3]
         if sigma_x < sigma_y:
@@ -305,7 +333,8 @@ if len(centroids) == 1:
 
 if len(centroids) == 2:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5)
-    popt, _ = curve_fit(gaussian_2d, xy, gaussian_sensitivity.ravel(), p0=initial_params, bounds=bounds)
+    result = minimize(negative_log_likelihood_double, initial_params, args=(xy, gaussian_sensitivity), bounds = bounds, method = 'L-BFGS-B', options={"disp": True})
+    popt = result.x
     fitted_gaussian = gaussian_2d((x, y), *popt).reshape(21, 21)
     weighting_gaussian = popt[11]
     
@@ -446,7 +475,8 @@ if len(centroids) == 2:
 
 if len(centroids) == 3:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5, centroids[2][1], centroids[2][0], 1, 1, 0, 0.5)
-    popt, _ = curve_fit(gaussian_2d_triple, xy, gaussian_sensitivity.ravel(), p0=initial_params, bounds=bounds_triple)
+    result = minimize(negative_log_likelihood_triple, initial_params, args=(xy, gaussian_sensitivity), bounds = bounds_triple, method = 'L-BFGS-B', options={"disp": True})
+    popt = result.x
     fitted_gaussian = gaussian_2d_triple((x, y), *popt).reshape(21, 21)
     weighting_gaussian = popt[11]
     weighting_gaussian2 = popt[17]
