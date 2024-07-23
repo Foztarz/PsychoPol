@@ -105,7 +105,11 @@ def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
     return spatial_sensitivity / np.max(spatial_sensitivity)
 
 gaussian_sensitivity = compute_spatial_sensitivity(gaussian_normalized_mV, Khalf_opt, n_opt)
-
+with open(sys.argv[4], 'a') as file:
+    for row in gaussian_sensitivity:
+        for value in row:
+            file.write(f'{value}\n')
+        
 fig, ax = plt.subplots()
 
 # contour plot 
@@ -132,8 +136,6 @@ plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Contour Map with Centroids')
 plt.gca().invert_yaxis()  # invert the y-axis to match sensitivity indexing
-
-plt.figure(figsize=(15, 10))
 
 plt.show()
 
@@ -194,9 +196,11 @@ def negative_log_likelihood_single(params, xy, data, centroids):
     model = gaussian_2d_single(xy, xo, yo, sigma_x, sigma_y, theta, offset)
     model = model.reshape(data.shape)
     residuals = data - model
-    prior_xo = norm.logpdf(centroids[0][1], loc=0, scale=2)
-    prior_yo = norm.logpdf(centroids[0][0], loc=0, scale=2)
-    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo)
+    prior_xo = norm.logpdf(xo, loc=centroids[0][1], scale=0.1)
+    prior_yo = norm.logpdf(yo, loc=centroids[0][0], scale=0.1)
+    prior_sigma_x = norm.logpdf(sigma_x, loc=4/2.355, scale=0.25)
+    prior_sigma_y = norm.logpdf(sigma_y, loc=4/2.355, scale=0.25)
+    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_sigma_x+prior_sigma_y)
     return nll
 
 def negative_log_likelihood_double(params, xy, data, centroids):
@@ -204,11 +208,15 @@ def negative_log_likelihood_double(params, xy, data, centroids):
     model = gaussian_2d(xy, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting)
     model = model.reshape(data.shape)
     residuals = data - model
-    prior_xo = norm.logpdf(centroids[0][1], loc=0, scale=2)
-    prior_yo = norm.logpdf(centroids[0][0], loc=0, scale=2)
-    prior_xo2 = norm.logpdf(centroids[1][1], loc=0, scale=2)
-    prior_yo2 = norm.logpdf(centroids[1][0], loc=0, scale=2)
-    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_xo2 + prior_yo2)
+    prior_xo = norm.logpdf(xo, loc=centroids[0][1], scale=0.1)
+    prior_yo = norm.logpdf(yo, loc=centroids[0][0], scale=0.1)
+    prior_xo2 = norm.logpdf(xo2, loc=centroids[1][1], scale=0.1)
+    prior_yo2 = norm.logpdf(yo2, loc=centroids[1][0], scale=0.1)
+    prior_sigma_x = norm.logpdf(sigma_x, loc=4/2.355, scale=0.25)
+    prior_sigma_y = norm.logpdf(sigma_y, loc=4/2.355, scale=0.25)
+    prior_sigma_x2 = norm.logpdf(sigma_x2, loc=4/2.355, scale=0.25)
+    prior_sigma_y2 = norm.logpdf(sigma_y2, loc=4/2.355, scale=0.25)
+    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_xo2 + prior_yo2) - (prior_sigma_x+prior_sigma_y+prior_sigma_x2+prior_sigma_y2)
     return nll
 
 def negative_log_likelihood_triple(params, xy, data, centroids):
@@ -216,13 +224,20 @@ def negative_log_likelihood_triple(params, xy, data, centroids):
     model = gaussian_2d_triple(xy, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting, xo3, yo3, sigma_x3, sigma_y3, theta3, weighting2)
     model = model.reshape(data.shape)
     residuals = data - model
-    prior_xo = norm.logpdf(centroids[0][1], loc=0, scale=2)
-    prior_yo = norm.logpdf(centroids[0][0], loc=0, scale=2)
-    prior_xo2 = norm.logpdf(centroids[1][1], loc=0, scale=2)
-    prior_yo2 = norm.logpdf(centroids[1][0], loc=0, scale=2)
-    prior_xo3 = norm.logpdf(centroids[2][1], loc=0, scale=2)
-    prior_yo3 = norm.logpdf(centroids[2][0], loc=0, scale=2)
-    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_xo2 + prior_yo2) - (prior_xo3 + prior_yo3)
+    prior_xo = norm.logpdf(xo, loc=centroids[0][1], scale=0.1)
+    prior_yo = norm.logpdf(yo, loc=centroids[0][0], scale=0.1)
+    prior_xo2 = norm.logpdf(xo2, loc=centroids[1][1], scale=0.1)
+    prior_yo2 = norm.logpdf(yo2, loc=centroids[1][0], scale=0.1)
+    prior_xo3 = norm.logpdf(xo3, loc=centroids[2][1], scale=0.1)
+    prior_yo3 = norm.logpdf(yo3, loc=centroids[2][0], scale=0.1)
+    prior_sigma_x = norm.logpdf(sigma_x, loc=4/2.355, scale=0.25)
+    prior_sigma_y = norm.logpdf(sigma_y, loc=4/2.355, scale=0.25)
+    prior_sigma_x2 = norm.logpdf(sigma_x2, loc=4/2.355, scale=0.25)
+    prior_sigma_y2 = norm.logpdf(sigma_y2, loc=4/2.355, scale=0.25)
+    prior_sigma_x3 = norm.logpdf(sigma_x3, loc=4/2.355, scale=0.25)
+    prior_sigma_y3 = norm.logpdf(sigma_y3, loc=4/2.355, scale=0.25)
+    
+    nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_xo2 + prior_yo2) - (prior_xo3 + prior_yo3) - (prior_sigma_x+prior_sigma_y+prior_sigma_x2+prior_sigma_y2+prior_sigma_x3+prior_sigma_y3)
     return nll
     
 # mesh grid
@@ -232,15 +247,15 @@ x, y = np.meshgrid(x, y)
 xy = (x, y)
 
 # to bind the parameters for efficient optimization: amp, xo, yo, sigma_x, sigma_y, theta, offset, xo2, yo2, sigma_x2, sigma_y2, theta2, weighting
-bounds = [(0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 1), (0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 0.9)]
-bounds_single = [(0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 1)]
-bounds_triple = [(0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 1), (0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 0.9), (0, 20), (0, 20), (1, 5), (1, 5), (-np.inf, np.inf), (0, 0.9)]
+bounds = [(0, 20), (0, 20), (0.1, 5), (0.1, 5), (-np.inf, np.inf), (0, 1), (0, 20), (0, 20), (0.1, 5), (0.1, 5), (-np.inf, np.inf), (0, 0.9)]
+bounds_single = [(0, 20), (0, 20), (0.1, 5), (0.1, 5), (-np.inf, np.inf), (0, 1)]
+bounds_triple = [(0, 20), (0, 20), (0.1, 5), (0.1, 5), (-np.inf, np.inf), (0, 1), (0, 20), (0, 20), (0.1, 5), (0.1, 5), (-np.inf, np.inf), (0, 0.9), (0, 20), (0, 20), (0.1, 5), (0.1, 5), (-np.inf, np.inf), (0, 0.9)]
 
 
 initial_params_single = (centroid[1], centroid[0], 1, 1, 0, 0)
 
 if len(centroids) == 1:
-    result = minimize(negative_log_likelihood_single, initial_params_single, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_single, method = 'L-BFGS-B', options={"disp": True})
+    result = minimize(negative_log_likelihood_single, initial_params_single, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_single, method = 'L-BFGS-B') # , options={"disp": True})
     popt = result.x
     fitted_gaussian = gaussian_2d_single((x, y), *popt).reshape(21, 21)
     
@@ -333,7 +348,7 @@ if len(centroids) == 1:
 
 if len(centroids) == 2:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5)
-    result = minimize(negative_log_likelihood_double, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds, method = 'L-BFGS-B', options={"disp": True})
+    result = minimize(negative_log_likelihood_double, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds, method = 'L-BFGS-B') # , options={"disp": True})
     popt = result.x
     fitted_gaussian = gaussian_2d((x, y), *popt).reshape(21, 21)
     weighting_gaussian = popt[11]
@@ -475,7 +490,7 @@ if len(centroids) == 2:
 
 if len(centroids) == 3:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5, centroids[2][1], centroids[2][0], 1, 1, 0, 0.5)
-    result = minimize(negative_log_likelihood_triple, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_triple, method = 'L-BFGS-B', options={"disp": True})
+    result = minimize(negative_log_likelihood_triple, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_triple, method = 'L-BFGS-B') # , options={"disp": True})
     popt = result.x
     fitted_gaussian = gaussian_2d_triple((x, y), *popt).reshape(21, 21)
     weighting_gaussian = popt[11]
