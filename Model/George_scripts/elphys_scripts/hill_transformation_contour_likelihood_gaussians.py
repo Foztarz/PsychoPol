@@ -84,7 +84,7 @@ output = output.replace('[', '').replace(']', '').replace('\n', ' ')
 
 #convert cleaned string into a numpy array
 output_values = np.fromstring(output, dtype=float, sep=' ').reshape(21, 21)
-
+output_values = output_values/np.max(output_values) # normalize the ss data
 
 # smoothing methods
 def bicubic_interpolation(data):
@@ -103,6 +103,7 @@ def gaussian_filtering(data, sigma):
 def moving_average(data, window_size):
     return scipy.ndimage.uniform_filter(data, size=window_size)
 
+# not used currently
 def normalize_mV(smoothed_values, Emax_opt):
     mV_ratio = np.max(smoothed_values) / Emax_opt
     if mV_ratio > 1.05:
@@ -114,10 +115,9 @@ def normalize_mV(smoothed_values, Emax_opt):
         normalized_mV = np.where(normalized_mV > 1, 1, normalized_mV)
     return normalized_mV
 
-gaussian_output = gaussian_filtering(output_values, sigma=1)
+gaussian_normalized_mV = gaussian_filtering(output_values, sigma=1)
 
-gaussian_normalized_mV = normalize_mV(gaussian_output, Emax_opt)
-
+#gaussian_normalized_mV = normalize_mV(gaussian_output, Emax_opt)
 
 # spatial sensitivity for each normalized result
 def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
@@ -128,7 +128,7 @@ def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
     return spatial_sensitivity / np.max(spatial_sensitivity)
 
 gaussian_sensitivity = compute_spatial_sensitivity(gaussian_normalized_mV, Khalf_opt, n_opt)
-# gaussian_sensitivity = gaussian_sensitivity * 10 # when +1log intensity??
+
 with open(sys.argv[4], 'a') as file:
     for row in gaussian_sensitivity:
         for value in row:
