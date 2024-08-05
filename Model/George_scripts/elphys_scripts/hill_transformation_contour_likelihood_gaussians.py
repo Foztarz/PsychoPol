@@ -38,7 +38,8 @@ for i in range(max_response_index + 1, len(response_values)):
         below_threshold_index = i
         break
 if below_threshold_index is not None:
-    response_values = response_values[:below_threshold_index+1] # until 1st point after max below 95% of maximum response
+    response_values = response_values[:below_threshold_index] # until 1st point after max below 95% of maximum response
+    response_values = np.append(response_values, [np.max(response_values)]) # duplicate the max response at the end of the curve
     # intensity values from log scale to linear scale
     intensity_log = data[:, 1][:below_threshold_index+1] # take only values before saturation
     intensity_linear = 10**intensity_log[:below_threshold_index+1] # take only values before saturation    
