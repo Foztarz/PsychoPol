@@ -13,6 +13,9 @@ from scipy.ndimage import label, center_of_mass
 from matplotlib.patches import Ellipse
 from matplotlib.lines import Line2D
 from scipy.optimize import minimize
+from skimage.draw import line
+from scipy.ndimage import map_coordinates
+from scipy.interpolate import RegularGridInterpolator
 
 # Hill equation
 def hill_equation(I, Emax, Khalf, n):
@@ -23,9 +26,28 @@ data = np.loadtxt(sys.argv[1])
 # intensity and response values
 intensity_log = data[:, 1]
 response_values = data[:, 0]
+print(response_values)
 
-# intensity values from log scale to linear scale
-intensity_linear = 10**intensity_log
+# this for taking only response values until saturation
+max_response = np.max(response_values)
+threshold = 0.95 * max_response
+max_response_index = np.argmax(response_values)
+below_threshold_index = None
+for i in range(max_response_index + 1, len(response_values)):
+    if intensity_log[i] < threshold:
+        below_threshold_index = i
+        break
+if below_threshold_index is not None:
+    response_values = response_values[:below_threshold_index+1] # until 1st point after max below 95% of maximum response
+    # intensity values from log scale to linear scale
+    intensity_log = data[:, 1][:below_threshold_index+1] # take only values before saturation
+    intensity_linear = 10**intensity_log[:below_threshold_index+1] # take only values before saturation    
+else:
+    response_values = response_values
+    # intensity values from log scale to linear scale
+    intensity_linear = 10**intensity_log
+print(response_values)
+
 
 # initial parameter estimates
 initial_guess = (30, 0.03, 2)  # Emax, K0.5, Hill slope
@@ -105,6 +127,7 @@ def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
     return spatial_sensitivity / np.max(spatial_sensitivity)
 
 gaussian_sensitivity = compute_spatial_sensitivity(gaussian_normalized_mV, Khalf_opt, n_opt)
+# gaussian_sensitivity = gaussian_sensitivity * 10 # when +1log intensity??
 with open(sys.argv[4], 'a') as file:
     for row in gaussian_sensitivity:
         for value in row:
@@ -346,6 +369,11 @@ if len(centroids) == 1:
     plt.tight_layout()
     plt.show()
 
+    # calculate circle radius of main RF
+    ellipse_surface = np.pi * (major_axis/2) * (minor_axis/2)
+    circle_radius = np.sqrt(ellipse_surface/np.pi)
+    print(f'circle radius of main RF: {circle_radius} degrees')
+     
 if len(centroids) == 2:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5)
     result = minimize(negative_log_likelihood_double, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds, method = 'L-BFGS-B') # , options={"disp": True})
@@ -488,6 +516,20 @@ if len(centroids) == 2:
     plt.tight_layout()
     plt.show()
 
+    # calculate circle radius of main RF
+    if weighting_gaussian >= 0.5:
+        major_axis = max(sigma_x, sigma_y) * 2.355
+        minor_axis = min(sigma_x, sigma_y) * 2.355
+        ellipse_surface = np.pi * (major_axis/2) * (minor_axis/2)
+        circle_radius = np.sqrt(ellipse_surface/np.pi)
+        print(f'circle radius of main RF: {circle_radius} degrees')
+    else:
+        major_axis = max(sigma_x2, sigma_y2) * 2.355
+        minor_axis = min(sigma_x2, sigma_y2) * 2.355
+        ellipse_surface = np.pi * (major_axis/2) * (minor_axis/2)
+        circle_radius = np.sqrt(ellipse_surface/np.pi)
+        print(f'circle radius of main RF: {circle_radius} degrees')
+        
 if len(centroids) == 3:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5, centroids[2][1], centroids[2][0], 1, 1, 0, 0.5)
     result = minimize(negative_log_likelihood_triple, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_triple, method = 'L-BFGS-B') # , options={"disp": True})
@@ -672,5 +714,24 @@ if len(centroids) == 3:
     plt.tight_layout()
     plt.show()
 
+    # calculate circle radius of RF
+    if weighting_gaussian > 1 - weighting_gaussian and weighting_gaussian > (1 - weighting_gaussian)*(1 - weighting_gaussian2):
+        major_axis = max(sigma_x, sigma_y) * 2.355
+        minor_axis = min(sigma_x, sigma_y) * 2.355
+        ellipse_surface = np.pi * (major_axis/2) * (minor_axis/2)
+        circle_radius = np.sqrt(ellipse_surface/np.pi)
+        print(f'circle radius of main RF: {circle_radius} degrees')
+    elif 1 - weighting_gaussian > weighting_gaussian and 1 - weighting_gaussian > (1 - weighting_gaussian)*(1 - weighting_gaussian2):
+        major_axis = max(sigma_x2, sigma_y2) * 2.355
+        minor_axis = min(sigma_x2, sigma_y2) * 2.355
+        ellipse_surface = np.pi * (major_axis/2) * (minor_axis/2)
+        circle_radius = np.sqrt(ellipse_surface/np.pi)
+        print(f'circle radius of main RF: {circle_radius} degrees')
+    elif (1 - weighting_gaussian)*(1 - weighting_gaussian2) > weighting_gaussian and (1 - weighting_gaussian)*(1 - weighting_gaussian2) > 1 - weighting_gaussian:
+        major_axis = max(sigma_x3, sigma_y3) * 2.355
+        minor_axis = min(sigma_x3, sigma_y3) * 2.355
+        ellipse_surface = np.pi * (major_axis/2) * (minor_axis/2)
+        circle_radius = np.sqrt(ellipse_surface/np.pi)
+        print(f'circle radius of main RF: {circle_radius} degrees')
 
     
