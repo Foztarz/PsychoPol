@@ -8,6 +8,9 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 from multiprocessing import Pool
 
+def create_meshgrid(img_width, img_height, center_x, center_y):
+    x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y))
+    return x, y
 
 def spherical_to_cartesian(radius, azimuth_deg, elevation_deg): # turns spherical coordinates to cartesian, assuming azimuthal equidistant projection
     s = radius * elevation_deg / 90  # distance from image edge
@@ -46,15 +49,14 @@ def spherical_distance(x1, y1, x2, y2, center_x, center_y):  # calculates spheri
 
     
 def process_line(args): # this function processes each line in the text file with the spherical coordinates (azimuth, elevation; tab-separated)
-    line, img, spl, img_width, img_height, center_x, center_y = args # arguments, minor axis doesn't change in azimuthal equidistant projections, rotation angle refers to the ommatidia
+    line, img, spl, img_width, img_height, center_x, center_y, x_mesh, y_mesh = args # arguments, minor axis doesn't change in azimuthal equidistant projections, rotation angle refers to the ommatidia
     azimuth_deg, elevation_deg = map(float, line.strip().split('\t'))
 
     projection_radius = min(center_x, center_y) # radius of the circular input image
     proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
     proj_x += center_x # adding the radius of the image to bring 0 at the center
 
-    x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y)) 
-    distance_matrix = spherical_distance(x + center_x, y + center_y, proj_x, proj_y, center_x, center_y)# make a spherical-distance-matrix (distance between all pixels) assuming center of the surface of the sphere is zenith
+    distance_matrix = spherical_distance(x_mesh + center_x, y_mesh + center_y, proj_x, proj_y, center_x, center_y)# make a spherical-distance-matrix (distance between all pixels) assuming center of the surface of the sphere is zenith
     distance_matrix = np.degrees(distance_matrix)
 
     distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
@@ -63,7 +65,7 @@ def process_line(args): # this function processes each line in the text file wit
     spline_array = np.where(spline_array > 1, 1, spline_array) # make sensitivities greater than 1 equal to 1
     spline_array = np.where(spline_array < 0.0025, 0, spline_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
 
-    spline_array[(x)**2 + (y)**2 > center_x**2] = 0 # set values outside the circular region to 0
+    spline_array[(x_mesh)**2 + (y_mesh)**2 > center_x**2] = 0 # set values outside the circular region to 0
     spline_array /= np.max(spline_array) # divides every element in the spline_array by the maximum value / normalization
     
     result = np.multiply(img, spline_array) # multiply the original img with the spline array
@@ -71,6 +73,7 @@ def process_line(args): # this function processes each line in the text file wit
 
 def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle):
     try:
+        
         data_file = spline_data # data to be used for the spline function (x/angles, y/sensitivity; tab-separated)
         data = np.loadtxt(data_file, delimiter='\t')
 
@@ -93,9 +96,11 @@ def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle):
         M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # rotate the image
         img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
         
+        x_mesh, y_mesh = create_meshgrid(img_width, img_height, center_x, center_y)
+        
         with open(coordinates_file, 'r') as file:
             lines = file.readlines()
-            args_list = [(line, img, spl, img_width, img_height, center_x, center_y) for line in lines]
+            args_list = [(line, img, spl, img_width, img_height, center_x, center_y, x_mesh, y_mesh) for line in lines]
             
             with Pool() as pool: # parallel processing the process_line function for each ommatidium
                 results = pool.map(process_line, args_list)

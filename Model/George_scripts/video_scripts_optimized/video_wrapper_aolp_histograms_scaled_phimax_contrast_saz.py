@@ -245,12 +245,13 @@ for rotation_angle in range(0, 360, 5):
     plt.close(fig)
 
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
-   
-    with open("azimuth_elevation_slope_data.csv", 'r') as phimax_values:
-        for line in phimax_values:
-            x = line.split('\t')
-            phimax_list.append(float(x[3]))
-            phimax_2_list.append(float(x[4]))
+
+    if len(phimax_list) == 0: # don't run the script if it already exists
+        with open("azimuth_elevation_slope_data.csv", 'r') as phimax_values:
+            for line in phimax_values:
+                x = line.split('\t')
+                phimax_list.append(float(x[3]))
+                phimax_2_list.append(float(x[4]))
            
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
@@ -331,6 +332,37 @@ for rotation_angle in range(0, 360, 5):
     circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
     circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
 
+    # Create the histogram with DoLP values
+    # Define the bin edges with a fixed width of 0.025
+    bin_width = 0.025
+    bins = np.arange(0, 1 + bin_width, bin_width)
+     
+    n, bins, patches = plt.hist(dolp, bins=bins, range=(0, 1), edgecolor='black')
+    
+    # Calculate sky_purity
+    num_ge_03 = np.sum(np.array(dolp) >= 0.2)
+    num_lt_03 = np.sum(np.array(dolp) < 0.2)
+    sky_purity = num_ge_03 / num_lt_03 if num_lt_03 != 0 else np.inf
+    # Normalize the values to 0..1 for the colormap
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+    col = bin_centers - min(bin_centers)
+    col /= max(col)
+
+    # Apply the jet colormap
+    cm = plt.cm.get_cmap('jet')
+
+    for c, p in zip(col, patches):
+        plt.setp(p, 'facecolor', cm(c))
+
+    # Add titles and labels
+    plt.title(f'DoLP Histogram\nSky Purity: {sky_purity:.2f}')
+    plt.xlabel('DoLP')
+    plt.ylabel('n of ommatidia')
+
+    # save the histogram
+    plt.savefig('dolp_ommatidia.png')
+    plt.clf()
+    
 # Calculate the polar histogram for circmeans list
 N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
@@ -570,4 +602,16 @@ plt.grid(True)
 plt.legend()
 plt.savefig('saz_vector_lengths_errors_with_regression.png')
 plt.close()
+
+# plot absolute errors (saz-estimate) as a function of solar azimuth estimates
+plt.figure(figsize=(8, 6))
+plt.plot(rotation_angles,  absolute_errors, 'o', markersize=8)
+
+plt.xlabel('Solar azimuth (degrees)')
+plt.ylabel('Absolute Error (degrees)')
+plt.grid(True)
+plt.savefig('saz_error.png')
+plt.close()
+
+
 

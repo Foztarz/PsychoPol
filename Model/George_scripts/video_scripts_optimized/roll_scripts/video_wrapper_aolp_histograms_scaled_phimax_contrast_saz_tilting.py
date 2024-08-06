@@ -13,7 +13,6 @@ import math
 import matplotlib.pyplot as plt
 import scipy
 from astropy.units import Quantity
-from scipy.interpolate import make_interp_spline
 from scipy.stats import circstd
 from scipy import stats
 from multiprocessing import Pool
@@ -24,7 +23,6 @@ parser.add_argument("-i", "--input", required=True, help="INPUT must be the inpu
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
-parser.add_argument("-spl", "--splinedata", required=True, help="SPLINEDATA is the tsv file containing the spline data based on which the angular sensitivity function is being calculated. (required)")
 args=parser.parse_args()
 
 Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
@@ -60,16 +58,7 @@ def _angle(data, p=1, phi=0.0, axis=None, weights=None):
 
 def circmean(data, axis=None, weights=None):
     return _angle(data, 1, 0.0, axis, weights)
-
-azimuth_deg_list = []
-elevation_deg_list = []
-
-with open(args.coordinates, 'r') as crd:
-    for line in crd:
-        x=line.split('\t')
-        azimuth_deg_list.append(float(x[0]))
-        elevation_deg_list.append(float(x[1].strip()))
-
+        
 def min_angle_difference(angle1, angle2):
     # Normalize angles to be between 0 and 360 degrees
     angle1 %= 360
@@ -84,45 +73,22 @@ def min_angle_difference(angle1, angle2):
         return 360 - absolute_difference
     else:
         return absolute_difference
-    
-def forstokes_eye_1(img_dmc):
-    intensities_000 = []
-    intensities_045 = []
-    intensities_090 = []
-    intensities_135 = []
 
-    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_honeybee_sensitivity.py ' + args.splinedata + ' ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
-        for line in process.stdout:
-            if '000' in img_dmc:
-                intensities_000.append(line.strip())
-            elif '045' in img_dmc:
-                intensities_045.append(line.strip())
-            elif '090' in img_dmc:
-                intensities_090.append(line.strip())
-            elif '135' in img_dmc:
-                intensities_135.append(line.strip())
+with open(args.coordinates, 'r') as infile, open('coordinates_botheyes.tsv', 'a') as outfile:
+    # Read each line from the input file
+    for line in infile:
+        # Write the original line to the output file
+        outfile.write(line)
 
-    return intensities_000, intensities_045, intensities_090, intensities_135
+with open(args.coordinates, 'r') as infile, open('coordinates_botheyes.tsv', 'a') as outfile:
+    # Read each line from the input file
+    for line in infile:
+        # Write the original line to the output file
+        outfile.write('-' + line)        
 
-def forstokes_eye_2(img_dmc):
-    intensities_000_2 = []
-    intensities_045_2 = []
-    intensities_090_2 = []
-    intensities_135_2 = []
+os.system('rm ' + args.coordinates)
+os.system('python tilting_coordinates.py coordinates_botheyes.tsv')
 
-    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye_honeybee_sensitivity.py ' + args.splinedata + ' ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
-        for line in process.stdout:
-            if '000' in img_dmc:
-                intensities_000_2.append(line.strip())
-            elif '045' in img_dmc:
-                intensities_045_2.append(line.strip())
-            elif '090' in img_dmc:
-                intensities_090_2.append(line.strip())
-            elif '135' in img_dmc:
-                intensities_135_2.append(line.strip())
-
-    return intensities_000_2, intensities_045_2, intensities_090_2, intensities_135_2
-    
 circmeans = []
 circmeans_2 = []
 circmeans_botheyes = []
@@ -133,7 +99,65 @@ all_saz_estimates = []
 absolute_errors = []
 total_vector_lengths = []
 
-for rotation_angle in range(0, 360, 5):
+for txt_file in [f for f in os.listdir() if f.endswith('.txt')]:
+    azimuth_deg_list = []
+    elevation_deg_list = []
+    azimuth_deg_2_list = []
+    elevation_deg_2_list = []
+    
+    with open(txt_file, 'r') as crd:
+        lines = crd.readlines()
+    middle_index = len(lines) // 2
+
+    # Split the lines into two halves and extract the first column
+    azimuth_deg_list = [float(line.split('\t')[0]) for line in lines[:middle_index]]
+    azimuth_deg_list = '[' + ','.join(map(str, azimuth_deg_list)) + ']'
+    azimuth_deg_2_list = [float(line.split('\t')[0]) for line in lines[middle_index:]] # azimuths of second eye (mirrored first)
+    azimuth_deg_2_list = '[' + ','.join(map(str, azimuth_deg_2_list)) + ']'
+    elevation_deg_list = [float(line.split('\t')[1].strip()) for line in lines[:middle_index]]
+    elevation_deg_list = '[' + ','.join(map(str, elevation_deg_list)) + ']'
+    elevation_deg_2_list = [float(line.split('\t')[1].strip()) for line in lines[middle_index:]]
+    elevation_deg_2_list = '[' + ','.join(map(str, elevation_deg_2_list)) + ']'
+    
+    def forstokes_eye_1(img_dmc):
+        intensities_000 = []
+        intensities_045 = []
+        intensities_090 = []
+        intensities_135 = []
+
+        with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes.py ' + img_dmc + ' ' + str(azimuth_deg_list) + ' ' + str(elevation_deg_list) + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
+            for line in process.stdout:
+                if '000' in img_dmc:
+                    intensities_000.append(line.strip())
+                elif '045' in img_dmc:
+                    intensities_045.append(line.strip())
+                elif '090' in img_dmc:
+                    intensities_090.append(line.strip())
+                elif '135' in img_dmc:
+                    intensities_135.append(line.strip())
+
+        return intensities_000, intensities_045, intensities_090, intensities_135
+
+    def forstokes_eye_2(img_dmc):
+        intensities_000_2 = []
+        intensities_045_2 = []
+        intensities_090_2 = []
+        intensities_135_2 = []
+
+        with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye.py ' + img_dmc + ' ' + str(azimuth_deg_2_list) + ' ' + str(elevation_deg_2_list) + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
+            for line in process.stdout:
+                if '000' in img_dmc:
+                    intensities_000_2.append(line.strip())
+                elif '045' in img_dmc:
+                    intensities_045_2.append(line.strip())
+                elif '090' in img_dmc:
+                    intensities_090_2.append(line.strip())
+                elif '135' in img_dmc:
+                    intensities_135_2.append(line.strip())
+
+        return intensities_000_2, intensities_045_2, intensities_090_2, intensities_135_2
+    
+    rotation_angle = 0
     solar_azimuth = float(args.solarazimuth) + rotation_angle # frame of reference same as normal solar azimuth (increasing counterclockwise from up)
     if solar_azimuth < 360:
         rotation_angles.append(solar_azimuth)
@@ -149,7 +173,7 @@ for rotation_angle in range(0, 360, 5):
     S_list = [] # polarization sensitivity
     S2_list = [] # polarization sensitivity perpendicular to S
     PRC = [] # photoreceptor contrast
-    
+
     with Pool() as pool:
         eye_results_1 = pool.map(forstokes_eye_1, args.demosaiced)
         eye_results_2 = pool.map(forstokes_eye_2, args.demosaiced)
@@ -180,13 +204,13 @@ for rotation_angle in range(0, 360, 5):
         S1.append(float(x) - float(y))
     for z, w in zip(img_045_intensities, img_135_intensities):
         S2.append(float(z) - float(w))
-
+    
     S0 = [(float(x1) + float(y1) + float(z1) + float(w1)) / 2 for x1, y1, z1, w1 in zip(img_000_intensities, img_045_intensities, img_090_intensities, img_135_intensities)]
     dolp = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1, S2, S0)]
     aolp = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2, S1)] 
     aolp_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2, S1)]
-    aolp_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2, S1)]
     aolp_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2, S1)] # no rotation angle for circmeans
+    aolp_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2, S1)]
         
     # this is for the second eye
     S1_2 = []
@@ -207,8 +231,8 @@ for rotation_angle in range(0, 360, 5):
     dolp_2 = [ math.sqrt(x2**2 + y2**2) / z2 for x2, y2, z2 in zip(S1_2, S2_2, S0_2)]
     aolp_2 = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) / np.pi for x3, y3 in zip(S2_2, S1_2)]
     aolp_2_lines = [ (math.atan2(x3, y3) / 2) + np.radians(rotation_angle) for x3, y3 in zip(S2_2, S1_2)]
-    aolp_2_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2_2, S1_2)]
     aolp_2_circmeans = [ np.mod(((math.atan2(x3, y3) / 2)), np.pi) for x3, y3 in zip(S2_2, S1_2)] # no rotation angle for circmeans
+    aolp_2_hist = [ np.mod(((math.atan2(x3, y3) / 2) + np.radians(rotation_angle)), np.pi) for x3, y3 in zip(S2_2, S1_2)]
 
     aolp_both_eyes = aolp_circmeans + aolp_2_circmeans
     dolp_both_eyes = dolp + dolp_2
@@ -247,7 +271,6 @@ for rotation_angle in range(0, 360, 5):
     fig.savefig(output_path)
     plt.close(fig)
 
-    
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
 
     if len(phimax_list) == 0: # don't run the script if it already exists
@@ -256,33 +279,32 @@ for rotation_angle in range(0, 360, 5):
                 x = line.split('\t')
                 phimax_list.append(float(x[3]))
                 phimax_2_list.append(float(x[4]))
-            
+           
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
-        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_value))))
-        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_2_value))))
+        S_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_value)))) 
+        S2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(phimax_2_value)))) 
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_value / S_2_value)))
-    PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
+    PRC_scaled = np.interp(PRC, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1))
     PRC_scaled = PRC_scaled.tolist()
     all_PRC_values.append(PRC)
-    
+     
     # for the second eye
-    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_value))))
+    for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list): # negative phi max below to mirror them with the first eye
+        S_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_value)))) 
         S2_2_list.append(float(1 + ((dolp_value*(Sp - 1)) / (Sp + 1)) * np.cos(2*(np.radians(270)-aolp_value) - 2*np.radians(-phimax_2_value))))
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
         PRC_2.append(float(np.log(S_value / S_2_value)))
-    PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1)) # we use the log here, derived from theoretical max ratio, multiplying by 0.7 which is typical max DoLP in the sky
+    PRC_2_scaled = np.interp(PRC_2, (-np.log(Sp*0.7),np.log(Sp*0.7)), (0,1))
     PRC_2_scaled = PRC_2_scaled.tolist()
     all_PRC_2_values.append(PRC_2)
     
-    #os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' ' + str(PRC_scaled))   
     command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '"')
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     first_eye_saz_x, first_eye_saz_y = output.split(' ')
-
+    
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
     os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '_lines.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
@@ -307,16 +329,16 @@ for rotation_angle in range(0, 360, 5):
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
 
-    command = str('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '"')
+    command = str('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_2_list) + '" "' + str(elevation_deg_2_list) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '"')
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     total_vector_angle, total_vector_length = output.split(' ')
-
+    
     all_saz_estimates.append(float(total_vector_angle)+float(np.radians(rotation_angle)))
     total_vector_lengths.append(float(total_vector_length))
     absolute_errors.append(min_angle_difference(-float(float(args.solarazimuth)+float(rotation_angle)), np.degrees(float(total_vector_angle)))) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
-
-    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
+    
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_2_list) + '" "' + str(elevation_deg_2_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
     os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')
@@ -328,14 +350,14 @@ for rotation_angle in range(0, 360, 5):
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
     os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_background.png')
-    os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
+    os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(txt_file) + '_background_transparent.png')
     os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
 
     circmeans.append(circmean(np.array(aolp_circmeans), weights=np.array(dolp)))
     circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
     circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
-
+    
 # Calculate the polar histogram for circmeans list
 N = 60 # change this to 60 (from 59) to have a bin for every 5deg
 aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
@@ -548,7 +570,7 @@ ax.plot(np.cos(np.linspace(0, 2*np.pi, 500)),
 ax.scatter(np.cos(all_saz_estimates), np.sin(all_saz_estimates), c='k', s=15, alpha=0.5)
 ax.plot([0, np.cos(np.radians(float(args.solarazimuth)-270))], [0, np.sin(np.radians(float(args.solarazimuth)-270))], c='green')
 ax.set_title(f"circular std: {np.round(circstd_value, 2)!r}°, mean error: {np.round(statistics.mean(absolute_errors), 2)!r}°", y=1.05)
-
+# Add labels
 ax.text(0, 1.1, '0°', ha='center')
 ax.text(-1.1, 0, '90°', va='center', ha='right')
 ax.text(0, -1.1, '180°', ha='center', va='top')
@@ -558,7 +580,8 @@ ax.axis('off')
 
 plt.savefig('circstd.png')
 plt.close()
-    
+
+#print(total_vector_lengths,  absolute_errors)
 # plot absolute errors (saz-estimate) as a function of total vector lengths of estimates
 plt.figure(figsize=(8, 6))
 plt.plot(total_vector_lengths,  absolute_errors, 'o', markersize=8)
@@ -584,3 +607,7 @@ plt.ylabel('Absolute Error (degrees)')
 plt.grid(True)
 plt.savefig('saz_error.png')
 plt.close()
+
+os.system('rm *.txt')
+
+

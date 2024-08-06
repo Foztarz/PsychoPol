@@ -251,11 +251,12 @@ for rotation_angle in range(0, 360, 5):
     
     os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_arcs.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp) + '" 25')
 
-    with open("azimuth_elevation_arc_intercepts_data.csv", 'r') as phimax_values:
-        for line in phimax_values:
-            x = line.split('\t')
-            phimax_list.append(float(x[3]))
-            phimax_2_list.append(float(x[4]))
+    if len(phimax_list) == 0: # don't run the script if it already exists
+        with open("azimuth_elevation_arc_intercepts_data.csv", 'r') as phimax_values:
+            for line in phimax_values:
+                x = line.split('\t')
+                phimax_list.append(float(x[3]))
+                phimax_2_list.append(float(x[4]))
             
     # for the first eye
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
@@ -573,4 +574,14 @@ plt.ylabel('Absolute Error (degrees)')
 plt.grid(True)
 plt.legend()
 plt.savefig('saz_vector_lengths_errors_with_regression.png')
+plt.close()
+
+# plot absolute errors (saz-estimate) as a function of solar azimuth estimates
+plt.figure(figsize=(8, 6))
+plt.plot(rotation_angles,  absolute_errors, 'o', markersize=8)
+
+plt.xlabel('Solar azimuth (degrees)')
+plt.ylabel('Absolute Error (degrees)')
+plt.grid(True)
+plt.savefig('saz_error.png')
 plt.close()
