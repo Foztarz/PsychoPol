@@ -26,7 +26,6 @@ data = np.loadtxt(sys.argv[1])
 # intensity and response values
 intensity_log = data[:, 1]
 response_values = data[:, 0]
-print(response_values)
 
 # this for taking only response values until saturation
 max_response = np.max(response_values)
@@ -47,7 +46,6 @@ else:
     response_values = response_values
     # intensity values from log scale to linear scale
     intensity_linear = 10**intensity_log
-print(response_values)
 
 
 # initial parameter estimates
@@ -84,6 +82,16 @@ output = output.replace('[', '').replace(']', '').replace('\n', ' ')
 
 #convert cleaned string into a numpy array
 output_values = np.fromstring(output, dtype=float, sep=' ').reshape(21, 21)
+print('max value of raw spatial sensitivity data (mV): ', np.max(output_values))
+
+# plot raw ss data
+plt.figure(figsize=(10, 10))
+
+plt.imshow(output_values, cmap='coolwarm', aspect='equal')
+plt.title('Raw mV spatial sensitivity')
+plt.colorbar(fraction=0.046, pad=0.04)
+plt.show()
+
 output_values = output_values/np.max(output_values) # normalize the ss data
 
 # smoothing methods
@@ -115,7 +123,10 @@ def normalize_mV(smoothed_values, Emax_opt):
         normalized_mV = np.where(normalized_mV > 1, 1, normalized_mV)
     return normalized_mV
 
+
 gaussian_normalized_mV = gaussian_filtering(output_values, sigma=1)
+
+print('ratio max(smoothed_values)/Emax_opt:', np.max(gaussian_normalized_mV) / Emax_opt)
 
 #gaussian_normalized_mV = normalize_mV(gaussian_output, Emax_opt)
 
@@ -281,7 +292,13 @@ initial_params_single = (centroid[1], centroid[0], 1, 1, 0, 0)
 if len(centroids) == 1:
     result = minimize(negative_log_likelihood_single, initial_params_single, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_single, method = 'L-BFGS-B') # , options={"disp": True})
     popt = result.x
-    fitted_gaussian = gaussian_2d_single((x, y), *popt).reshape(21, 21)
+    
+    # define a higher resolution for the gaussian fit
+    x = np.linspace(0, 20, 100)
+    y = np.linspace(0, 20, 100)
+    x, y = np.meshgrid(x, y)
+    
+    fitted_gaussian = gaussian_2d_single((x, y), *popt).reshape(100, 100)
     
     # Function to compute Gaussian value at the mean
     def gaussian_value_at_mean(popt):
@@ -379,7 +396,13 @@ if len(centroids) == 2:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5)
     result = minimize(negative_log_likelihood_double, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds, method = 'L-BFGS-B') # , options={"disp": True})
     popt = result.x
-    fitted_gaussian = gaussian_2d((x, y), *popt).reshape(21, 21)
+    
+    # define a higher resolution for the gaussian fit
+    x = np.linspace(0, 20, 100)
+    y = np.linspace(0, 20, 100)
+    x, y = np.meshgrid(x, y)
+    
+    fitted_gaussian = gaussian_2d((x, y), *popt).reshape(100,100)
     weighting_gaussian = popt[11]
     
     def gaussian_value_at_means(popt):
@@ -535,7 +558,13 @@ if len(centroids) == 3:
     initial_params = (centroids[0][1], centroids[0][0], 1, 1, 0, 0, centroids[1][1], centroids[1][0], 1, 1, 0, 0.5, centroids[2][1], centroids[2][0], 1, 1, 0, 0.5)
     result = minimize(negative_log_likelihood_triple, initial_params, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_triple, method = 'L-BFGS-B') # , options={"disp": True})
     popt = result.x
-    fitted_gaussian = gaussian_2d_triple((x, y), *popt).reshape(21, 21)
+
+    # define a higher resolution for the gaussian fit
+    x = np.linspace(0, 20, 100)
+    y = np.linspace(0, 20, 100)
+    x, y = np.meshgrid(x, y)
+    
+    fitted_gaussian = gaussian_2d_triple((x, y), *popt).reshape(100,100)
     weighting_gaussian = popt[11]
     weighting_gaussian2 = popt[17]
     
