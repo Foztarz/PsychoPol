@@ -23,6 +23,13 @@ def hill_equation(I, Emax, Khalf, n):
 
 data = np.loadtxt(sys.argv[1])  
 
+emax_all = ['17.32222381416418','13.927460474315554','9.939365887537477','36.15404932783421','21.57367055613062','10.087752683541495','28.70585723137354','19.693811204215915',
+'31.633307805550935','18.898050784143944','35.36402614970819','6.671551081563187','24.675935376963505','26.454229805051735','28.885503587362805','11.974288990981092',
+'30.923986106223747','26.27691456482146','13.76510960981805','31.983957479580695','26.738349026504242','18.152266401723796','12.340686516695529','28.74574500380221',
+'20.68114628893091','18.59478606478243','15.121589436892366','15.137692810743678','19.274326170474488','29.499327061245474','11.47555336012822','21.664150310674263',
+'52.3221022666786','44.01914291371869','50.51234334445386','46.52481219118933','47.114694582975595','49.15777696096988','50.84435992565729','45.15456637346612',
+'32.63803337290997','24.628947473492374','41.85579325872576','25.888677448858132']
+emax_all = [float(emax) for emax in emax_all]
 # intensity and response values
 intensity_log = data[:, 1]
 response_values = data[:, 0]
@@ -92,7 +99,6 @@ plt.title('Raw mV spatial sensitivity')
 plt.colorbar(fraction=0.046, pad=0.04)
 plt.show()
 
-output_values = output_values/np.max(output_values) # normalize the ss data
 
 # smoothing methods
 def bicubic_interpolation(data):
@@ -112,10 +118,18 @@ def moving_average(data, window_size):
     return scipy.ndimage.uniform_filter(data, size=window_size)
 
 # not used currently
-def normalize_mV(smoothed_values, Emax_opt):
+def normalize_mV(raw_values, smoothed_values, Emax_opt):
     mV_ratio = np.max(smoothed_values) / Emax_opt
+    print(mV_ratio)
     if mV_ratio > 1.05:
-        normalized_mV = smoothed_values / float(np.max(smoothed_values))
+        if np.max(smoothed_values) < 40:
+            filtered_emax_list = [emax for emax in emax_all if np.max(smoothed_values) < float(emax) < 40]
+            average_below_40 = sum(filtered_emax_list) / len(filtered_emax_list)
+            normalized_mV = smoothed_values / average_below_40
+        else:
+            filtered_emax_list = [emax for emax in emax_all if float(emax) > np.max(smoothed_values) > 40]
+            average_above_40 = sum(filtered_emax_list) / len(filtered_emax_list)
+            normalized_mV = smoothed_values / average_above_40
     elif mV_ratio < 1:
         normalized_mV = smoothed_values / float(Emax_opt)
     else:
@@ -123,12 +137,8 @@ def normalize_mV(smoothed_values, Emax_opt):
         normalized_mV = np.where(normalized_mV > 1, 1, normalized_mV)
     return normalized_mV
 
-
-gaussian_normalized_mV = gaussian_filtering(output_values, sigma=1)
-
-print('ratio max(smoothed_values)/Emax_opt:', np.max(gaussian_normalized_mV) / Emax_opt)
-
-#gaussian_normalized_mV = normalize_mV(gaussian_output, Emax_opt)
+gaussian_output = gaussian_filtering(output_values, sigma=1)
+gaussian_normalized_mV = normalize_mV(output_values, gaussian_output, Emax_opt)
 
 # spatial sensitivity for each normalized result
 def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
