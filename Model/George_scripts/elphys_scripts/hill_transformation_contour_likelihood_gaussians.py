@@ -116,7 +116,7 @@ def gaussian_filtering(data, sigma):
 def moving_average(data, window_size):
     return scipy.ndimage.uniform_filter(data, size=window_size)
 
-# not used currently
+# normalization
 def normalize_mV(raw_values, smoothed_values, Emax_opt):
     mV_ratio = np.max(smoothed_values) / Emax_opt
     print(f'ratio max(smoothed_values) / Emax_opt: {mV_ratio}')
@@ -155,7 +155,7 @@ def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
 
 gaussian_sensitivity = compute_spatial_sensitivity(gaussian_normalized_mV, Khalf_opt, n_opt)
 
-with open(sys.argv[4], 'a') as file:
+with open(sys.argv[4], 'w') as file:
     for row in gaussian_sensitivity:
         for value in row:
             file.write(f'{value}\n')
