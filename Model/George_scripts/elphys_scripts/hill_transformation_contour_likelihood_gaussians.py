@@ -41,22 +41,18 @@ response_values = data[:, 0]
 max_response = np.max(response_values)
 threshold = 0.95 * max_response
 max_response_index = np.argmax(response_values)
+
+# find first index after max_response_index where the response value drops below the threshold
 below_threshold_index = None
 for i in range(max_response_index + 1, len(response_values)):
-    if intensity_log[i] < threshold:
+    if response_values[i] < threshold:
         below_threshold_index = i
         break
-if below_threshold_index is not None:
-    response_values = response_values[:below_threshold_index] # until 1st point after max below 95% of maximum response
-    response_values = np.append(response_values, [np.max(response_values)]) # duplicate the max response at the end of the curve
-    # intensity values from log scale to linear scale
-    intensity_log = data[:, 1][:below_threshold_index+1] # take only values before saturation
-    intensity_linear = 10**intensity_log[:below_threshold_index+1] # take only values before saturation    
-else:
-    response_values = response_values
-    # intensity values from log scale to linear scale
-    intensity_linear = 10**intensity_log
 
+if below_threshold_index is not None:
+    response_values[below_threshold_index:] = max_response
+
+intensity_linear = 10**intensity_log
 
 # initial parameter estimates
 initial_guess = (30, 0.03, 2)  # Emax, K0.5, Hill slope
@@ -126,13 +122,19 @@ def normalize_mV(raw_values, smoothed_values, Emax_opt):
     print(f'ratio max(smoothed_values) / Emax_opt: {mV_ratio}')
     if mV_ratio > 1.05:
         if np.max(smoothed_values) < 40:
-            filtered_emax_list = [emax for emax in emax_all if np.max(smoothed_values) < float(emax) < 40]
-            average_below_40 = sum(filtered_emax_list) / len(filtered_emax_list)
-            normalized_mV = smoothed_values / average_below_40
+            filtered_emax_list = [emax for emax in emax_all if np.max(smoothed_values) < float(emax) < 41]
+            if len(filtered_emax_list) == 0:
+                normalized_mV = smoothed_values / np.max(smoothed_values)
+            else:
+                average_below_40 = sum(filtered_emax_list) / len(filtered_emax_list)
+                normalized_mV = smoothed_values / average_below_40
         else:
             filtered_emax_list = [emax for emax in emax_all if float(emax) > np.max(smoothed_values) > 40]
-            average_above_40 = sum(filtered_emax_list) / len(filtered_emax_list)
-            normalized_mV = smoothed_values / average_above_40
+            if len(filtered_emax_list) == 0:
+                normalized_mV = smoothed_values / np.max(smoothed_values)
+            else:
+                average_above_40 = sum(filtered_emax_list) / len(filtered_emax_list)
+                normalized_mV = smoothed_values / average_above_40
     elif mV_ratio < 1:
         normalized_mV = smoothed_values / float(Emax_opt)
     else:
