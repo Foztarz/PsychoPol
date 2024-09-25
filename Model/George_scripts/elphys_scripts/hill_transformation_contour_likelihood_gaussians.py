@@ -16,6 +16,13 @@ from scipy.optimize import minimize
 from skimage.draw import line
 from scipy.ndimage import map_coordinates
 from scipy.interpolate import RegularGridInterpolator
+from matplotlib.colors import LinearSegmentedColormap
+
+# custom colormap from gray to red to yellow
+colors = [(0.0, (0.5, 0.5, 0.5)),  # gray at 0.0
+          (0.5, (1, 0, 0)),        # red at 0.5
+          (1.0, (1, 1, 0))]        # yellow at 1.0
+custom_cmap = LinearSegmentedColormap.from_list("gray_red_yellow", colors)
 
 # Hill equation
 def hill_equation(I, Emax, Khalf, n):
@@ -93,28 +100,27 @@ print('max value of raw spatial sensitivity data (mV): ', np.max(output_values))
 # plot raw ss data
 plt.figure(figsize=(10, 10))
 
-plt.imshow(output_values, cmap='coolwarm', aspect='equal')
-plt.title('Raw mV spatial sensitivity')
-plt.colorbar(fraction=0.046, pad=0.04)
+plt.imshow(output_values, cmap='cubehelix', aspect='equal')
+plt.title('Raw mV spatial sensitivity', fontsize=24)
+cbar=plt.colorbar(fraction=0.046, pad=0.04)
+cbar.ax.tick_params(labelsize=24)
+cbar.set_label('response (mV)', fontsize=18, labelpad=24)
+plt.xlabel('degrees', fontsize=18, labelpad=10)
+plt.ylabel('degrees', fontsize=18, labelpad=10)
+
+x_ticks = np.arange(0, output_values.shape[1], 5)
+y_ticks = np.arange(0, output_values.shape[0], 5)
+plt.xticks(x_ticks)
+plt.yticks(y_ticks)
+
+plt.tick_params(axis='both', which='major', labelsize=24)
 plt.show()
 
 
 # smoothing methods
-def bicubic_interpolation(data):
-    x = np.arange(data.shape[1])
-    y = np.arange(data.shape[0])
-    x_new = np.linspace(0, data.shape[1] - 1, data.shape[1])
-    y_new = np.linspace(0, data.shape[0] - 1, data.shape[0])
-    X, Y = np.meshgrid(x, y)
-    X_new, Y_new = np.meshgrid(x_new, y_new)
-    data_bicubic = griddata((X.flatten(), Y.flatten()), data.flatten(), (X_new, Y_new), method='cubic')
-    return data_bicubic
 
 def gaussian_filtering(data, sigma):
     return scipy.ndimage.gaussian_filter(data, sigma=sigma)
-
-def moving_average(data, window_size):
-    return scipy.ndimage.uniform_filter(data, size=window_size)
 
 # normalization
 def normalize_mV(raw_values, smoothed_values, Emax_opt):
@@ -286,7 +292,6 @@ def negative_log_likelihood_triple(params, xy, data, centroids):
     prior_sigma_y2 = norm.logpdf(sigma_y2, loc=4/2.355, scale=0.25)
     prior_sigma_x3 = norm.logpdf(sigma_x3, loc=4/2.355, scale=0.25)
     prior_sigma_y3 = norm.logpdf(sigma_y3, loc=4/2.355, scale=0.25)
-    
     nll = - np.sum(norm.logpdf(residuals, loc = 0, scale = std(residuals))) - (prior_xo + prior_yo) - (prior_xo2 + prior_yo2) - (prior_xo3 + prior_yo3) - (prior_sigma_x+prior_sigma_y+prior_sigma_x2+prior_sigma_y2+prior_sigma_x3+prior_sigma_y3)
     return nll
     
@@ -305,7 +310,7 @@ bounds_triple = [(0, 20), (0, 20), (0.1, 5), (0.1, 5), (-np.inf, np.inf), (0, 1)
 initial_params_single = (centroid[1], centroid[0], 1, 1, 0, 0)
 
 if len(centroids) == 1:
-    result = minimize(negative_log_likelihood_single, initial_params_single, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_single, method = 'L-BFGS-B') # , options={"disp": True})
+    result = minimize(negative_log_likelihood_single, initial_params_single, args=(xy, gaussian_sensitivity, centroids), bounds = bounds_single, method = 'L-BFGS-B') #, options={"disp": True})
     popt = result.x
     
     # define a higher resolution for the gaussian fit
@@ -315,7 +320,7 @@ if len(centroids) == 1:
     
     fitted_gaussian = gaussian_2d_single((x, y), *popt).reshape(100, 100)
     
-    # Function to compute Gaussian value at the mean
+    # compute Gaussian value at the mean
     def gaussian_value_at_mean(popt):
         xo, yo, sigma_x, sigma_y, theta, offset = popt
         amp = 1 - offset
@@ -348,9 +353,20 @@ if len(centroids) == 1:
     plt.figure(figsize=(15, 10))
 
     plt.subplot(1, 2, 1)
-    plt.imshow(gaussian_sensitivity, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
-    plt.title('Gaussian Filtering Sensitivity')
-    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.imshow(gaussian_sensitivity, cmap='cubehelix', aspect='equal', vmin=0, vmax=1)
+    plt.title('Gaussian Filtering Sensitivity', fontsize=20)
+    cbar=plt.colorbar(fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=24)
+    cbar.set_label('relative sensitivity', fontsize=24, labelpad=20)
+    plt.xlabel('degrees', fontsize=14, labelpad=10)  
+    plt.ylabel('degrees', fontsize=14, labelpad=10)
+
+    x_ticks = np.arange(0, output_values.shape[1], 5)
+    y_ticks = np.arange(0, output_values.shape[0], 5)
+    plt.xticks(x_ticks)
+    plt.yticks(y_ticks)
+
+    plt.tick_params(axis='both', which='major', labelsize=24)
     
     # parameters for the ellipse
     x0, y0 = popt[0], popt[1]
@@ -360,7 +376,7 @@ if len(centroids) == 1:
     minor_axis = min(sigma_x, sigma_y) * 2.355
     
     # ellipse
-    ellipse = Ellipse((x0, y0), width=major_axis, height=minor_axis, angle=-np.degrees(theta), edgecolor='r', fc='None', lw=2)
+    ellipse = Ellipse((x0, y0), width=major_axis, height=minor_axis, angle=-np.degrees(theta), edgecolor='r', fc='None', lw=8)
     plt.gca().add_patch(ellipse)
     
     # endpoints of the lines representing sigma_x and sigma_y
@@ -380,26 +396,37 @@ if len(centroids) == 1:
     y_minor_end_2 = y0 - (minor_axis / 2) * cos_theta
     
     # lines
-    line_major = Line2D([x0, x_major_end], [y0, y_major_end], color='blue', linewidth=2)
+    line_major = Line2D([x0, x_major_end], [y0, y_major_end], color='blue', linewidth=8)
     plt.gca().add_line(line_major)
-    line_major = Line2D([x0, x_minor_end], [y0, y_minor_end], color='blue', linewidth=2)
+    line_major = Line2D([x0, x_minor_end], [y0, y_minor_end], color='blue', linewidth=8)
     plt.gca().add_line(line_major)
     
-    line_minor = Line2D([x0, x_minor_end_1], [y0, y_minor_end_1], color='green', linewidth=2)
+    line_minor = Line2D([x0, x_minor_end_1], [y0, y_minor_end_1], color='green', linewidth=8)
     plt.gca().add_line(line_minor)
-    line_minor = Line2D([x0, x_minor_end_2], [y0, y_minor_end_2], color='green', linewidth=2)
+    line_minor = Line2D([x0, x_minor_end_2], [y0, y_minor_end_2], color='green', linewidth=8)
     plt.gca().add_line(line_minor)
 
     # annotate the sigmas
-    plt.text(x_major_end, y_major_end, f'$\sigma_x={sigma_x:.2f}$', color='blue', fontsize=12, ha='center', va='center')
-    plt.text(x_minor_end_1, y_minor_end_1, f'$\sigma_y={sigma_y:.2f}$', color='green', fontsize=12, ha='center', va='center')
-    
-    plt.subplot(1, 2, 2)
-    plt.imshow(fitted_gaussian, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
-    plt.title('Fitted Gaussian Filtering Sensitivity')
-    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.text(x_major_end, y_major_end, f'$\sigma_x={sigma_x:.2f}$', color='blue', fontsize=20, ha='center', va='center')
+    plt.text(x_minor_end_1, y_minor_end_1, f'$\sigma_y={sigma_y:.2f}$', color='green', fontsize=20, ha='center', va='center')
 
-    plt.tight_layout()
+    extent = [0, 20, 20, 0]  # Rescaling the axes from 0 to 20
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(fitted_gaussian, cmap='cubehelix', aspect='equal', vmin=0, vmax=1, extent=extent)
+    plt.title('Fitted Gaussian Filtering Sensitivity', fontsize=20)
+
+    cbar = plt.colorbar(fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=24)
+    cbar.set_label('relative sensitivity', fontsize=14, labelpad=20)
+
+    plt.xticks(np.arange(0, 21, 5))
+    plt.yticks(np.arange(0, 21, 5))
+
+    plt.xlabel('degrees', fontsize=14, labelpad=10)
+    plt.ylabel('degrees', fontsize=14, labelpad=10)
+    plt.tick_params(axis='both', which='major', labelsize=24)
+
     plt.show()
 
     # calculate circle radius of main RF
@@ -477,10 +504,21 @@ if len(centroids) == 2:
     plt.figure(figsize=(15, 10))
 
     plt.subplot(1, 2, 1)
-    plt.imshow(gaussian_sensitivity, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
-    plt.title('Gaussian Filtering Sensitivity')
-    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.imshow(gaussian_sensitivity, cmap='cubehelix', aspect='equal', vmin=0, vmax=1)
+    plt.title('Gaussian Filtering Sensitivity', fontsize=20)
+    cbar = plt.colorbar(fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=24)
+    cbar.set_label('relative sensitivity', fontsize=24, labelpad=20)
+    plt.xlabel('degrees', fontsize=14, labelpad=10)
+    plt.ylabel('degrees', fontsize=14, labelpad=10)
 
+    x_ticks = np.arange(0, output_values.shape[1], 5)
+    y_ticks = np.arange(0, output_values.shape[0], 5)
+    plt.xticks(x_ticks)
+    plt.yticks(y_ticks)
+
+    plt.tick_params(axis='both', which='major', labelsize=24)
+    
     # parameters for the ellipses
     x0, y0, x02, y02 = popt[0], popt[1], popt[6], popt[7]
     sigma_x, sigma_y, sigma_x2, sigma_y2 = popt[2], popt[3], popt[8], popt[9]
@@ -491,8 +529,8 @@ if len(centroids) == 2:
     minor_axis2 = min(sigma_x2, sigma_y2) * 2.355
     
     # ellipses
-    ellipse = Ellipse((x0, y0), width=major_axis, height=minor_axis, angle=-np.degrees(theta), edgecolor='r', fc='None', lw=2)
-    ellipse2 = Ellipse((x02, y02), width=major_axis2, height=minor_axis2, angle=-np.degrees(theta2), edgecolor='r', fc='None', lw=2)
+    ellipse = Ellipse((x0, y0), width=major_axis, height=minor_axis, angle=-np.degrees(theta), edgecolor='r', fc='None', lw=8)
+    ellipse2 = Ellipse((x02, y02), width=major_axis2, height=minor_axis2, angle=-np.degrees(theta2), edgecolor='r', fc='None', lw=8)
     plt.gca().add_patch(ellipse)
     plt.gca().add_patch(ellipse2)
     
@@ -523,36 +561,47 @@ if len(centroids) == 2:
     y_minor_end_22 = y02 - (minor_axis2 / 2) * cos_theta2
     
     # lines
-    line_major = Line2D([x0, x_major_end], [y0, y_major_end], color='blue', linewidth=2)
+    line_major = Line2D([x0, x_major_end], [y0, y_major_end], color='blue', linewidth=8)
     plt.gca().add_line(line_major)
-    line_major = Line2D([x0, x_minor_end], [y0, y_minor_end], color='blue', linewidth=2)
+    line_major = Line2D([x0, x_minor_end], [y0, y_minor_end], color='blue', linewidth=8)
     plt.gca().add_line(line_major)
-    line_major2 = Line2D([x02, x_major_end2], [y02, y_major_end2], color='blue', linewidth=2)
+    line_major2 = Line2D([x02, x_major_end2], [y02, y_major_end2], color='blue', linewidth=8)
     plt.gca().add_line(line_major2)
-    line_major2 = Line2D([x02, x_minor_end2], [y02, y_minor_end2], color='blue', linewidth=2)
+    line_major2 = Line2D([x02, x_minor_end2], [y02, y_minor_end2], color='blue', linewidth=8)
     plt.gca().add_line(line_major2)
     
-    line_minor = Line2D([x0, x_minor_end_1], [y0, y_minor_end_1], color='green', linewidth=2)
+    line_minor = Line2D([x0, x_minor_end_1], [y0, y_minor_end_1], color='green', linewidth=8)
     plt.gca().add_line(line_minor)
-    line_minor = Line2D([x0, x_minor_end_2], [y0, y_minor_end_2], color='green', linewidth=2)
+    line_minor = Line2D([x0, x_minor_end_2], [y0, y_minor_end_2], color='green', linewidth=8)
     plt.gca().add_line(line_minor)
-    line_minor2 = Line2D([x02, x_minor_end_12], [y02, y_minor_end_12], color='green', linewidth=2)
+    line_minor2 = Line2D([x02, x_minor_end_12], [y02, y_minor_end_12], color='green', linewidth=8)
     plt.gca().add_line(line_minor2)
-    line_minor2 = Line2D([x02, x_minor_end_22], [y02, y_minor_end_22], color='green', linewidth=2)
+    line_minor2 = Line2D([x02, x_minor_end_22], [y02, y_minor_end_22], color='green', linewidth=8)
     plt.gca().add_line(line_minor2)
 
     # annotate the sigmas
-    plt.text(x_major_end, y_major_end, f'$\sigma_x={sigma_x:.2f}$', color='blue', fontsize=12, ha='center', va='center')
-    plt.text(x_minor_end_1, y_minor_end_1, f'$\sigma_y={sigma_y:.2f}$', color='green', fontsize=12, ha='center', va='center')
-    plt.text(x_major_end2, y_major_end2, f'$\sigma_x2={sigma_x2:.2f}$', color='blue', fontsize=12, ha='center', va='center')
-    plt.text(x_minor_end_12, y_minor_end_12, f'$\sigma_y2={sigma_y2:.2f}$', color='green', fontsize=12, ha='center', va='center')
-    
-    plt.subplot(1, 2, 2)
-    plt.imshow(fitted_gaussian, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
-    plt.title('Fitted Gaussian Filtering Sensitivity')
-    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.text(x_major_end, y_major_end, f'$\sigma_x={sigma_x:.2f}$', color='blue', fontsize=20, ha='center', va='center')
+    plt.text(x_minor_end_1, y_minor_end_1, f'$\sigma_y={sigma_y:.2f}$', color='green', fontsize=20, ha='center', va='center')
+    plt.text(x_major_end2, y_major_end2, f'$\sigma_x2={sigma_x2:.2f}$', color='blue', fontsize=20, ha='center', va='center')
+    plt.text(x_minor_end_12, y_minor_end_12, f'$\sigma_y2={sigma_y2:.2f}$', color='green', fontsize=20, ha='center', va='center')
 
-    plt.tight_layout()
+    extent = [0, 20, 20, 0]  # Rescaling the axes from 0 to 20
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(fitted_gaussian, cmap='cubehelix', aspect='equal', vmin=0, vmax=1, extent=extent)
+    plt.title('Fitted Gaussian Filtering Sensitivity', fontsize=20)
+
+    cbar = plt.colorbar(fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=24)
+    cbar.set_label('relative sensitivity', fontsize=14, labelpad=20)
+
+    plt.xticks(np.arange(0, 21, 5))
+    plt.yticks(np.arange(0, 21, 5))
+
+    plt.xlabel('degrees', fontsize=14, labelpad=10)
+    plt.ylabel('degrees', fontsize=14, labelpad=10)
+    plt.tick_params(axis='both', which='major', labelsize=24)
+
     plt.show()
 
     # calculate circle radius of main RF
@@ -657,10 +706,21 @@ if len(centroids) == 3:
     plt.figure(figsize=(15, 10))
 
     plt.subplot(1, 2, 1)
-    plt.imshow(gaussian_sensitivity, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
-    plt.title('Gaussian Filtering Sensitivity')
-    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.imshow(gaussian_sensitivity, cmap='cubehelix', aspect='equal', vmin=0, vmax=1)
+    plt.title('Gaussian Filtering Sensitivity', fontsize=20)
+    cbar = plt.colorbar(fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=24)
+    cbar.set_label('relative sensitivity', fontsize=24, labelpad=20)
+    plt.xlabel('degrees', fontsize=14, labelpad=10)
+    plt.ylabel('degrees', fontsize=14, labelpad=10)
 
+    x_ticks = np.arange(0, output_values.shape[1], 5)
+    y_ticks = np.arange(0, output_values.shape[0], 5)
+    plt.xticks(x_ticks)
+    plt.yticks(y_ticks)
+
+    plt.tick_params(axis='both', which='major', labelsize=24)
+    
     # parameters for the ellipses
     x0, y0, x02, y02, x03, y03 = popt[0], popt[1], popt[6], popt[7], popt[12], popt[13]
     sigma_x, sigma_y, sigma_x2, sigma_y2, sigma_x3, sigma_y3 = popt[2], popt[3], popt[8], popt[9], popt[14], popt[15]
@@ -673,9 +733,9 @@ if len(centroids) == 3:
     minor_axis3 = min(sigma_x3, sigma_y3) * 2.355
     
     # ellipses
-    ellipse = Ellipse((x0, y0), width=major_axis, height=minor_axis, angle=-np.degrees(theta), edgecolor='r', fc='None', lw=2)
-    ellipse2 = Ellipse((x02, y02), width=major_axis2, height=minor_axis2, angle=-np.degrees(theta2), edgecolor='r', fc='None', lw=2)
-    ellipse3 = Ellipse((x03, y03), width=major_axis3, height=minor_axis3, angle=-np.degrees(theta3), edgecolor='r', fc='None', lw=2)
+    ellipse = Ellipse((x0, y0), width=major_axis, height=minor_axis, angle=-np.degrees(theta), edgecolor='r', fc='None', lw=8)
+    ellipse2 = Ellipse((x02, y02), width=major_axis2, height=minor_axis2, angle=-np.degrees(theta2), edgecolor='r', fc='None', lw=8)
+    ellipse3 = Ellipse((x03, y03), width=major_axis3, height=minor_axis3, angle=-np.degrees(theta3), edgecolor='r', fc='None', lw=8)
     plt.gca().add_patch(ellipse)
     plt.gca().add_patch(ellipse2)
     plt.gca().add_patch(ellipse3)
@@ -717,46 +777,57 @@ if len(centroids) == 3:
     y_minor_end_23 = y03 - (minor_axis3 / 2) * cos_theta3
     
     # lines
-    line_major = Line2D([x0, x_major_end], [y0, y_major_end], color='blue', linewidth=2)
+    line_major = Line2D([x0, x_major_end], [y0, y_major_end], color='blue', linewidth=8)
     plt.gca().add_line(line_major)
-    line_major = Line2D([x0, x_minor_end], [y0, y_minor_end], color='blue', linewidth=2)
+    line_major = Line2D([x0, x_minor_end], [y0, y_minor_end], color='blue', linewidth=8)
     plt.gca().add_line(line_major)
-    line_major2 = Line2D([x02, x_major_end2], [y02, y_major_end2], color='blue', linewidth=2)
+    line_major2 = Line2D([x02, x_major_end2], [y02, y_major_end2], color='blue', linewidth=8)
     plt.gca().add_line(line_major2)
-    line_major2 = Line2D([x02, x_minor_end2], [y02, y_minor_end2], color='blue', linewidth=2)
+    line_major2 = Line2D([x02, x_minor_end2], [y02, y_minor_end2], color='blue', linewidth=8)
     plt.gca().add_line(line_major2)
-    line_major3 = Line2D([x03, x_major_end3], [y03, y_major_end3], color='blue', linewidth=2)
+    line_major3 = Line2D([x03, x_major_end3], [y03, y_major_end3], color='blue', linewidth=8)
     plt.gca().add_line(line_major3)
-    line_major3 = Line2D([x03, x_minor_end3], [y03, y_minor_end3], color='blue', linewidth=2)
+    line_major3 = Line2D([x03, x_minor_end3], [y03, y_minor_end3], color='blue', linewidth=8)
     plt.gca().add_line(line_major3)
     
-    line_minor = Line2D([x0, x_minor_end_1], [y0, y_minor_end_1], color='green', linewidth=2)
+    line_minor = Line2D([x0, x_minor_end_1], [y0, y_minor_end_1], color='green', linewidth=8)
     plt.gca().add_line(line_minor)
-    line_minor = Line2D([x0, x_minor_end_2], [y0, y_minor_end_2], color='green', linewidth=2)
+    line_minor = Line2D([x0, x_minor_end_2], [y0, y_minor_end_2], color='green', linewidth=8)
     plt.gca().add_line(line_minor)
-    line_minor2 = Line2D([x02, x_minor_end_12], [y02, y_minor_end_12], color='green', linewidth=2)
+    line_minor2 = Line2D([x02, x_minor_end_12], [y02, y_minor_end_12], color='green', linewidth=8)
     plt.gca().add_line(line_minor2)
-    line_minor2 = Line2D([x02, x_minor_end_22], [y02, y_minor_end_22], color='green', linewidth=2)
+    line_minor2 = Line2D([x02, x_minor_end_22], [y02, y_minor_end_22], color='green', linewidth=8)
     plt.gca().add_line(line_minor2)
-    line_minor3 = Line2D([x03, x_minor_end_13], [y03, y_minor_end_13], color='green', linewidth=2)
+    line_minor3 = Line2D([x03, x_minor_end_13], [y03, y_minor_end_13], color='green', linewidth=8)
     plt.gca().add_line(line_minor3)
-    line_minor3 = Line2D([x03, x_minor_end_23], [y03, y_minor_end_23], color='green', linewidth=2)
+    line_minor3 = Line2D([x03, x_minor_end_23], [y03, y_minor_end_23], color='green', linewidth=8)
     plt.gca().add_line(line_minor3)
 
     # annotate the sigmas
-    plt.text(x_major_end, y_major_end, f'$\sigma_x={sigma_x:.2f}$', color='blue', fontsize=12, ha='center', va='center')
-    plt.text(x_minor_end_1, y_minor_end_1, f'$\sigma_y={sigma_y:.2f}$', color='green', fontsize=12, ha='center', va='center')
-    plt.text(x_major_end2, y_major_end2, f'$\sigma_x2={sigma_x2:.2f}$', color='blue', fontsize=12, ha='center', va='center')
-    plt.text(x_minor_end_12, y_minor_end_12, f'$\sigma_y2={sigma_y2:.2f}$', color='green', fontsize=12, ha='center', va='center')
-    plt.text(x_major_end3, y_major_end3, f'$\sigma_x3={sigma_x3:.2f}$', color='blue', fontsize=12, ha='center', va='center')
-    plt.text(x_minor_end_13, y_minor_end_13, f'$\sigma_y3={sigma_y3:.2f}$', color='green', fontsize=12, ha='center', va='center')
-    
-    plt.subplot(1, 2, 2)
-    plt.imshow(fitted_gaussian, cmap='coolwarm', aspect='equal', vmin=0, vmax=1)
-    plt.title('Fitted Gaussian Filtering Sensitivity')
-    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.text(x_major_end, y_major_end, f'$\sigma_x={sigma_x:.2f}$', color='blue', fontsize=20, ha='center', va='center')
+    plt.text(x_minor_end_1, y_minor_end_1, f'$\sigma_y={sigma_y:.2f}$', color='green', fontsize=20, ha='center', va='center')
+    plt.text(x_major_end2, y_major_end2, f'$\sigma_x2={sigma_x2:.2f}$', color='blue', fontsize=20, ha='center', va='center')
+    plt.text(x_minor_end_12, y_minor_end_12, f'$\sigma_y2={sigma_y2:.2f}$', color='green', fontsize=20, ha='center', va='center')
+    plt.text(x_major_end3, y_major_end3, f'$\sigma_x3={sigma_x3:.2f}$', color='blue', fontsize=20, ha='center', va='center')
+    plt.text(x_minor_end_13, y_minor_end_13, f'$\sigma_y3={sigma_y3:.2f}$', color='green', fontsize=20, ha='center', va='center')
 
-    plt.tight_layout()
+    extent = [0, 20, 20, 0]  # Rescaling the axes from 0 to 20
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(fitted_gaussian, cmap='cubehelix', aspect='equal', vmin=0, vmax=1, extent=extent)
+    plt.title('Fitted Gaussian Filtering Sensitivity', fontsize=20)
+
+    cbar = plt.colorbar(fraction=0.046, pad=0.04)
+    cbar.ax.tick_params(labelsize=24)
+    cbar.set_label('relative sensitivity', fontsize=14, labelpad=20)
+
+    plt.xticks(np.arange(0, 21, 5))
+    plt.yticks(np.arange(0, 21, 5))
+
+    plt.xlabel('degrees', fontsize=14, labelpad=10)
+    plt.ylabel('degrees', fontsize=14, labelpad=10)
+    plt.tick_params(axis='both', which='major', labelsize=24)
+
     plt.show()
 
     # calculate circle radius of RF
