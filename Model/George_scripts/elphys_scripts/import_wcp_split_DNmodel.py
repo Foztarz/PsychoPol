@@ -65,8 +65,14 @@ def fit_R_DN(t, signal_data, start_time, end_time):
     offset_initial = 2
 
     # Use curve_fit to fit all three parameters (tau1, sigma, n)
-    popt, _ = curve_fit(lambda t, tau1, sigma, n, amp, offset: fitting_function(tau1, sigma, n, amp, offset),
-                        t, signal_data, p0=[tau1_initial, sigma_initial, n_initial,amp_initial, offset_initial], maxfev = 5000)
+    popt, pcov, infodict, errmsg, ier = curve_fit(lambda t, tau1, sigma, n, amp, offset: fitting_function(tau1, sigma, n, amp, offset),
+                        t, signal_data, p0=[tau1_initial, sigma_initial, n_initial,amp_initial, offset_initial], maxfev = 5000, full_output=True)
+
+    fvec = infodict['fvec']
+
+    # sum of squares of residuals
+    sum_of_squares = np.sum(fvec ** 2)
+    print("Sum of squares of residuals (fvec**2):", sum_of_squares)
 
     # Return the fitted parameters tau1, sigma, and n
     tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt = popt
@@ -87,10 +93,13 @@ def plot_signal_part_with_R_DN(signal_data, sampling_rate, part_number, num_part
 
     # start and end indices for the selected part
     start_idx = (part_number - 1) * samples_per_part
-    if part_number == num_parts:  # for the last part which may not perfectly divide
-        end_idx = total_samples
-    else:
-        end_idx = start_idx + samples_per_part
+    end_idx = start_idx + samples_per_part
+
+    # Calculate number of extra samples to add
+    extra_samples = int(sampling_rate * 0.04) # extension time (beyond the 21 divided parts)
+
+    # Extend the end_idx to include extra time, but not beyond total_samples
+    end_idx = min(end_idx + extra_samples, total_samples)
 
     # get the specific part of the signal
     signal_part = signal_data[start_idx:end_idx]
@@ -172,6 +181,6 @@ for segment in block.segments:
         shift_value = np.abs(np.min(signal_data))  # Find the minimum value in the signal
         signal_data = signal_data + shift_value  # Shift the entire signal to positive
 
-        part_number = 12  # Change this to any part number between 1 and 21
+        part_number = 15  # Change this to any part number between 1 and 21
 
         plot_signal_part_with_R_DN(signal_data, signal.sampling_rate, part_number)
