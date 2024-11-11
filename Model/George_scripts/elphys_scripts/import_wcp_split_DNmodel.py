@@ -3,8 +3,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 import sys
+import os
 
-numb=0
+
+if os.path.exists("delay_output.txt"):
+    os.remove("delay_output.txt")
+if os.path.exists("rss_output.txt"):
+    os.remove("rss_output.txt")
+if os.path.exists("maxresponse_output.txt"):
+    os.remove("maxresponse_output.txt")
+
 # instance of WinWcpIO with the given filename
 filename = sys.argv[1]
 start_time = float(sys.argv[2])  # start time for step function from command line
@@ -76,7 +84,8 @@ def fit_R_DN(t, signal_data, start_time, end_time):
 
     # Return the fitted parameters tau1, sigma, and n
     tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt = popt
-    return tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt
+    print(tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt)
+    return tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt, sum_of_squares
 
 def plot_signal_part_with_R_DN(signal_data, sampling_rate, part_number, num_parts=21):
     # n of samples per part
@@ -130,15 +139,28 @@ def plot_signal_part_with_R_DN(signal_data, sampling_rate, part_number, num_part
 
     # fit the R_DN to the signal data (only from start_time to the end of the part)
     try:
-        tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt = fit_R_DN(time_fit_part, signal_fit_part, start_time, end_time)
+        tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt, rss = fit_R_DN(time_fit_part, signal_fit_part, start_time, end_time)
 
 
         # create the input step function and compute the fitted data
         T_input = create_step_function(time_fit_part, start_time, end_time)
         fitted_data = compute_R_DN(T_input, time_fit_part, tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt)
         max_index = np.argmax(fitted_data)
+        max_fitted_response = np.max(fitted_data)
         max_value = fitted_data[max_index]
         max_time = time_fit_part[max_index]
+        delay = max_time - start_time
+
+        # write delay to a file
+        with open("delay_output.txt", "a") as file:
+            if max_value < 100: # this to ensure we are not recording the stimulus data
+                file.write(f"{delay}\n")
+        with open("rss_output.txt", "a") as file:
+            if max_value < 100: # this to ensure we are not recording the stimulus data
+                file.write(f"{rss}\n")
+        with open("maxresponse_output.txt", "a") as file:
+            if max_value < 100: # this to ensure we are not recording the stimulus data
+                file.write(f"{max_fitted_response}\n")
 
         # plot signal part (restricted to the fitting time window)
         plt.figure(figsize=(8, 6))
@@ -155,12 +177,17 @@ def plot_signal_part_with_R_DN(signal_data, sampling_rate, part_number, num_part
         plt.title(f'Signal Part {part_number}/{num_parts} with R_DN Fit (from start_time)')
         plt.legend()
         plt.grid(True)
-        plt.show()
+        #plt.show()
 
         print(f"Fitted tau1: {tau1_opt:.4f}, sigma: {sigma_opt:.4f}, n: {n_opt:.4f}")
 
-    except RuntimeError as e:
-        print(f"R_DN fit failed: {e}")
+    except Exception as e:
+        with open("delay_output.txt", "a") as file:
+            file.write("NA\n")
+        with open("rss_output.txt", "a") as file:
+            file.write("NA\n")
+        with open("maxresponse_output.txt", "a") as file:
+            file.write("NA\n")
 
 
 # iterate over segments in the block and print details
@@ -181,6 +208,6 @@ for segment in block.segments:
         shift_value = np.abs(np.min(signal_data))  # Find the minimum value in the signal
         signal_data = signal_data + shift_value  # Shift the entire signal to positive
 
-        part_number = 15  # Change this to any part number between 1 and 21
+        part_number = int(sys.argv[4])  # Change this to any part number between 1 and 21
 
         plot_signal_part_with_R_DN(signal_data, signal.sampling_rate, part_number)

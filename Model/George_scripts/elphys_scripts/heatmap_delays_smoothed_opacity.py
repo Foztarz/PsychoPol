@@ -1,0 +1,137 @@
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+import sys
+import scipy.ndimage
+from matplotlib.patches import Ellipse
+
+# Load the original data and sum-of-squares data
+file_path = sys.argv[1]  # Path to the first Excel file
+sum_of_squares_path = sys.argv[2]  # Path to the sum-of-squares Excel file
+
+# Load both matrices
+df = pd.read_excel(file_path, header=None)
+df_sos = pd.read_excel(sum_of_squares_path, header=None)
+
+# Convert to numpy array and create mask
+data_array = df.to_numpy()
+mask = ~np.isnan(data_array)
+data_array_filled = np.nan_to_num(data_array, nan=0.0)
+
+# Apply Gaussian filter to the original data
+smoothed_data = scipy.ndimage.gaussian_filter(data_array_filled, sigma=1)
+smoothed_mask = scipy.ndimage.gaussian_filter(mask.astype(float), sigma=1)
+smoothed_mask[smoothed_mask == 0] = np.nan
+filtered_result = smoothed_data / smoothed_mask
+
+# Apply Gaussian filter to the sum-of-squares data for opacity calculation
+data_array_sos = df_sos.to_numpy()
+mask_sos = ~np.isnan(data_array_sos)
+data_array_sos_filled = np.nan_to_num(data_array_sos, nan=0.0)
+
+smoothed_data_sos = scipy.ndimage.gaussian_filter(data_array_sos_filled, sigma=1)
+smoothed_mask_sos = scipy.ndimage.gaussian_filter(mask_sos.astype(float), sigma=1)
+smoothed_mask_sos[smoothed_mask_sos == 0] = np.nan
+filtered_result_sos = smoothed_data_sos / smoothed_mask_sos
+
+# Normalize opacity: Max opacity corresponds to the max value in filtered_result_sos, min opacity corresponds to min value
+max_opacity = np.nanmax(filtered_result_sos)
+min_opacity = np.nanmin(filtered_result_sos)
+opacity_map = (filtered_result_sos - min_opacity) / (max_opacity - min_opacity)
+opacity_map[np.isnan(opacity_map)] = 0  # Ensure NaNs have zero opacity
+
+# plot positions with sensitivity > 0.5
+##positions = [             ## for 240527_011_bombus
+##    [4, 14], [4, 15], [4, 20], [5, 13], [5, 14], [5, 15], [5, 16], [5, 17],
+##    [5, 18], [5, 19], [5, 20], [6, 13], [6, 14], [6, 15], [6, 16], [6, 17],
+##    [6, 18], [6, 19], [7, 12], [7, 13], [7, 14], [7, 15], [7, 16], [7, 17],
+##    [7, 18], [8, 12], [8, 13], [8, 14], [8, 15], [8, 16], [8, 17], [9, 14],
+##    [9, 15], [9, 16], [11, 9], [11, 10], [12, 8], [12, 9], [12, 10], [12, 11],
+##    [12, 12], [13, 7], [13, 8], [13, 9], [13, 10], [13, 11], [13, 12], [13, 13],
+##    [14, 7], [14, 8], [14, 9], [14, 10], [14, 11], [14, 12], [14, 13], [14, 14],
+##    [14, 15], [14, 16], [15, 7], [15, 8], [15, 9], [15, 10], [15, 11], [15, 12],
+##    [15, 13], [15, 14], [15, 15], [15, 16], [16, 8], [16, 9], [16, 10], [16, 11],
+##    [16, 12], [16, 13], [16, 14], [16, 15], [17, 11], [17, 12], [17, 13], [17, 14]
+##]
+
+positions = [         ## for 240529_017_bombus
+    [12, 10], [12, 11], [12, 12], [12, 13], [12, 14], [12, 15], [12, 16], [12, 17],
+    [13, 6], [13, 7], [13, 8], [13, 9], [13, 10], [13, 11], [13, 12], [13, 13],
+    [13, 14], [13, 15], [13, 16], [13, 17], [13, 18], [13, 19], [13, 20],
+    [14, 5], [14, 6], [14, 7], [14, 8], [14, 9], [14, 10], [14, 11], [14, 12],
+    [14, 13], [14, 14], [14, 15], [14, 16], [14, 17], [14, 18], [14, 19], [14, 20],
+    [15, 5], [15, 6], [15, 7], [15, 8], [15, 9], [15, 10], [15, 11], [15, 12],
+    [15, 13], [15, 14], [15, 15], [15, 16], [15, 17], [15, 18], [15, 19],
+    [16, 6], [16, 7], [16, 8], [16, 9], [16, 10], [16, 11], [16, 12], [16, 13],
+    [16, 14], [16, 15], [16, 16],
+    [17, 7], [17, 8], [17, 9], [17, 10], [17, 11], [17, 12], [17, 13], [17, 14],
+    [17, 15], [17, 16],
+    [18, 8], [18, 9], [18, 10], [18, 11], [18, 12], [18, 13], [18, 14], [18, 15],
+    [18, 16], [18, 17],
+    [19, 11], [19, 12], [19, 13], [19, 14], [19, 15], [19, 16], [19, 17], [19, 18],
+    [19, 19], [19, 20],
+    [20, 11], [20, 12], [20, 13], [20, 14], [20, 15], [20, 16], [20, 17], [20, 18],
+    [20, 19], [20, 20]
+]
+
+# Positions data
+df_filtered_positions = np.full(filtered_result.shape, np.nan)
+for i, j in positions:
+    df_filtered_positions[i, j] = filtered_result[i, j]
+
+# Color scale boundaries
+mean_value = np.nanmean([filtered_result[i, j] for i, j in positions])
+std_value = np.nanstd([filtered_result[i, j] for i, j in positions])
+vmin, vmax = mean_value - 2 * std_value, mean_value + 2 * std_value
+
+# Plot smoothed data with opacity
+plt.figure(figsize=(10, 8))
+ax = sns.heatmap(filtered_result, cmap="viridis", annot=False,
+                 cbar_kws={'label': 'Response delay (sec)'}, xticklabels=False, yticklabels=False,
+                 linewidths=0, linecolor='black', vmin=vmin, vmax=vmax, alpha=opacity_map)
+
+# ellipses
+major_axis = max(4.26,2.71) * 2.355
+minor_axis = min(4.26,2.71) * 2.355
+major_axis2 = max(3, 1.65) * 2.355
+minor_axis2 = min(3, 1.65) * 2.355
+#major_axis3 = max(2, 1.88) * 2.355
+#minor_axis3 = min(2, 1.88) * 2.355
+ellipse = Ellipse((11.29, 14.87), width=major_axis, height=minor_axis, angle=-np.degrees(0.121), edgecolor='r', fc='None', lw=4)
+ellipse2 = Ellipse((14.82, 19.64), width=major_axis2, height=minor_axis2, angle=-np.degrees(0.111), edgecolor='r', fc='None', lw=4)
+#ellipse3 = Ellipse((13.66, 16.67), width=major_axis3, height=minor_axis3, angle=-np.degrees(2.96), edgecolor='r', fc='None', lw=4)
+plt.gca().add_patch(ellipse)
+plt.gca().add_patch(ellipse2)
+#plt.gca().add_patch(ellipse3)
+
+plt.show()
+
+# specified positions only
+plt.figure(figsize=(10, 8))
+ax = sns.heatmap(df_filtered_positions, cmap="viridis", annot=False, 
+                 cbar_kws={'label': 'Response delay (sec)'}, xticklabels=False, yticklabels=False,
+                 linewidths=0, linecolor='black', vmin=vmin, vmax=vmax, alpha=opacity_map)
+
+# ellipses
+major_axis = max(4.26,2.71) * 2.355
+minor_axis = min(4.26,2.71) * 2.355
+major_axis2 = max(3, 1.65) * 2.355
+minor_axis2 = min(3, 1.65) * 2.355
+#major_axis3 = max(2, 1.88) * 2.355
+#minor_axis3 = min(2, 1.88) * 2.355
+ellipse = Ellipse((11.29, 14.87), width=major_axis, height=minor_axis, angle=-np.degrees(0.121), edgecolor='r', fc='None', lw=4)
+ellipse2 = Ellipse((14.82, 19.64), width=major_axis2, height=minor_axis2, angle=-np.degrees(0.111), edgecolor='r', fc='None', lw=4)
+#ellipse3 = Ellipse((13.66, 16.67), width=major_axis3, height=minor_axis3, angle=-np.degrees(2.96), edgecolor='r', fc='None', lw=4)
+plt.gca().add_patch(ellipse)
+plt.gca().add_patch(ellipse2)
+#plt.gca().add_patch(ellipse3)
+
+        
+for spine in ax.spines.values():
+    spine.set_visible(True)
+    spine.set_linewidth(2)
+    spine.set_edgecolor('black')
+
+plt.show()
+

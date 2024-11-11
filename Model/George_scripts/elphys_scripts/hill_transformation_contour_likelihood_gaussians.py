@@ -160,7 +160,7 @@ def compute_spatial_sensitivity(normalized_mV, Khalf_opt, n_opt):
     return spatial_sensitivity / np.max(spatial_sensitivity)
 
 gaussian_sensitivity = compute_spatial_sensitivity(gaussian_normalized_mV, Khalf_opt, n_opt)
-
+np.savetxt('gaussian_sensitivity.txt', gaussian_sensitivity, delimiter='\t', fmt='%.6f')
 with open(sys.argv[4], 'w') as file:
     for row in gaussian_sensitivity:
         for value in row:
@@ -505,6 +505,7 @@ if len(centroids) == 2:
 
     plt.subplot(1, 2, 1)
     plt.imshow(gaussian_sensitivity, cmap='cubehelix', aspect='equal', vmin=0, vmax=1)
+    print(np.argwhere(gaussian_sensitivity > 0.5))
     plt.title('Gaussian Filtering Sensitivity', fontsize=20)
     cbar = plt.colorbar(fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=24)
@@ -707,6 +708,7 @@ if len(centroids) == 3:
 
     plt.subplot(1, 2, 1)
     plt.imshow(gaussian_sensitivity, cmap='cubehelix', aspect='equal', vmin=0, vmax=1)
+    print(np.argwhere(gaussian_sensitivity > 0.5))
     plt.title('Gaussian Filtering Sensitivity', fontsize=20)
     cbar = plt.colorbar(fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=24)
