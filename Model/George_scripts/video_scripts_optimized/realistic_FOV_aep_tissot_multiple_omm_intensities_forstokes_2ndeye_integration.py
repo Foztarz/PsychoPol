@@ -72,9 +72,8 @@ def process_line(args): # this function processes each line in the text file wit
             
     num_neighbors = len(neighbors)
     if num_neighbors > 0:
-        neighbor_weight = 0.42 / num_neighbors # this is the average weight (0.42) of our secondary RFs in our recordings
         for neighbor_intensity in neighbors:
-            total_weighted_intensity += neighbor_weight * neighbor_intensity
+            total_weighted_intensity += 0.42 * neighbor_intensity # this is the average weight (0.42) of our secondary RFs in our recordings
     #print(num_neighbors)
     return total_weighted_intensity  # weighted intensity
 
