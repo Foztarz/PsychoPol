@@ -57,7 +57,7 @@ def process_line(args): # this function processes each line in the text file wit
         
         distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
         
-        sigma = 2.3184 * img_width / 180 # change this if different relative sensitivity, in pixels (the first number is the degrees)
+        sigma = 2.8367 # change this if different relative sensitivity
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
         
