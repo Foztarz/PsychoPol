@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import scipy.stats
 import matplotlib.pyplot as plt
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager
 
 def is_point_in_ellipse(px, py, cx, cy, a, b, angle_deg):
     angle_rad = np.radians(angle_deg)
@@ -57,93 +57,125 @@ def spherical_distance(x1, y1, x2, y2, center_x, center_y): # calculates spheric
     return distance # in radians
 
     
-def process_line(args): # this function processes each line in the text file with the spherical coordinates (azimuth, elevation; tab-separated)
-    line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers = args # arguments, minor axis doesn't change in azimuthal equidistant projections, rotation angle refers to the ommatidia
+# global variable to hold shared Gaussian arrays
+global_gaussian_arrays = None
+
+def init_worker(gaussian_arrays):
+    """
+    Initialize the global variable in each worker process.
+    """
+    global global_gaussian_arrays
+    global_gaussian_arrays = gaussian_arrays
+
+def precompute_gaussians(centers, img_width, img_height, center_x, center_y):
+    """
+    Precompute the Gaussian arrays for each ommatidium center and store them in a dictionary.
+    
+    Args:
+        centers: List of (x, y) coordinates for ommatidia centers.
+        img_width: Width of the image.
+        img_height: Height of the image.
+        center_x, center_y: Coordinates of the center of the image.
+    
+    Returns:
+        A dictionary where the key is (center_x, center_y) and the value is the precomputed Gaussian array.
+    """
+    x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y))
+    gaussian_arrays = {}  # store Gaussian arrays for each ommatidium; dictionary
+    for raw_center in centers:
+        center_x_pos, center_y_pos = raw_center
+        distance_matrix = spherical_distance(x + center_x, y + center_y, center_x_pos, center_y_pos, center_x, center_y)
+        distance_matrix = np.degrees(distance_matrix)
+        #distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix)  # cap distance at 50 degrees
+        
+        sigma = 2.3184  
+        gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma)  # 2D Gaussian for ommatidium
+        gaussian_array /= np.max(gaussian_array)  # normalize Gaussian
+        gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array)  # sensitivity threshold
+        gaussian_array[(x)**2 + (y)**2 > center_x**2] = 0  # set values outside the circular region to 0
+        
+        gaussian_arrays[(center_x_pos, center_y_pos)] = gaussian_array
+    return gaussian_arrays
+
+def process_line(args):
+    """
+    Processes a line containing spherical coordinates (azimuth, elevation) and calculates the total weighted intensity 
+    for each ommatidium by summing its Gaussian response with the responses of its neighboring ommatidia.
+    """
+    global global_gaussian_arrays  # use the precomputed Gaussian arrays shared between processes
+    line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers = args
     
     try:
         azimuth_deg, elevation_deg = map(float, line.strip().split('\t'))
-
-        projection_radius = min(center_x, center_y) # radius of the circular input image
+        projection_radius = min(center_x, center_y)  # radius of the circular input image
         proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
-        proj_x += center_x # adding the radius of the image to bring 0 at the center
-
-        x, y = np.meshgrid(np.arange(-center_x, img_width - center_x), np.arange(-center_y, img_height - center_y))
-        distance_matrix = spherical_distance(x + center_x, y + center_y, proj_x, proj_y, center_x, center_y) # make a spherical-distance-matrix (distance between all pixels) assuming center of the surface of the sphere is zenith
-        distance_matrix = np.degrees(distance_matrix)
+        proj_x += center_x  # Shift to image coordinates
         
-        distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
-        
-        sigma = 2.3184 # change this if different relative sensitivity, in pixels (the first number is the degrees)
-        gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
-        gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value / normalization
-        gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
-        
-        gaussian_array[(x)**2 + (y)**2 > center_x**2] = 0 # set values outside the circular region to 0
-
-        
-
         minor_axis = int(minor_axis)
-        minor_axis_whole = 42 # 9deg
+        minor_axis_whole = 42  # 9 degrees
         
-        if elevation_deg == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.
+        if elevation_deg == 90:  # Handle special case for 90 degrees elevation
             distortion = 1
         else:
-            distortion = float(((np.pi/2) - np.pi * elevation_deg/180) / np.cos(np.pi * elevation_deg/180)) # formula for distortion calculation in azimuthal equidistant projections
-
+            distortion = float(((np.pi/2) - np.pi * elevation_deg/180) / np.cos(np.pi * elevation_deg/180))
+        
         major_axis = int(distortion * minor_axis)
         major_axis_whole = int(distortion * minor_axis_whole)
-        thickness = -1 # fill 
-        angle = azimuth_deg # for rotation of the ommatidium
-        result = np.multiply(img, gaussian_array) # multiply the original img with the gaussian array
-
+        angle = azimuth_deg  # Rotation angle for the ommatidium
+        
+        # Gaussian array for the current ommatidium
+        current_gaussian_array = global_gaussian_arrays.get((proj_x, proj_y), np.zeros_like(img))
+        
+        # multiply image by the Gaussian array to compute intensity for the current ommatidium
+        result = np.multiply(img, current_gaussian_array)
+        
+        # calculate the intensity for the current ommatidium
         current_intensity = np.sum(result)
-        total_weighted_intensity = 0.58 * current_intensity
-        neighbors = []
+        total_weighted_intensity = 0.58 * current_intensity  # Weight current ommatidium intensity (58%)
+
+        # calculate the intensities from neighboring ommatidia
         for raw_center in centers:
             neighbor_x, neighbor_y = raw_center
-
             if (neighbor_x, neighbor_y) != (proj_x, proj_y) and is_point_in_ellipse(neighbor_x, neighbor_y, proj_x, proj_y, major_axis_whole, minor_axis_whole, angle):
-                # ellipse mask for the neighboring ommatidium
-                neighbor_canvas = np.zeros_like(img, dtype=np.uint8)
-                cv2.ellipse(neighbor_canvas, (int(neighbor_x), int(neighbor_y)), (major_axis, minor_axis), angle, 0, 360, 255, thickness)
-                neighbor_canvas[neighbor_canvas == 255] = 1
-                neighbor_result = np.multiply(img, neighbor_canvas)
-                neighbor_intensity = np.sum(neighbor_result)
-                neighbors.append(neighbor_intensity)
-                
-        num_neighbors = len(neighbors)
-        if num_neighbors > 0:  
-            for neighbor_intensity in neighbors:
-                total_weighted_intensity += 0.42 * neighbor_intensity # this is the average weight (0.42) of our secondary RFs in our recordings
-        #print(num_neighbors)
-        return total_weighted_intensity  # weighted intensity
+                neighbor_intensity = np.sum(np.multiply(img, global_gaussian_arrays.get((neighbor_x, neighbor_y), np.zeros_like(img))))
+                total_weighted_intensity += 0.42 * neighbor_intensity  # weight neighboring intensities
+
+        return total_weighted_intensity
     
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
+        print(f"Error processing line: {e}")
         return 0
 
 def main(image_path, coordinates_file, minor_axis, rotation_angle):
     try:
-        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE) # input image (has to be square, its center should be the center of the circular sky image)
+        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
-        M = cv2.getRotationMatrix2D((center_y, center_x), rotation_angle, 1) # rotate the image
+        M = cv2.getRotationMatrix2D((center_y, center_x), rotation_angle, 1)
         img = cv2.warpAffine(img, M, (img_width, img_height), flags=cv2.INTER_CUBIC)
+        
         centers = []
         with open(coordinates_file, 'r') as file:
             lines = file.readlines()
             for line in lines:
                 azimuth_deg, elevation_deg = map(float, line.strip().split('\t'))
-                projection_radius = min(center_x, center_y)
-                proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
+                proj_x, proj_y = spherical_to_cartesian(min(center_x, center_y), azimuth_deg, elevation_deg)
                 proj_x += center_x
                 centers.append((proj_x, proj_y))
-            args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers) for line in lines]
-            with Pool(processes=10) as pool: # parallel processing the process_line function for each ommatidium
-                results = pool.map(process_line, args_list)
-            for intensity in results:
-                print(intensity) # print every intensity
+        
+        # precompute the Gaussian arrays ONCE
+        gaussian_arrays = precompute_gaussians(centers, img_width, img_height, center_x, center_y)
+        
+        args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers) for line in lines]
+        
+        # use a pool of workers, passing the global precomputed arrays
+        with Pool(processes=10, initializer=init_worker, initargs=(gaussian_arrays,)) as pool:
+            results = pool.map(process_line, args_list)
+        
+        for intensity in results:
+            print(intensity)
+    
     except Exception as e:
         print(f"An error occurred: {str(e)}")
 
