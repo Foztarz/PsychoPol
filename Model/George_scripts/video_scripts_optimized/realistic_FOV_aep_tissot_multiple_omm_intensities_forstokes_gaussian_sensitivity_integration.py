@@ -73,13 +73,14 @@ def process_line(args): # this function processes each line in the text file wit
         
         distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
         
-        sigma = 2.8367 * img_width / 180 # change this if different relative sensitivity, in pixels (the first number is the degrees)
+        sigma = 2.3184 # change this if different relative sensitivity, in pixels (the first number is the degrees)
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
+        gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value / normalization
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
         
         gaussian_array[(x)**2 + (y)**2 > center_x**2] = 0 # set values outside the circular region to 0
 
-        gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value / normalization
+        
 
         minor_axis = int(minor_axis)
         minor_axis_whole = 42 # 9deg
@@ -139,7 +140,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
                 proj_x += center_x
                 centers.append((proj_x, proj_y))
             args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers) for line in lines]
-            with Pool() as pool: # parallel processing the process_line function for each ommatidium
+            with Pool(processes=10) as pool: # parallel processing the process_line function for each ommatidium
                 results = pool.map(process_line, args_list)
             for intensity in results:
                 print(intensity) # print every intensity

@@ -55,15 +55,16 @@ def process_line(args): # this function processes each line in the text file wit
         distance_matrix = spherical_distance(x + center_x, y + center_y, proj_x, proj_y, center_x, center_y) # make a spherical-distance-matrix (distance between all pixels) assuming center of the surface of the sphere is zenith
         distance_matrix = np.degrees(distance_matrix)
         
-        distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
+        #distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
         
-        sigma = 2.8367 # change this if different relative sensitivity
+        sigma = 2.3184 # change this if different relative sensitivity
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
+        gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value / normalization
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
         
         gaussian_array[(x)**2 + (y)**2 > center_x**2] = 0 # set values outside the circular region to 0
 
-        gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value / normalization
+        
 
         minor_axis = int(minor_axis)
         if elevation_deg == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.
@@ -91,7 +92,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
         with open(coordinates_file, 'r') as file:
             lines = file.readlines()
             args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle) for line in lines]
-            with Pool() as pool: # parallel processing the process_line function for each ommatidium
+            with Pool(processes=10) as pool: # parallel processing the process_line function for each ommatidium
                 results = pool.map(process_line, args_list)
             for intensity in results:
                 print(intensity) # print every intensity

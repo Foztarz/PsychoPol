@@ -147,7 +147,7 @@ for rotation_angle in range(0, 360, 5):
     S2_list = [] # polarization sensitivity perpendicular to S
     PRC = [] # photoreceptor contrast
 
-    with Pool() as pool:
+    with Pool(processes=10) as pool:
         eye_results_1 = pool.map(forstokes_eye_1, args.demosaiced)
         eye_results_2 = pool.map(forstokes_eye_2, args.demosaiced)
 
