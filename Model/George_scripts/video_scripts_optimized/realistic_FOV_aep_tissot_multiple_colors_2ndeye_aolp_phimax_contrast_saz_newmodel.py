@@ -8,6 +8,10 @@ import matplotlib.cm as cm
 import colorsys
 import math
 from astropy.units import Quantity
+import csv
+import os
+
+output_file = "vector_data.tsv"
 
 def _components(data, p=1, phi=0.0, axis=None, weights=None):
     # Utility function for computing the generalized rectangular components
@@ -149,7 +153,21 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         end_y = int(center_x - center_x * np.cos(float(total_vector_angle))) # this is for the second eye, minus for the y coordinate because the center of the image is not 0,0
         end_x2 = int(center_x + center_x * np.sin(float(total_vector_angle_botheyes))) # this is for both eyes        
         end_y2 = int(center_x - center_x * np.cos(float(total_vector_angle_botheyes))) # this is for both eyes, minus for the y coordinate because the center of the image is not 0,0        
-        
+
+        header = ["First Eye Angle", "Second Eye Angle", "First Eye Vector Length", "Second Eye Vector Length"]
+        row = [np.degrees(float(math.atan2(float(first_eye_saz_x), float(first_eye_saz_y)))), np.degrees(float(math.atan2(float(total_vector_x), float(total_vector_y)))), math.hypot(float(first_eye_saz_x), float(first_eye_saz_y)), math.hypot(float(total_vector_x), float(total_vector_y))]
+        file_exists = os.path.isfile(output_file)
+
+        # open the file in append mode and write the row
+        with open(output_file, mode="a", newline="") as file:
+            writer = csv.writer(file, delimiter="\t")  
+    
+            # write the header if the file doesn't exist
+            if not file_exists:
+                writer.writerow(header)
+    
+            writer.writerow(row)
+            
         # Draw the line on the canvas
         cv2.line(canvas, (center_x, center_y), (end_x, end_y), color=(255, 0, 0), thickness=2)
         cv2.line(canvas, (center_x, center_y), (end_x2, end_y2), color=(0, 255, 0), thickness=2) # combined saz
