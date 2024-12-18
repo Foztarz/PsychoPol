@@ -146,7 +146,7 @@ def process_line(args):
         print(f"Error processing line: {e}")
         return 0
 
-def main(image_path, coordinates_file, minor_axis, rotation_angle):
+def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
     try:
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         img_height, img_width = img.shape
@@ -170,7 +170,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
         args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers) for line in lines]
         
         # use a pool of workers, passing the global precomputed arrays
-        with Pool(processes=10, initializer=init_worker, initargs=(gaussian_arrays,)) as pool:
+        with Pool(processes=threads, initializer=init_worker, initargs=(gaussian_arrays,)) as pool:
             results = pool.map(process_line, args_list)
         
         for intensity in results:
@@ -180,13 +180,14 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle):
         print(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print("Usage: python script.py <input_image> <coordinates_file> <minor_axis> <rotation_angle>")
+    if len(sys.argv) != 6:
+        print("Usage: python script.py <input_image> <coordinates_file> <minor_axis> <rotation_angle> <threads>")
         sys.exit(1)
 
     input_image = sys.argv[1]
     coordinates_file = sys.argv[2]
     minor_axis = sys.argv[3]
     rotation_angle = float(sys.argv[4])
+    threads = int(sys.argv[5])
     
-    main(input_image, coordinates_file, minor_axis, rotation_angle)
+    main(input_image, coordinates_file, minor_axis, rotation_angle, threads)

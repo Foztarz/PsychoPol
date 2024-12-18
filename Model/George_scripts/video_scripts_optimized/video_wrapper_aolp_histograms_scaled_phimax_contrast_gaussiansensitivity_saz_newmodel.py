@@ -26,6 +26,7 @@ parser.add_argument("-i", "--input", required=True, help="INPUT must be the inpu
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
+parser.add_argument("-t", "--threads", required=True, help="THREADS is the number of threads you want the script to use. (required)")
 args=parser.parse_args()
 
 Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
@@ -92,7 +93,7 @@ def forstokes_eye_1(img_dmc):
     intensities_090 = []
     intensities_135 = []
 
-    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
+    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle) + ' ' + args.threads), shell=True, stdout=subprocess.PIPE, text=True) as process:
         for line in process.stdout:
             if '000' in img_dmc:
                 intensities_000.append(line.strip())
@@ -111,7 +112,7 @@ def forstokes_eye_2(img_dmc):
     intensities_090_2 = []
     intensities_135_2 = []
 
-    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle)), shell=True, stdout=subprocess.PIPE, text=True) as process:
+    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle) + ' ' + args.threads), shell=True, stdout=subprocess.PIPE, text=True) as process:
         for line in process.stdout:
             if '000' in img_dmc:
                 intensities_000_2.append(line.strip())
@@ -151,7 +152,7 @@ for rotation_angle in range(0, 360, 5):
     S2_list = [] # polarization sensitivity perpendicular to S
     PRC = [] # photoreceptor contrast
 
-    with Pool(processes=10) as pool:
+    with Pool(processes=int(args.threads)) as pool:
         eye_results_1 = pool.map(forstokes_eye_1, args.demosaiced)
         eye_results_2 = pool.map(forstokes_eye_2, args.demosaiced)
 
