@@ -4,7 +4,7 @@ Created on Thu May  6 17:51:26 2021
 
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster        DATE: 2021 03 30
-#     MODIFIED:	James Foster        DATE: 2023 03 16
+#     MODIFIED:	James Foster        DATE: 2025 01 15
 #
 #  DESCRIPTION: Loads images capture exported from Lucid's Arena SDK. These 
 #               should consist of a bracket of images separated by 1–2EV. 
@@ -75,7 +75,7 @@ expos_type = 'name'#exposure is '--######us'
 edge_lim = 10#% bottom and top 10% replaced
 # gamma_corr = 1.0#gamma correction for final image#N.B. sigmoid scaling now used
 #Quantile to fit within display sigmoid
-max_val = 0.999#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
+max_val = 0.50#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
 #lens type, fisheye or zoom
 lens_type = 'fisheye'
 
@@ -235,7 +235,7 @@ img_intensity_msk = img_intensity.astype(np.float64) * msk
 img_HDR_val = img_HDR_msk.ravel()
 fig = plt.figure()
 ax = fig.add_subplot(111)
-HDR_histogram = np.histogram(img_HDR_val, bins = np.uint8(1e3), 
+HDR_histogram = np.histogram(img_HDR_val, bins = np.uint8(1e2), #changed 20250115
                              range = [0, 
                                       np.nanmax(img_HDR_val)])
 ax.set_xscale('log')
