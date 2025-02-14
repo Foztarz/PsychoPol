@@ -68,7 +68,7 @@ def process_line(args): # this function processes each line in the text file wit
         # aperture          
         mask = np.zeros_like(img, dtype=np.uint8)
 
-        azimuth_deg_aperture = 0 + rotation_angle
+        azimuth_deg_aperture = 0 + int(rotation_angle)
         elevation_deg_aperture = 60
         
         if elevation_deg_aperture == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.
