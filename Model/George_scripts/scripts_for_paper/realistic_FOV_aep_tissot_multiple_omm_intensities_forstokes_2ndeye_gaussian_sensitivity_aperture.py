@@ -59,7 +59,7 @@ def process_line(args): # this function processes each line in the text file wit
         
         #distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
 
-        sigma = 2.65 # change this if different relative sensitivity
+        sigma = 2.3184 # change this if different relative sensitivity
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
         gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value; normalization
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
@@ -69,7 +69,7 @@ def process_line(args): # this function processes each line in the text file wit
         # aperture          
         mask = np.zeros_like(img, dtype=np.uint8)
 
-        azimuth_deg_aperture = 0 + int(rotation_angle)
+        azimuth_deg_aperture = 0 - int(rotation_angle)
         elevation_deg_aperture = 60
         
         if elevation_deg_aperture == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.

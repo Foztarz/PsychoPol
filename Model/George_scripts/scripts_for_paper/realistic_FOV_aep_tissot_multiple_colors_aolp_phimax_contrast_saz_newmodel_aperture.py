@@ -109,7 +109,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         cv2.line(canvas, (center_x, center_y), (end_x, end_y), color=(0, 0, 255), thickness=2)
         
         # Draw the aperture on the canvas, change accordingly if needed
-        azimuth_deg_aperture = 0 + int(rotation_angle)
+        azimuth_deg_aperture = 0 - int(rotation_angle)
         elevation_deg_aperture = 60
         
         if elevation_deg_aperture == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.
