@@ -186,7 +186,7 @@ img_HDR[(img_mid_under[0],img_mid_under[1])] = imgs_bytes_s[ind_max][(img_mid_un
 img_HDR_val = img_HDR.ravel()
 fig = plt.figure()
 ax = fig.add_subplot(111)
-HDR_histogram = np.histogram(img_HDR_val, bins = np.uint8(1e3), 
+HDR_histogram = np.histogram(img_HDR_val, bins = np.uint32(1e3), 
                              range = [0, 
                                       np.nanmax(img_HDR_val)])
 ax.set_xscale('log')
@@ -207,7 +207,7 @@ fig.savefig( os.path.dirname(imfile)+ '/HDR_histogram.pdf')
 img_mid_val = img_mid.ravel()
 fig = plt.figure()
 ax = fig.add_subplot(111)
-img_mid_histogram = np.histogram(img_mid_val, bins = np.uint8(1e3), 
+img_mid_histogram = np.histogram(img_mid_val, bins = np.uint32(1e3), 
                              range = [0, 
                                       np.nanmax(img_mid_val)])
 ax.set_xscale('log')
