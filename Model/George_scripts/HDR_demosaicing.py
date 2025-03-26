@@ -24,7 +24,7 @@ class ColorConversionCode:
 """
 fileformat = '.tiff'
 expos_type = 'name'#exposure is '--######us'
-edge_lim = 10#% bottom and top 10% replaced
+edge_lim = 1.56#% bottom and top 1.56% replaced
 # gamma_corr = 1.0#gamma correction for final image#N.B. sigmoid scaling now used
 #Quantile to fit within display sigmoid
 max_val = 0.999#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
@@ -162,11 +162,30 @@ hist_mid = plt.hist(img_mid.ravel(), 256, [0,256])
 #print(np.shape(img_mid_over))
 img_mid_under = np.where(img_mid < np.round(256*(edge_lim/100))-1)
 """
-## Convert to units of pixel-byte-value/second
+## Convert to units of intensity/second
 """
-imgs_bytes_s = imgs_raw
-for ii in range(len(imgs_raw)):
-    imgs_bytes_s[ii] = np.float64(imgs_raw[ii]) / exposures[ii]
+def transform_intensity(image):
+    transformed = image.astype(np.float64)  # float for calculations
+
+    # transform pixels in range [0, 249] (linear)
+    mask1 = (image >= 0) & (image <= 249)
+    transformed[mask1] = np.where(transformed[mask1] == 0, 26, ((transformed[mask1] + 0.3129)/ 0.0156))
+    # we replace 0s with 26 because this is the average intensity that corresponds to px value 0f 0 (after solving 0.0156x - 0.3129 =< 0, for x>0)
+    # y = 0.0156x - 0.3129 ## original function
+    
+    # transform pixels in range [249, 255] (sigmoid)
+    mask2 = (image >= 250) & (image <= 255)
+    transformed[mask2] = np.where(transformed[mask2] == 255, 18500, (1.12663079e+04 - (1 / 8.24e-04) * np.log((255 / (transformed[mask2] - 0.155638819)) - 1)))
+    # the intensity prediction for px value equal to 254.5 is 18500, so we use that as maximum intensity
+    # y = 255 / (1 + np.exp(-8.24e-04 * (x - 1.12663079e+04))) + 0.155638819   ## original function
+    return transformed
+
+# process all images
+imgs_transformed = [transform_intensity(img) for img in imgs_raw]
+
+imgs_bytes_s = imgs_transformed
+for ii in range(len(imgs_transformed)):
+    imgs_bytes_s[ii] = np.float64(imgs_transformed[ii]) / exposures[ii]
     
 """
 ## Construct single HDR image
