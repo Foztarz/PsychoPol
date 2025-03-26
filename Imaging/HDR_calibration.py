@@ -7,6 +7,7 @@ from skimage import io
 from skimage.draw import disk
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
+from scipy.interpolate import UnivariateSpline
 
 def extract_number_from_filename(filename):
     """
@@ -142,12 +143,12 @@ def main(folder_path):
         gray_values = intensities[label]
 
         plt.scatter(
-            reflectance_times_exposure, 
+            np.log10(reflectance_times_exposure), 
             gray_values, 
             label=label,
             alpha=0.7
         )
-
+    
     plt.xlabel("Reflectance × Exposure Time")
     plt.ylabel("Gray Value")
     plt.title("Gray Value vs Reflectance × Exposure Time")
@@ -167,23 +168,38 @@ def main(folder_path):
         gray_values = np.array(intensities[label])
 
         # filter data points based on y-value range CHANGE IF NEEDED
-        mask = (gray_values >= 0) & (gray_values <= 255)
+        mask = (gray_values >= 250) & (gray_values <= 255)
         filtered_x.extend(reflectance_times_exposure[mask])
         filtered_y.extend(gray_values[mask])
 
-    filtered_x = np.array(filtered_x).reshape(-1, 1)  # reshape for sklearn
+    x_min, x_max = 0, 22500  
+
+    filtered_x = np.array(filtered_x).reshape(-1, 1)
     filtered_y = np.array(filtered_y)
 
-    # regression model
+    mask = (filtered_x.flatten() >= x_min) & (filtered_x.flatten() <= x_max)
+    x_limited = filtered_x[mask].reshape(-1, 1)
+    y_limited = filtered_y[mask]
+
     reg = LinearRegression()
-    reg.fit(filtered_x, filtered_y)
-    y_pred = reg.predict(filtered_x)
+    reg.fit(x_limited, y_limited)
+    y_pred = reg.predict(x_limited)
+    
+    
+    r_squared = reg.score(x_limited, y_limited)
 
-    # R^2
-    r_squared = reg.score(filtered_x, filtered_y)
+    sst = np.sum((y_limited - np.mean(y_limited)) ** 2)
+    sse = np.sum((y_limited - y_pred) ** 2)
+    ssr = np.sum((y_pred - np.mean(y_limited)) ** 2)
 
-    plt.scatter(filtered_x, filtered_y, color="blue", alpha=0.7, label="Filtered Data")
-    plt.plot(filtered_x, y_pred, color="red", label=f"Regression Line (R²={r_squared:.4f})")
+    print('linear fit')
+    print(f"Total Sum of Squares (SST): {sst:.4f}")
+    print(f"Residual Sum of Squares (SSE): {sse:.4f}")
+    print(f"Regression Sum of Squares (SSR): {ssr:.4f}")
+    print(f"R^2: {r_squared:.4f}")
+
+    plt.scatter(x_limited, y_limited, color="green", alpha=0.7, label="Filtered Data")
+    plt.plot(x_limited, y_pred, color="red", label=f"Regression Line (R²={r_squared:.4f})")
 
     plt.xlabel("Reflectance × Exposure Time")
     plt.ylabel("Gray Value")
@@ -192,31 +208,126 @@ def main(folder_path):
     plt.grid(True)
     plt.show()
 
-    print(f"R^2: {r_squared:.4f}")
+    slope = reg.coef_[0]
+    intercept = reg.intercept_
+    print(f"y = {slope:.4f}x + {intercept:.4f}")
 
-    def sigmoid(x, a, b, c, d):
-        return a / (1 + np.exp(-b * (x - c))) + d
+
+##    # Hill function
+##    def hill_equation(I, Khalf, n):
+##        return 255 * (I**n) / (I**n + Khalf**n)
+##
+##    # initial parameter estimates
+##    initial_params_hill = [       # Emax: Maximum gray value
+##        3, # Khalf: Midpoint estimate
+##        10                      # n: Hill coefficient (steepness)
+##    ]
+##
+##    popt_hill, _ = curve_fit(
+##        hill_equation, 
+##        np.log10(x_limited.ravel()), 
+##        y_limited, 
+##        p0=initial_params_hill, 
+##        bounds=([-np.inf, 0], [np.inf, np.inf]), 
+##        maxfev=10000
+##    )
+##
+##    # fitted values
+##    x_range_hill = np.linspace(min(x_limited), max(x_limited), 100000)
+##    y_fit_hill = hill_equation(np.log10(x_range_hill), *popt_hill)
+##    y_fit_hill = np.round(hill_equation(np.log10(x_range_hill), *popt_hill)).astype(int)
+##    
+##
+##    sst = np.sum((y_limited - np.mean(y_limited)) ** 2)
+##    sse = np.sum((y_limited - y_fit_hill) ** 2)
+##    ssr = np.sum((y_fit_hill - np.mean(y_limited)) ** 2)
+##
+##    print('hill function')
+##    print(f"Total Sum of Squares (SST): {sst:.4f}")
+##    print(f"Residual Sum of Squares (SSE): {sse:.4f}")
+##    print(f"Regression Sum of Squares (SSR): {ssr:.4f}")
+##    
+##    plt.figure(figsize=(10, 5))
+##    plt.scatter(x_limited, y_limited, color="blue", alpha=0.7, label="Filtered Data")
+##    plt.plot(x_range_hill, y_fit_hill, color="red", linewidth=2, label="Hill Fit")
+##    plt.xlabel("Reflectance × Exposure Time")
+##    plt.ylabel("Gray Value")
+##    plt.title("Hill Equation Fit")
+##    plt.legend()
+##    plt.grid(True)
+##    plt.show()
+##
+##    print(f"Optimized Hill parameters: {popt_hill}")
+##
+##    # reverse Weibull function
+##    def reverse_weibull(x, c, d):
+##        return 255 - 255 * np.exp(- (x / c) ** d)
+##
+##    initial_params_weibull = [                    # a: Max gray value
+##                                            # b: Difference between max and min gray values (255)
+##        np.median(filtered_x),              # c: Scale parameter
+##        1.8                                   # d: Shape parameter
+##    ]
+##
+##    popt_weibull, _ = curve_fit(
+##        reverse_weibull, 
+##        x_limited.ravel(), 
+##        y_limited, 
+##        p0=initial_params_weibull, 
+##        bounds=([0, 0], [np.inf, np.inf]), 
+##        maxfev=10000
+##    )
+##
+##    # fitted values
+##    x_range_weibull = np.linspace(min(x_limited), max(x_limited), 100000)
+##    y_fit_weibull = reverse_weibull(x_range_weibull, *popt_weibull)
+##    y_fit_weibull = np.round(reverse_weibull(x_range_weibull, *popt_weibull)).astype(int)
+##
+##    sst = np.sum((y_limited - np.mean(y_limited)) ** 2)
+##    sse = np.sum((y_limited - y_fit_weibull) ** 2)
+##    ssr = np.sum((y_fit_weibull - np.mean(y_limited)) ** 2)
+##
+##    print('reverse Weibull')
+##    print(f"Total Sum of Squares (SST): {sst:.4f}")
+##    print(f"Residual Sum of Squares (SSE): {sse:.4f}")
+##    print(f"Regression Sum of Squares (SSR): {ssr:.4f}")
+##    
+##    plt.figure(figsize=(10, 5))
+##    plt.scatter(x_limited, y_limited, color="blue", alpha=0.7, label="Filtered Data")
+##    plt.plot(x_range_weibull, y_fit_weibull, color="purple", linewidth=2, label="Reverse Weibull Fit")
+##    plt.xlabel("Reflectance × Exposure Time")
+##    plt.ylabel("Gray Value")
+##    plt.title("Reverse Weibull Fit")
+##    plt.legend()
+##    plt.grid(True)
+##    plt.show()
+##
+##    print(f"Optimized Reverse Weibull parameters: {popt_weibull}")
+##
+    def sigmoid(x, b, c, d):
+        return 255 / (1 + np.exp(-b * (x - c))) + d
 
     # normalize x values to improve fitting
-    x_min, x_max = np.min(filtered_x), np.max(filtered_x)
-    filtered_x_norm = (filtered_x - x_min) / (x_max - x_min)  # normalize to [0, 1]
+    x_min, x_max = np.min(x_limited), np.max(x_limited)
+    filtered_x_norm = (x_limited - x_min) / (x_max - x_min)  # normalize to [0, 1]
     
     # initial parameter estimates: 
     # a: max value of y, b: steepness, c: midpoint, d: min value of y
-    initial_params = [max(filtered_y), 1, 0.5, min(filtered_y)]
+    initial_params = [1/750, 16000, 240]
 
     # sigmoid function
-    popt, _ = curve_fit(sigmoid, filtered_x_norm.ravel(), filtered_y, p0=initial_params, maxfev=10000)
+    popt, _ = curve_fit(sigmoid, x_limited.ravel(), y_limited, p0=initial_params, maxfev=10000)
 
     # fitted y-values
-    x_range = np.linspace(0, 1, 500)  # Use normalized range for fitting
+    x_range = np.linspace(x_min, x_max, 100000)  # Use normalized range for fitting
     y_fit = sigmoid(x_range, *popt)
-
+    #y_fit = np.round(sigmoid(np.log10(x_range), *popt)).astype(int)
+    
     # convert x_range back to original scale for plotting
     x_range_original = x_range * (x_max - x_min) + x_min
 
-    plt.scatter(filtered_x, filtered_y, color="blue", alpha=0.7, label="Filtered Data")
-    plt.plot(x_range_original, y_fit, color="green", linewidth=2, label="Sigmoid Fit")
+    plt.scatter(x_limited, y_limited, color="blue", alpha=0.7, label="Filtered Data")
+    plt.plot(x_range, y_fit, color="green", linewidth=2, label="Sigmoid Fit")
 
     plt.xlabel("Reflectance × Exposure Time")
     plt.ylabel("Gray Value")
@@ -226,80 +337,7 @@ def main(folder_path):
     plt.show()
 
     print(f"Optimized parameters: {popt}")
-
-    # Hill function
-    def hill_equation(I, Emax, Khalf, n):
-        return Emax * (I**n) / (I**n + Khalf**n)
-
-    # initial parameter estimates
-    initial_params_hill = [
-        max(filtered_y),       # Emax: Maximum gray value
-        np.median(filtered_x), # Khalf: Midpoint estimate
-        15                      # n: Hill coefficient (steepness)
-    ]
-
-    popt_hill, _ = curve_fit(
-        hill_equation, 
-        filtered_x.ravel(), 
-        filtered_y, 
-        p0=initial_params_hill, 
-        bounds=([0, 0, 15], [np.inf, np.inf, np.inf]), 
-        maxfev=10000
-    )
-
-    # fitted values
-    x_range_hill = np.linspace(min(filtered_x), max(filtered_x), 500)
-    y_fit_hill = hill_equation(x_range_hill, *popt_hill)
-
-    plt.figure(figsize=(10, 5))
-    plt.scatter(filtered_x, filtered_y, color="blue", alpha=0.7, label="Filtered Data")
-    plt.plot(x_range_hill, y_fit_hill, color="red", linewidth=2, label="Hill Fit")
-    plt.xlabel("Reflectance × Exposure Time")
-    plt.ylabel("Gray Value")
-    plt.title("Hill Equation Fit")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    print(f"Optimized Hill parameters: {popt_hill}")
-
-    # reverse Weibull function
-    def reverse_weibull(x, a, b, c, d):
-        return a - b * np.exp(- (x / c) ** d)
-
-    initial_params_weibull = [
-        max(filtered_y),                    # a: Max gray value
-        max(filtered_y) - min(filtered_y),  # b: Difference between max and min gray values
-        np.median(filtered_x),              # c: Scale parameter
-        15                                   # d: Shape parameter
-    ]
-
-    popt_weibull, _ = curve_fit(
-        reverse_weibull, 
-        filtered_x.ravel(), 
-        filtered_y, 
-        p0=initial_params_weibull, 
-        bounds=([0, 0, 0, 15], [np.inf, np.inf, np.inf, np.inf]), 
-        maxfev=10000
-    )
-
-    # fitted values
-    x_range_weibull = np.linspace(min(filtered_x), max(filtered_x), 500)
-    y_fit_weibull = reverse_weibull(x_range_weibull, *popt_weibull)
-
-    plt.figure(figsize=(10, 5))
-    plt.scatter(filtered_x, filtered_y, color="blue", alpha=0.7, label="Filtered Data")
-    plt.plot(x_range_weibull, y_fit_weibull, color="purple", linewidth=2, label="Reverse Weibull Fit")
-    plt.xlabel("Reflectance × Exposure Time")
-    plt.ylabel("Gray Value")
-    plt.title("Reverse Weibull Fit")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-    print(f"Optimized Reverse Weibull parameters: {popt_weibull}")
-
-
+    
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python script.py <folder_path>")
