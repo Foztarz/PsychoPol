@@ -288,7 +288,7 @@ img_000, img_045, img_090, img_135 = demosaicing(img_HDR, COLOR_PolarRGB)
 ##fig.savefig( os.path.dirname(imfile)+ '/img45_blue_histogram.pdf')
 
 # Display the final HDR image using cv2.imshow()
-cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
+#cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
 np.save('Final_HDR.npy', img_HDR.astype(np.float64)/img_HDR.max())
 
 np.save("img_000.npy", img_000[:,:,2].astype(np.float64)/img_000.max()) ## img_000[:,:,2] is the blue channel
@@ -300,4 +300,54 @@ np.save("img_135.npy", img_135[:,:,2].astype(np.float64)/img_135.max())
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 #plt.show()
+
+if lens_type == 'fisheye' :
+    lens_radius = np.float64(img_HDR.shape[1])/2 * (1 - 80/256)
+    msk = np.empty(img_HDR.shape[:2], np.float64)
+    msk[:] = np.nan
+    ctr = (np.float64(img_HDR.shape[:2])+0)/2
+    #these loops are VERY slow
+    # im_coords = [[row, col] for row in range(0, img_DoLP.shape[0] - 1) for col in range(img_DoLP.shape[1] - 1)]
+    # rowcol_distance2= [(np.square(i[0]), np.square(i[1]))  for i in (np.float64(im_coords)-ctr).tolist()]
+    # ctr_distance = [(np.sqrt(i[0] + i[1]))  for i in rowcol_distance2]
+    # lens_coords = [im_coords[i] for i in lens_ind]
+    #instead, construct the coordinates using an array function
+    im_coords = np.ones( np.append(2, img_HDR.shape), dtype = np.int16)
+    im_coords[0] = im_coords[0] * np.array([range(img_HDR.shape[0])]).T
+    im_coords[1] = im_coords[1] * np.array([range(img_HDR.shape[1])])
+    im_coords = np.hstack((im_coords[0].reshape(-1, 1),
+                           im_coords[1].reshape(-1, 1)))
+    #set up a function to map onto these coordinates
+    Diag_dist  = lambda i: np.sqrt(np.square(i[0]) + np.square(i[1]))
+    #perform this function on the difference between coordinates and the centre
+    ctr_distance = np.array(list(map( Diag_dist,  
+                                     np.float64(im_coords)-ctr
+                                     )))
+    #select the indices of pixel illuminated by the lens
+    lens_ind = np.where(ctr_distance < lens_radius)[0].tolist()
+    #select those coordinates
+    lens_coords = im_coords[lens_ind]
+    #set those coordinates to one
+    msk[[i[0] for i in lens_coords], [i[1] for i in lens_coords]] = 1
+else:
+    msk = np.ones(img_HDR.shape[:2], np.float64)
+
+    
+def  Scale_sigmoid(x, inflex = 0., width = 2., rang = 0.8):
+    bx = (2*np.log((1/((1-rang)/2))-1)*(x-inflex))/width
+    yy = 1/(1+np.exp(-(bx)))
+    return(yy)
+
+# Calculate the Stokes vector per-pixel
+radians = np.array([0, np.pi/4, np.pi/2, np.pi*3/4])
+img_stokes = pa.calcStokes(demosaiced_img, radians)
+
+img_intensity = pa.cvtStokesToIntensity(img_stokes)
+img_intensity_msk = img_intensity.astype(np.float64) * msk
+nonzero = np.log10( img_intensity_msk[np.nonzero(img_intensity_msk)].ravel() )
+img_displ_int = Scale_sigmoid( np.log10( img_intensity_msk ), 
+                              inflex= np.nanmedian(nonzero),
+                              width = np.diff(np.nanquantile(nonzero, [(1-max_val)/2, 1-(1-max_val)/2])),
+                              rang = max_val)
+plt.imsave("Final_HDR_forviz.png", img_displ_int, cmap='gray', vmin=0, vmax=1)
 
