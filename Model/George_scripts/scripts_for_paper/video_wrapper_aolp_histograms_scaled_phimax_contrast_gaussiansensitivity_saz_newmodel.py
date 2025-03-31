@@ -22,8 +22,9 @@ import statistics
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
-parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
+parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image (.npy HDR image file). It must be square. (required)")
+parser.add_argument("-iv", "--input_viz", required=True, help="INPUT must be the input sky image made for visualization purposes(.png HDR image file). It must be square. (required)")
+parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135) (.npy files). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
 parser.add_argument("-t", "--threads", required=True, help="THREADS is the number of threads you want the script to use. (required)")
@@ -258,7 +259,8 @@ for rotation_angle in range(0, 360, 5):
     os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines.png')
     
     # Open the circular image
-    img = cv2.imread(args.input)        
+    img = cv2.imread(args.input_viz)
+    
     # Calculate the center of the projection
     img_height, img_width, _ = img.shape
     center_x = img_width // 2

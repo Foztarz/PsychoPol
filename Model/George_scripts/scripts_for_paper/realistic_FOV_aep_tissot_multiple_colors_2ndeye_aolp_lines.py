@@ -19,9 +19,9 @@ def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
 def main(image_path, output_path, azimuth_list, elevation_list, aolp_list, dolp_list):
     try:
         # Open the circular image
-        img = cv2.imread(image_path)
+        img = np.load(image_path)
         # Calculate the center of the projection
-        img_height, img_width, _ = img.shape
+        img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
 
@@ -30,7 +30,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, aolp_list, dolp_
         img = cv2.warpAffine(img, M, (img_width, img_height), flags=cv2.INTER_CUBIC)
 
         # Create a blank canvas with a white background
-        canvas = np.full_like(img, (255, 255, 255), dtype=np.uint8)  # activate this for white background
+        canvas = np.full((img.shape[0], img.shape[1], 3), (255, 255, 255), dtype=np.uint8) # add a 3rd channel for image visualization, does not affect calculations
         #canvas = np.zeros_like(img) # activate this for transparent canvas (shows the image)
         for azimuth_deg, elevation_deg, aolp_value, dolp_value in zip(azimuth_list, elevation_list, aolp_list, dolp_list):
             # Calculate the pixel coordinates for the projection

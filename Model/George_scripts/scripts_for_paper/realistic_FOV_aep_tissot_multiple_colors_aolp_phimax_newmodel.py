@@ -36,8 +36,9 @@ def process_pixel(args):
 
 def main(image_path, output_image, azimuth_list, elevation_list, color_value_list, minor_axis):
     try:
-        img = cv2.imread(image_path)        
-        img_height, img_width, _ = img.shape
+        img = np.load(image_path)
+        
+        img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
 
@@ -49,6 +50,7 @@ def main(image_path, output_image, azimuth_list, elevation_list, color_value_lis
                      for azimuth, elevation, color_value in zip(azimuth_list, elevation_list, color_value_list)]
         
         results = pool.map(process_pixel, args_list)
+        
         pool.close()
         pool.join()
 

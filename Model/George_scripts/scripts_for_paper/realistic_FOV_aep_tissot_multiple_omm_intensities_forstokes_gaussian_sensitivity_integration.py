@@ -148,7 +148,7 @@ def process_line(args):
 
 def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
     try:
-        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        img = np.load(image_path) # input image array (has to be square, its center should be the center of the circular sky image)
         img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
