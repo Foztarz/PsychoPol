@@ -152,6 +152,7 @@ def __demosaicing_color(img_cpfa: np.ndarray, suffix: str = "") -> List[np.ndarr
 """
 
 imgs_raw  = [cv2.imread(os.path.dirname(imfile)+'/'+imfl,0) for imfl in tiffs[0]]#0 means greyscale
+
 """
 ## Check for over/underexposed pixels in middle exposure
 """
@@ -169,14 +170,14 @@ def transform_intensity(image):
 
     # transform pixels in range [0, 249] (linear)
     mask1 = (image >= 0) & (image <= 249)
-    transformed[mask1] = np.where(transformed[mask1] == 0, 26, ((transformed[mask1] + 0.3129)/ 0.0156))
-    # we replace 0s with 26 because this is the average intensity that corresponds to px value 0f 0 (after solving 0.0156x - 0.3129 =< 0, for x>0)
+    transformed[mask1] = np.where(transformed[mask1] == 0, 26.05, ((transformed[mask1] + 0.3129)/ 0.0156))
+    # we replace 0s with 26.05 because this is the average intensity that corresponds to px value 0f 0 (after solving np.round(0.0156x - 0.3129) =< 0, for x>0)
     # y = 0.0156x - 0.3129 ## original function
     
     # transform pixels in range [249, 255] (sigmoid)
     mask2 = (image >= 250) & (image <= 255)
-    transformed[mask2] = np.where(transformed[mask2] == 255, 18500, (1.12663079e+04 - (1 / 8.24e-04) * np.log((255 / (transformed[mask2] - 0.155638819)) - 1)))
-    # the intensity prediction for px value equal to 254.5 is 18500, so we use that as maximum intensity
+    transformed[mask2] = np.where(transformed[mask2] == 255, 18500.330137806803, (1.12663079e+04 - (1 / 8.24e-04) * np.log((255 / (transformed[mask2] - 0.155638819)) - 1)))
+    # the intensity prediction for px value equal to 254.5 is 18500.330137806803, so we use that as maximum intensity
     # y = 255 / (1 + np.exp(-8.24e-04 * (x - 1.12663079e+04))) + 0.155638819   ## original function
     return transformed
 
@@ -246,14 +247,20 @@ fig.savefig( os.path.dirname(imfile)+ '/img_mid_histogram.pdf')
 # HDR image demosaicing
 img_000, img_045, img_090, img_135 = demosaicing(img_HDR)
 
-cv2.imshow("img_000.png", img_000.astype(np.float64)/img_000.max())
-cv2.imshow("img_045.png", img_045.astype(np.float64)/img_045.max())
-cv2.imshow("img_090.png", img_090.astype(np.float64)/img_090.max())
-cv2.imshow("img_135.png", img_135.astype(np.float64)/img_135.max())
+##cv2.imshow("img_000.png", img_000.astype(np.float64)/img_000.max())
+##cv2.imshow("img_045.png", img_045.astype(np.float64)/img_045.max())
+##cv2.imshow("img_090.png", img_090.astype(np.float64)/img_090.max())
+##cv2.imshow("img_135.png", img_135.astype(np.float64)/img_135.max())
 
 # Display the final HDR image using cv2.imshow()
-cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
+#cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
 
+np.save('Final_HDR.npy', img_HDR.astype(np.float64)/img_HDR.max())
+
+np.save("img_000.npy", img_000.astype(np.float64)/img_000.max()) 
+np.save("img_045.npy", img_045.astype(np.float64)/img_045.max())
+np.save("img_090.npy", img_090.astype(np.float64)/img_090.max())
+np.save("img_135.npy", img_135.astype(np.float64)/img_135.max())
 # Wait for a key press and then close the window
 cv2.waitKey(0)
 cv2.destroyAllWindows()
