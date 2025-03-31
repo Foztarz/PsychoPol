@@ -12,6 +12,7 @@ import warnings
 from PIL import Image
 from dataclasses import dataclass
 from typing import List
+import polanalyser as pa
 
 @dataclass
 class ColorConversionCode:
