@@ -20,9 +20,9 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
     try:
 
         # Open the circular image
-        img = cv2.imread(image_path)        
+        img = np.load(image_path)        
         # Calculate the center of the projection
-        img_height, img_width, _ = img.shape
+        img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
 
@@ -31,7 +31,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
 
         # Create a blank canvas with a white background
-        canvas = np.full_like(img, (255, 255, 255), dtype=np.uint8) # activate this for white background
+        canvas = np.full((img.shape[0], img.shape[1], 3), (255, 255, 255), dtype=np.uint8) # create a 3rd channel for the image visualization, does not affect calculations
         #canvas = np.zeros_like(img) # activate this for transparent canvas (shows the image)
         
         # Initialize the total solar azimuth vector components (for all ommatidia of this eye)
@@ -117,7 +117,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         else:
             distortion_aperture = float(((np.pi/2) - np.pi * elevation_deg_aperture/180) / np.cos(np.pi * elevation_deg_aperture/180)) # formula for distortion calculation in azimuthal equidistant projections
         
-        minor_axis_aperture = 50 # ~10 degrees diameter
+        minor_axis_aperture = int((img_width/(2*90))*10) # ~10 degrees diameter
         major_axis_aperture = int(distortion_aperture * minor_axis_aperture)
         proj_x_aperture, proj_y_aperture = spherical_to_cartesian(projection_radius, azimuth_deg_aperture, elevation_deg_aperture)
         proj_x_aperture += center_x

@@ -58,7 +58,8 @@ def process_line(args): # this function processes each line in the text file wit
         
         #distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
         
-        sigma = 2.3184 # change this if different relative sensitivity
+        sigma = 2.3184 # HONEYBEE
+        #sigma = 2.65 # BUMBLEBEE
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
         gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value / normalization
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
@@ -76,11 +77,11 @@ def process_line(args): # this function processes each line in the text file wit
         else:
             distortion_aperture = float(((np.pi/2) - np.pi * elevation_deg_aperture/180) / np.cos(np.pi * elevation_deg_aperture/180)) # formula for distortion calculation in azimuthal equidistant projections
         
-        minor_axis_aperture = 50 # ~10 degrees diameter
+        minor_axis_aperture = int((img_width/(2*90))*10) # 10 degrees diameter, cv2 ellipse expects integers
         major_axis_aperture = int(distortion_aperture * minor_axis_aperture)
         proj_x_aperture, proj_y_aperture = spherical_to_cartesian(projection_radius, azimuth_deg_aperture, elevation_deg_aperture)
         proj_x_aperture += center_x
-
+        
         cv2.ellipse(mask, 
                     (proj_x_aperture, proj_y_aperture), 
                     (major_axis_aperture, minor_axis_aperture), 
@@ -88,8 +89,8 @@ def process_line(args): # this function processes each line in the text file wit
                     0, 360, 
                     255,  # White ellipse (1s)
                     -1)  # Filled ellipse
-
-        mask = mask / 255.0  # Normalize to range 0-1
+        
+        mask = mask / np.max(mask)  # Normalize to range 0-1
         mask = mask.astype(img.dtype)  
 
         # Apply the mask to the original image
@@ -112,7 +113,7 @@ def process_line(args): # this function processes each line in the text file wit
 
 def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
     try:
-        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE) # input image (has to be square, its center should be the center of the circular sky image)
+        img = np.load(image_path) # input image (has to be square, its center should be the center of the circular sky image)
         img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2

@@ -23,6 +23,7 @@ import statistics
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image. It must be square with transparent edges. (required)")
+parser.add_argument("-iv", "--input_viz", required=True, help="INPUT must be the input sky image made for visualization purposes(.png HDR image file). It must be square. (required)")
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
@@ -135,7 +136,7 @@ all_saz_estimates = []
 absolute_errors = []
 total_vector_lengths = []
 
-for rotation_angle in range(0, 360, 5):
+for rotation_angle in range(55, 360, 5):
     solar_azimuth = float(args.solarazimuth) + rotation_angle # frame of reference same as normal solar azimuth (increasing counterclockwise from up)
     
     S1 = []
@@ -267,7 +268,7 @@ for rotation_angle in range(0, 360, 5):
         os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines.png')
         
         # Open the circular image
-        img = cv2.imread(args.input)        
+        img = cv2.imread(args.input_viz)        
         # Calculate the center of the projection
         img_height, img_width, _ = img.shape
         center_x = img_width // 2
