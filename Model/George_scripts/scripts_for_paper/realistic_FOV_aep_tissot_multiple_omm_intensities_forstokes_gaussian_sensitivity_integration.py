@@ -88,7 +88,8 @@ def precompute_gaussians(centers, img_width, img_height, center_x, center_y):
         distance_matrix = np.degrees(distance_matrix)
         #distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix)  # cap distance at 50 degrees
         
-        sigma = 2.3184 
+        sigma = 2.3184 # HONEYBEE
+        #sigma = 2.65 # BUMBLEBEE 
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma)  # 2D Gaussian for ommatidium
         gaussian_array /= np.max(gaussian_array)  # normalize Gaussian
         gaussian_array = np.where(gaussian_array < 0.0025, 0, gaussian_array)  # sensitivity threshold
@@ -111,8 +112,9 @@ def process_line(args):
         proj_x, proj_y = spherical_to_cartesian(projection_radius, azimuth_deg, elevation_deg)
         proj_x += center_x  # Shift to image coordinates
         
-        minor_axis = int(minor_axis)
-        minor_axis_whole = 42  # 9 degrees
+        minor_axis = (img_width/(2*90))*2.73 # HONEYBEE
+        #minor_axis = (img_width/(2*90))*3.12 # BUMBLEBEE
+        minor_axis_whole = (img_width/(2*90))*9  # 9 degrees, integration radius
         
         if elevation_deg == 90:  # Handle special case for 90 degrees elevation
             distortion = 1
