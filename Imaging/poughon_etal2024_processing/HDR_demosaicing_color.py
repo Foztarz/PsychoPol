@@ -28,7 +28,7 @@ expos_type = 'name'#exposure is '--######us'
 edge_lim = 1.56#% bottom and top 1.56% replaced
 # gamma_corr = 1.0#gamma correction for final image#N.B. sigmoid scaling now used
 #Quantile to fit within display sigmoid
-max_val = 0.999#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
+max_val = 0.90#0.95 recommended if sun or moon visible, otherwise 1.0 or 0.99
 #lens type, fisheye or zoom
 lens_type = 'fisheye'
 
@@ -297,43 +297,28 @@ np.save("img_045.npy", img_045[:,:,2].astype(np.float64)/img_045.max())
 np.save("img_090.npy", img_090[:,:,2].astype(np.float64)/img_090.max())
 np.save("img_135.npy", img_135[:,:,2].astype(np.float64)/img_135.max())
 
+demosaiced_img = img_000[:,:,2], img_045[:,:,2], img_090[:,:,2], img_135[:,:,2]
+
 # Wait for a key press and then close the window
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 #plt.show()
 
-if lens_type == 'fisheye' :
-    lens_radius = np.float64(img_HDR.shape[1])/2 * (1 - 80/256)
-    msk = np.empty(img_HDR.shape[:2], np.float64)
-    msk[:] = np.nan
-    ctr = (np.float64(img_HDR.shape[:2])+0)/2
-    #these loops are VERY slow
-    # im_coords = [[row, col] for row in range(0, img_DoLP.shape[0] - 1) for col in range(img_DoLP.shape[1] - 1)]
-    # rowcol_distance2= [(np.square(i[0]), np.square(i[1]))  for i in (np.float64(im_coords)-ctr).tolist()]
-    # ctr_distance = [(np.sqrt(i[0] + i[1]))  for i in rowcol_distance2]
-    # lens_coords = [im_coords[i] for i in lens_ind]
-    #instead, construct the coordinates using an array function
-    im_coords = np.ones( np.append(2, img_HDR.shape), dtype = np.int16)
-    im_coords[0] = im_coords[0] * np.array([range(img_HDR.shape[0])]).T
-    im_coords[1] = im_coords[1] * np.array([range(img_HDR.shape[1])])
-    im_coords = np.hstack((im_coords[0].reshape(-1, 1),
-                           im_coords[1].reshape(-1, 1)))
-    #set up a function to map onto these coordinates
-    Diag_dist  = lambda i: np.sqrt(np.square(i[0]) + np.square(i[1]))
-    #perform this function on the difference between coordinates and the centre
-    ctr_distance = np.array(list(map( Diag_dist,  
-                                     np.float64(im_coords)-ctr
-                                     )))
-    #select the indices of pixel illuminated by the lens
-    lens_ind = np.where(ctr_distance < lens_radius)[0].tolist()
-    #select those coordinates
-    lens_coords = im_coords[lens_ind]
-    #set those coordinates to one
-    msk[[i[0] for i in lens_coords], [i[1] for i in lens_coords]] = 1
-else:
-    msk = np.ones(img_HDR.shape[:2], np.float64)
 
-    
+# mask for lens area (here it is a circle with radius imamge_width/2
+height, width = img_HDR.shape[:2]
+radius = width / 2  # Circle radius
+
+# Create coordinate grids
+y, x = np.ogrid[:height, :width]
+
+# Compute distance from center
+center = (height / 2, width / 2)
+distance_from_center = np.sqrt((y - center[0]) ** 2 + (x - center[1]) ** 2)
+
+# Create the mask: 1 inside the circle, 0 outside
+msk = (distance_from_center <= radius).astype(np.float64)
+
 def  Scale_sigmoid(x, inflex = 0., width = 2., rang = 0.8):
     bx = (2*np.log((1/((1-rang)/2))-1)*(x-inflex))/width
     yy = 1/(1+np.exp(-(bx)))
