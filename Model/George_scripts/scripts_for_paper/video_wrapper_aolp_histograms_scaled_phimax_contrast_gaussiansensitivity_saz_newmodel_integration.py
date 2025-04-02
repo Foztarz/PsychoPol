@@ -25,9 +25,10 @@ parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMO
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
 parser.add_argument("-t", "--threads", required=True, help="THREADS is the number of threads you want the script to use. (required)")
+parser.add_argument("-ps", "--pol_sens", required=True, help="POL_SENS is the polarization sensitivity of the simulated animal. (required)")
 args=parser.parse_args()
 
-Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
+Sp = float(args.pol_sens) # polarization sensitivity as defined in Labhart, 1980 is 6.6 for honeybees
 
 def _components(data, p=1, phi=0.0, axis=None, weights=None):
     # Utility function for computing the generalized rectangular components

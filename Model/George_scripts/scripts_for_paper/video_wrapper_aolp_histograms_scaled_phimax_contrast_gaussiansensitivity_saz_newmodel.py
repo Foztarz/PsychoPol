@@ -23,14 +23,15 @@ import statistics
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", required=True, help="INPUT must be the input sky image (.npy HDR image file). It must be square. (required)")
-parser.add_argument("-iv", "--input_viz", required=True, help="INPUT must be the input sky image made for visualization purposes(.png HDR image file). It must be square. (required)")
+parser.add_argument("-iv", "--input_viz", required=True, help="INPUT_VIZ must be the input sky image made for visualization purposes(.png HDR image file). It must be square. (required)")
 parser.add_argument("-dmc", "--demosaiced", nargs='+', required=True, help="DEMOSAICED must be the 4 input CROPPED demosaiced images (000,045,090,135) (.npy files). (required)")
 parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must be a text file with two columns, tab-separated. Each line contains coordinates (azimuth, elevation) for the FOV of one ommatidium. (required)")
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
 parser.add_argument("-t", "--threads", required=True, help="THREADS is the number of threads you want the script to use. (required)")
+parser.add_argument("-ps", "--pol_sens", required=True, help="POL_SENS is the polarization sensitivity of the simulated animal. (required)")
 args=parser.parse_args()
 
-Sp = 6.6 # polarization sensitivity as defined in Labhart, 1980
+Sp = float(args.pol_sens) # polarization sensitivity as defined in Labhart, 1980 is 6.6 for honeybees
 
 def _components(data, p=1, phi=0.0, axis=None, weights=None):
     # Utility function for computing the generalized rectangular components
