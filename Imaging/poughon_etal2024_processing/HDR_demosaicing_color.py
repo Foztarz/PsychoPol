@@ -13,6 +13,26 @@ from PIL import Image
 from dataclasses import dataclass
 from typing import List
 import polanalyser as pa
+import argparse
+
+
+def str_to_bool(value):
+    if value.lower() in {'true', 'yes', '1'}:
+        return True
+    elif value.lower() in {'false', 'no', '0'}:
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected: 'true' or 'false'.")
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-sunvis", "--sun_visible",
+    type=str_to_bool,
+    required=True,
+    help="Set sun visibility: 'true' or 'false' (required)"
+)
+
+args = parser.parse_args()
 
 @dataclass
 class ColorConversionCode:
@@ -331,6 +351,10 @@ img_stokes = pa.calcStokes(demosaiced_img, radians)
 img_intensity = pa.cvtStokesToIntensity(img_stokes)
 img_intensity_msk = img_intensity.astype(np.float64) * msk
 nonzero = np.log10( img_intensity_msk[np.nonzero(img_intensity_msk)].ravel() )
+quantile_95 = np.percentile(nonzero, 95)
+nonzero_95 = nonzero[nonzero <= quantile_95]
+if args.sun_visible == True: # exclude the top 5% of the values, essentially filtering out the sun and very bright pixels from the scaling process
+    nonzero = nonzero_95
 img_displ_int = Scale_sigmoid( np.log10( img_intensity_msk ), 
                               inflex= np.nanmedian(nonzero),
                               width = np.diff(np.nanquantile(nonzero, [(1-max_val)/2, 1-(1-max_val)/2])),
