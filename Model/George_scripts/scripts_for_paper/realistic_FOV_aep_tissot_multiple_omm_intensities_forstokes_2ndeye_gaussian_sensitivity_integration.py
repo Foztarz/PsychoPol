@@ -66,7 +66,7 @@ def init_worker(gaussian_arrays):
     global global_gaussian_arrays
     global_gaussian_arrays = gaussian_arrays
 
-def precompute_gaussians(centers, img_width, img_height, center_x, center_y):
+def precompute_gaussians(centers, img_width, img_height, center_x, center_y, sigma):
     """
     Precompute the Gaussian arrays for each ommatidium center and store them in a dictionary.
     
@@ -87,7 +87,7 @@ def precompute_gaussians(centers, img_width, img_height, center_x, center_y):
         distance_matrix = np.degrees(distance_matrix)
         #distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix)  # cap distance at 50 degrees
         
-        sigma = 2.3184 # HONEYBEE
+        #sigma = 2.3184 # HONEYBEE
         #sigma = 2.65 # BUMBLEBEE
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma)  # 2D Gaussian for ommatidium
         gaussian_array /= np.max(gaussian_array)  # normalize Gaussian
@@ -104,7 +104,7 @@ def process_line(args):
     """
     global global_gaussian_arrays  # use the precomputed Gaussian arrays shared between processes
     
-    line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers = args # arguments, minor axis doesn't change in azimuthal equidistant projections, rotation angle refers to the ommatidia
+    line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers, sigma = args # arguments, minor axis doesn't change in azimuthal equidistant projections, rotation angle refers to the ommatidia
     try:
         azimuth_deg, elevation_deg = map(float, line.strip().split('\t'))
         projection_radius = min(center_x, center_y) # radius of the circular input image
@@ -116,7 +116,7 @@ def process_line(args):
         elif proj_x < center_x:
             proj_x2 = proj_x + 2*(center_x-proj_x)
 
-        minor_axis = (img_width/(2*90))*2.73 # HONEYBEE
+        #minor_axis = (img_width/(2*90))*2.73 # HONEYBEE
         #minor_axis = (img_width/(2*90))*3.12 # BUMBLEBEE
         minor_axis_whole = (img_width/(2*90))*9 # 9deg, integration radius
         
@@ -125,7 +125,7 @@ def process_line(args):
         else:
             distortion = float(((np.pi/2) - np.pi * elevation_deg/180) / np.cos(np.pi * elevation_deg/180)) # formula for distortion calculation in azimuthal equidistant projections
 
-        major_axis = int(distortion * minor_axis)
+        #major_axis = int(distortion * minor_axis)
         major_axis_whole = int(distortion * minor_axis_whole)
         thickness = -1 # fill 
         angle = -azimuth_deg # for rotation of the ommatidium
@@ -153,7 +153,7 @@ def process_line(args):
         print(f"An error occurred: {str(e)}")
         return 0
 
-def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
+def main(image_path, coordinates_file, minor_axis, rotation_angle, threads, sigma):
     try:
 
         img = np.load(image_path) # input image array (has to be square, its center should be the center of the circular sky image)      
@@ -181,9 +181,9 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
                 centers.append((proj_x2, proj_y))
                 
             # precompute the Gaussian arrays ONCE
-            gaussian_arrays = precompute_gaussians(centers, img_width, img_height, center_x, center_y)
+            gaussian_arrays = precompute_gaussians(centers, img_width, img_height, center_x, center_y, sigma)
             
-            args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers) for line in lines]
+            args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, rotation_angle, centers, sigma) for line in lines]
             with Pool(processes=threads, initializer=init_worker, initargs=(gaussian_arrays,)) as pool: # parallel processing the process_line function for each ommatidium
                 results = pool.map(process_line, args_list)
             for intensity in results:
@@ -192,8 +192,8 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
         print(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("Usage: python script.py <input_image> <coordinates_file> <minor_axis> <rotation_angle> <threads>")
+    if len(sys.argv) != 7:
+        print("Usage: python script.py <input_image> <coordinates_file> <minor_axis> <rotation_angle> <threads> <sigma>")
         sys.exit(1)
 
     input_image = sys.argv[1]
@@ -201,5 +201,6 @@ if __name__ == "__main__":
     minor_axis = sys.argv[3]
     rotation_angle = float(sys.argv[4])
     threads = int(sys.argv[5])
+    sigma = float(sys.argv[6])
     
-    main(input_image, coordinates_file, minor_axis, rotation_angle, threads)
+    main(input_image, coordinates_file, minor_axis, rotation_angle, threads, sigma)

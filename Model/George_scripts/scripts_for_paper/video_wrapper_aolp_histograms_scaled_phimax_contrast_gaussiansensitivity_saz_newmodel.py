@@ -29,6 +29,7 @@ parser.add_argument("-c", "--coordinates", required=True, help="COORDINATES must
 parser.add_argument("-saz", "--solarazimuth", required=True, help="SOLARAZIMUTH must be the true solar azimuth in the image (including magnetic declination). (required)")
 parser.add_argument("-t", "--threads", required=True, help="THREADS is the number of threads you want the script to use. (required)")
 parser.add_argument("-ps", "--pol_sens", required=True, help="POL_SENS is the polarization sensitivity of the simulated animal. (required)")
+parser.add_argument("-sigma", "--sigma", required=True, help="SIGMA is the sigma value (in degrees) for the receptive fields of ommatidia of the simulated animal. It is defined as FWHM/2.355(required)")
 args=parser.parse_args()
 
 Sp = float(args.pol_sens) # polarization sensitivity as defined in Labhart, 1980 is 6.6 for honeybees
@@ -95,7 +96,7 @@ def forstokes_eye_1(img_dmc):
     intensities_090 = []
     intensities_135 = []
 
-    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle) + ' ' + args.threads), shell=True, stdout=subprocess.PIPE, text=True) as process:
+    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle) + ' ' + args.threads + ' ' + args.sigma), shell=True, stdout=subprocess.PIPE, text=True) as process:
         for line in process.stdout:
             if '000' in img_dmc:
                 intensities_000.append(line.strip())
@@ -114,7 +115,7 @@ def forstokes_eye_2(img_dmc):
     intensities_090_2 = []
     intensities_135_2 = []
 
-    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle) + ' ' + args.threads), shell=True, stdout=subprocess.PIPE, text=True) as process:
+    with subprocess.Popen(str('python realistic_FOV_aep_tissot_multiple_omm_intensities_forstokes_2ndeye_gaussian_sensitivity.py ' + img_dmc + ' ' + args.coordinates + ' 25 ' + str(rotation_angle) + ' ' + args.threads + ' ' + args.sigma), shell=True, stdout=subprocess.PIPE, text=True) as process:
         for line in process.stdout:
             if '000' in img_dmc:
                 intensities_000_2.append(line.strip())

@@ -41,7 +41,7 @@ def spherical_distance(x1, y1, x2, y2, center_x, center_y): # calculates spheric
     return distance # in radians
 
 def process_line(args): # this function processes each line in the text file with the spherical coordinates (azimuth, elevation; tab-separated)
-    line, img, img_width, img_height, center_x, center_y, minor_axis = args # arguments, minor axis doesn't change in azimuthal equidistant projections, rotation angle refers to the ommatidia
+    line, img, img_width, img_height, center_x, center_y, minor_axis, sigma = args # arguments, minor axis doesn't change in azimuthal equidistant projections, rotation angle refers to the ommatidia
     try:
         azimuth_deg, elevation_deg = map(float, line.strip().split('\t'))
         projection_radius = min(center_x, center_y) # radius of the circular input image
@@ -59,7 +59,7 @@ def process_line(args): # this function processes each line in the text file wit
         
         #distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
 
-        sigma = 2.3184 # HONEYBEE
+        #sigma = 2.3184 # HONEYBEE
         #sigma = 2.65 # BUMBLEBEE
         gaussian_array = scipy.stats.norm.pdf(distance_matrix, loc=0, scale=sigma) # create 2-D gaussian array, location 0 to have the max value at the coordinates of the ommatidium
         gaussian_array /= np.max(gaussian_array) # divides every element in the gaussian_array by the maximum value; normalization
@@ -73,12 +73,12 @@ def process_line(args): # this function processes each line in the text file wit
         azimuth_deg_aperture = 0 - int(rotation_angle)
         elevation_deg_aperture = 60
         
-        if elevation_deg_aperture == 90: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.
+        if elevation_deg_aperture == 45: # this is for the unlikely case of 90deg elevation. Normally a limit has to be calculated.
             distortion_aperture = 1
         else:
             distortion_aperture = float(((np.pi/2) - np.pi * elevation_deg_aperture/180) / np.cos(np.pi * elevation_deg_aperture/180)) # formula for distortion calculation in azimuthal equidistant projections
         
-        minor_axis_aperture = int((img_width/(2*90))*10) # 10 degrees diameter
+        minor_axis_aperture = int((img_width/(2*90))*10) # 10 degrees radius, cv2 ellipse expects integers
         major_axis_aperture = int(distortion_aperture * minor_axis_aperture)
         proj_x_aperture, proj_y_aperture = spherical_to_cartesian(projection_radius, azimuth_deg_aperture, elevation_deg_aperture)
         proj_x_aperture += center_x
@@ -112,7 +112,7 @@ def process_line(args): # this function processes each line in the text file wit
         print(f"An error occurred: {str(e)}")
         return 0
 
-def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
+def main(image_path, coordinates_file, minor_axis, rotation_angle, threads, sigma):
     try:
 
         img = np.load(image_path) # input image (has to be square, its center should be the center of the circular sky image)         
@@ -128,7 +128,7 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
         # Read the coordinates from the file
         with open(coordinates_file, 'r') as file:
             lines = file.readlines()
-            args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis) for line in lines]
+            args_list = [(line, img, img_width, img_height, center_x, center_y, minor_axis, sigma) for line in lines]
             with Pool(processes=threads) as pool: # parallel processing the process_line function for each ommatidium
                 results = pool.map(process_line, args_list)
             for intensity in results:
@@ -137,8 +137,8 @@ def main(image_path, coordinates_file, minor_axis, rotation_angle, threads):
         print(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("Usage: python script.py <input_image> <coordinates_file> <minor_axis> <rotation_angle> <threads>")
+    if len(sys.argv) != 7:
+        print("Usage: python script.py <input_image> <coordinates_file> <minor_axis> <rotation_angle> <threads> <sigma>")
         sys.exit(1)
 
     input_image = sys.argv[1]
@@ -146,5 +146,6 @@ if __name__ == "__main__":
     minor_axis = sys.argv[3]
     rotation_angle = float(sys.argv[4])
     threads = int(sys.argv[5])
+    sigma = float(sys.argv[6])
     
-    main(input_image, coordinates_file, minor_axis, rotation_angle, threads)
+    main(input_image, coordinates_file, minor_axis, rotation_angle, threads, sigma)
