@@ -2,7 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 
-def StavengaSpline(spec_range=(300, 700), lambda_max=340, a_type='a1'):
+## usage: python stavenga_spec_sensitivities.py
+## change the lambda max value(s) from within the script
+
+def StavengaSpline(spec_range=(300, 500), lambda_max=340, a_type='a1'):
     """
     Generates a spline template for a visual pigment based on the Stavenga model.
     
@@ -44,15 +47,22 @@ def StavengaSpline(spec_range=(300, 700), lambda_max=340, a_type='a1'):
 
     return wlns, spline(wlns)  
 
-lambda_max = 340  # peak wavelength for this pigment
+lambda_max_1 = 340  # peak wavelength for this pigment, honeybee
+lambda_max_2 = 335  # peak wavelength, bumblebee
 
-wavelengths, sensitivity = StavengaSpline(lambda_max=lambda_max)
+# spectral sensitivity curves for 2 lambda_max values
+wavelengths_1, sensitivity_1 = StavengaSpline(lambda_max=lambda_max_1)
+wavelengths_2, sensitivity_2 = StavengaSpline(lambda_max=lambda_max_2)
 
-plt.figure(figsize=(10, 6))
-plt.plot(wavelengths, sensitivity, label=f'Lambda max = {lambda_max} nm')
+# curve plotting
+plt.figure(figsize=(10, 10))
+plt.plot(wavelengths_1, sensitivity_1, label=f'Lambda max = {lambda_max_1} nm', color='#FF9999')
+plt.plot(wavelengths_2, sensitivity_2, label=f'Lambda max = {lambda_max_2} nm', color='#ADD8E6')
 plt.xlabel("Wavelength (nm)")
 plt.ylabel("Normalized Sensitivity")
-plt.title("Spectral Sensitivity Curve (Stavenga Model)")
+plt.title("Spectral Sensitivity Curves (Stavenga Model)")
 plt.legend()
 plt.grid(True)
+plt.tick_params(axis='both', labelsize=16)
+plt.savefig('spectral_sensitivity_curves.svg', format='svg')
 plt.show()

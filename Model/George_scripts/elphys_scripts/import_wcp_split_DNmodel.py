@@ -5,7 +5,9 @@ from scipy.optimize import curve_fit
 import sys
 import os
 
+# usage: python import_wcp_split_DNmodel.py <wcp_file> <stimulus_start> <stimulus_end> <grid_column_number>
 
+# removes previous outfiles if already present
 if os.path.exists("delay_output.txt"):
     os.remove("delay_output.txt")
 if os.path.exists("rss_output.txt"):
@@ -40,7 +42,7 @@ def manual_convolution(f, g):
 
 def compute_R_DN(T_input, t, tau1, sigma, n, amp, offset):
     tau2 = 2*tau1
-    #print(t)
+
     t = t - start_time # the time array has to start from 0 !!!
 
     h1_values = t * np.exp(-t / tau1)
@@ -72,7 +74,7 @@ def fit_R_DN(t, signal_data, start_time, end_time):
     amp_initial = 250
     offset_initial = 2
 
-    # Use curve_fit to fit all three parameters (tau1, sigma, n)
+    # curve_fit to fit all three parameters (tau1, sigma, n)
     popt, pcov, infodict, errmsg, ier = curve_fit(lambda t, tau1, sigma, n, amp, offset: fitting_function(tau1, sigma, n, amp, offset),
                         t, signal_data, p0=[tau1_initial, sigma_initial, n_initial,amp_initial, offset_initial], maxfev = 5000, full_output=True)
 
@@ -82,7 +84,7 @@ def fit_R_DN(t, signal_data, start_time, end_time):
     sum_of_squares = np.sum(fvec ** 2)
     print("Sum of squares of residuals (fvec**2):", sum_of_squares)
 
-    # Return the fitted parameters tau1, sigma, and n
+    # fitted parameters tau1, sigma, and n
     tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt = popt
     print(tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt)
     return tau1_opt, sigma_opt, n_opt, amp_opt, offset_opt, sum_of_squares
@@ -104,24 +106,24 @@ def plot_signal_part_with_R_DN(signal_data, sampling_rate, part_number, num_part
     start_idx = (part_number - 1) * samples_per_part
     end_idx = start_idx + samples_per_part
 
-    # Calculate number of extra samples to add
-    extra_samples = int(sampling_rate * 0.04) # extension time (beyond the 21 divided parts)
+    # number of extra samples to add
+    extra_samples = int(sampling_rate * 0.04) # extension time (beyond the 21 divided parts), if desired
 
-    # Extend the end_idx to include extra time, but not beyond total_samples
+    # extend the end_idx to include extra time, but not beyond total_samples
     end_idx = min(end_idx + extra_samples, total_samples)
 
     # get the specific part of the signal
     signal_part = signal_data[start_idx:end_idx]
     time_part = time[start_idx:end_idx]
 
-    # Find the index corresponding to start_time in the time_part
+    # find the index corresponding to start_time in the time_part
     start_idx_fit = np.searchsorted(time_part, start_time)
 
-    # Slice the signal and time from start_time to the end of the part
+    # slice the signal and time from start_time to the end of the part
     signal_fit_part = signal_part[start_idx_fit:]
     time_fit_part = time_part[start_idx_fit:]
 
-    # Check for the first and last value above 1000 in the fit region
+    # check for the first and last value above 1000 in the fit region
     first_above_1000 = None
     last_above_1000 = None
 
@@ -177,7 +179,7 @@ def plot_signal_part_with_R_DN(signal_data, sampling_rate, part_number, num_part
         plt.title(f'Signal Part {part_number}/{num_parts} with R_DN Fit (from start_time)')
         plt.legend()
         plt.grid(True)
-        #plt.show()
+        #plt.show() # this will plot the fit for every square of the part (starting from up and going down)
 
         print(f"Fitted tau1: {tau1_opt:.4f}, sigma: {sigma_opt:.4f}, n: {n_opt:.4f}")
 
@@ -205,9 +207,9 @@ for segment in block.segments:
         signal_data = np.array(signal).flatten()  # flatten the signal to 1D
 
         # adjust the signal to be positive if needed
-        shift_value = np.abs(np.min(signal_data))  # Find the minimum value in the signal
-        signal_data = signal_data + shift_value  # Shift the entire signal to positive
+        shift_value = np.abs(np.min(signal_data))  # find the minimum value in the signal
+        signal_data = signal_data + shift_value  # shift the entire signal to positive
 
-        part_number = int(sys.argv[4])  # Change this to any part number between 1 and 21
+        part_number = int(sys.argv[4])  # change this to any part number between 1 and 21, vertical lines of the 21*21 grid, match this with the stimulus time
 
         plot_signal_part_with_R_DN(signal_data, signal.sampling_rate, part_number)

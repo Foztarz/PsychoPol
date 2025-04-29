@@ -18,6 +18,10 @@ from scipy.ndimage import map_coordinates
 from scipy.interpolate import RegularGridInterpolator
 from matplotlib.colors import LinearSegmentedColormap
 
+
+# usage: python hill_transformation_contour_likelihood_gaussians.py <intensity_response_data> <spatial_recording_wcp> <contour_sensitivity_threshold> <spatial_sensitivities_outfile>
+
+
 # custom colormap from gray to red to yellow
 colors = [(0.0, (0.5, 0.5, 0.5)),  # gray at 0.0
           (0.5, (1, 0, 0)),        # red at 0.5
@@ -40,7 +44,7 @@ emax_all = ['17.32222381416418','13.927460474315554','9.939365887537477','36.154
 
 emax_all = [float(emax) for emax in emax_all]
 
-# intensity and response values
+# intensity and response values, 2 columns
 intensity_log = data[:, 1]
 response_values = data[:, 0]
 
@@ -122,7 +126,7 @@ plt.show()
 def gaussian_filtering(data, sigma):
     return scipy.ndimage.gaussian_filter(data, sigma=sigma)
 
-# normalization
+# normalization, see Supplementary Methods
 def normalize_mV(raw_values, smoothed_values, Emax_opt):
     mV_ratio = np.max(smoothed_values) / Emax_opt
     print(f'ratio max(smoothed_values) / Emax_opt: {mV_ratio}')
@@ -329,7 +333,7 @@ if len(centroids) == 1:
     value_at_mean_gaussian = gaussian_value_at_mean(popt)
     fitted_gaussian = ((fitted_gaussian / value_at_mean_gaussian) - popt[5]) / (1 - popt[5])
 
-    # Function to adjust theta and sigma values
+    # function to adjust theta and sigma values
     def adjust_theta(popt):
         sigma_x, sigma_y = popt[2], popt[3]
         if sigma_x < sigma_y:
@@ -832,7 +836,7 @@ if len(centroids) == 3:
 
     plt.show()
 
-    # calculate circle radius of RF
+    # calculate circle radius of main RF
     if weighting_gaussian > 1 - weighting_gaussian and weighting_gaussian > (1 - weighting_gaussian)*(1 - weighting_gaussian2):
         major_axis = max(sigma_x, sigma_y) * 2.355
         minor_axis = min(sigma_x, sigma_y) * 2.355
@@ -851,5 +855,3 @@ if len(centroids) == 3:
         ellipse_surface = np.pi * (major_axis/2) * (minor_axis/2)
         circle_radius = np.sqrt(ellipse_surface/np.pi)
         print(f'circle radius of main RF: {circle_radius} degrees')
-
-    
