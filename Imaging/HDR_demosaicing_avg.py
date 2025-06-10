@@ -196,13 +196,13 @@ def transform_intensity(image):
 
     # transform pixels in range [0, 249] (linear)
     mask1 = (image >= 0) & (image <= 249*int(args.n_average))
-    transformed[mask1] = np.where(transformed[mask1] == 0, 26.05, (((transformed[mask1]/int(args.n_average)) + 0.3129)/ 0.0156))
+    transformed[mask1] = np.where(transformed[mask1] == 0, 11.63, (((transformed[mask1]/int(args.n_average)) + 0.3129)/ 0.0156))
     # we replace 0s with 26.05 because this is the average intensity that corresponds to px value 0f 0 (after solving np.round(0.0156x - 0.3129) =< 0, for x>0)
     # y = 0.0156x - 0.3129 ## original function
     
     # transform pixels in range [249, 255] (sigmoid)
     mask2 = (image >= 250*int(args.n_average)) & (image <= 255*int(args.n_average))
-    transformed[mask2] = np.where(transformed[mask2] == 255*int(args.n_average), 18500.330137806803, (1.12663079e+04 - (1 / 8.24e-04) * np.log((255 / ((transformed[mask2]/int(args.n_average)) - 0.155638819)) - 1)))
+    transformed[mask2] = np.where(transformed[mask2] == 255*int(args.n_average), 19911.93897, (1.12663079e+04 - (1 / 8.24e-04) * np.log((255 / ((transformed[mask2]/int(args.n_average)) - 0.155638819)) - 1)))
     # the intensity prediction for px value equal to 254.5 is 18500.330137806803, so we use that as maximum intensity
     # y = 255 / (1 + np.exp(-8.24e-04 * (x - 1.12663079e+04))) + 0.155638819   ## original function
     return transformed
