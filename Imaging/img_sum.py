@@ -33,7 +33,7 @@ if __name__ == "__main__":
     image_folder = sys.argv[1]
 
     result_image = process_images(image_folder)
-    tifffile.imwrite(sys.argv[2], result_image)
-    loaded_image = tifffile.imread(sys.argv[2])
+    #tifffile.imwrite(sys.argv[2], result_image)
+    #loaded_image = tifffile.imread(sys.argv[2])
+    np.save(sys.argv[2], result_image)
 
-    print("Data type:", loaded_image.dtype)

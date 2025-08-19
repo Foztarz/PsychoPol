@@ -38,4 +38,4 @@ if __name__ == "__main__":
     
     superimpose_images(background_image_path, overlay_image_path, output_image_path)
     
-    print("Images superimposed and saved as", output_image_path)
+    #print("Images superimposed and saved as", output_image_path)

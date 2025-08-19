@@ -3,9 +3,7 @@ import matplotlib.pyplot as plt
 import sys
 from scipy.optimize import curve_fit
 
-
-# usage: python hill_transformation_pol_sensitivity.py <max_response> <min_response> <all_responses>
-
+# usage: python hill_transformation_spec_sensitivity.py <intensity_response_data> <spec_mV_data>
 # Hill equation
 def hill_equation(I, Emax, Khalf, n):
     return Emax * (I**n) / (I**n + Khalf**n)
@@ -26,7 +24,7 @@ emax_all = ['17.32222381416418','13.927460474315554','9.939365887537477','36.154
 
 emax_all = [float(emax) for emax in emax_all]
 
-# intensity and response values
+# intensity and response values, 2 columns
 intensity_log = data[:, 1]
 response_values = data[:, 0]
 
@@ -72,10 +70,6 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
-# max and min mV pol responses (after cos^2 fitting)
-value1 = float(sys.argv[2])
-value2 = float(sys.argv[3])
-
 # normalization, see Supplementary Methods
 def normalize_mV(max_value, min_value, Emax_opt):
     mV_ratio = max_value / Emax_opt
@@ -100,6 +94,7 @@ def normalize_mV(max_value, min_value, Emax_opt):
                 normalized_max = max_value / average_above_40
                 normalized_min = min_value / average_above_40
     elif mV_ratio < 1:
+        print('yes')
         normalized_max = max_value / Emax_opt
         normalized_min = min_value / Emax_opt
     else:
@@ -107,45 +102,23 @@ def normalize_mV(max_value, min_value, Emax_opt):
         normalized_min = min_value / float(Emax_opt)
     return normalized_max, normalized_min
 
-# pol sensitivity based on normalized values and Hill parameters
-def compute_pol_sensitivity(normalized_value, Khalf_opt, n_opt):
+# spec sensitivity based on normalized values and Hill parameters
+def compute_spec_sensitivity(normalized_value, Khalf_opt, n_opt):
     if normalized_value == 1:
         return 1
     else:
         return Khalf_opt * (normalized_value / (1 - normalized_value)) ** (1 / n_opt)
 
-# max and min pol response values
-normalized_value1, normalized_value2 = normalize_mV(value1, value2, Emax_opt)
+# mV values from the input text file, one per line
+mV_values = np.loadtxt(sys.argv[2]) 
 
-# spatial sensitivity for both max and min values
-pol_sensitivity1 = compute_pol_sensitivity(normalized_value1, Khalf_opt, n_opt)
-if pol_sensitivity1 > 1:
-    pol_sensitivity1 = 1
-pol_sensitivity2 = compute_pol_sensitivity(normalized_value2, Khalf_opt, n_opt)
+# spec sensitivity for each mV value
+spec_sensitivities = []
+for max_value in mV_values:
+    normalized_value, _ = normalize_mV(max_value, max_value, Emax_opt)
+    spec_sensitivity = compute_spec_sensitivity(normalized_value, Khalf_opt, n_opt)
+    spec_sensitivities.append(spec_sensitivity)
 
-print(f"max pol sensitivity: {pol_sensitivity1}")
-print(f"min pol sensitivity: {pol_sensitivity2}")
-print("pol sensitivity:", pol_sensitivity1/pol_sensitivity2)
-
-print("\n=== Processing file values ===")
-
-# txt file with multiple mV values one per line
-try:
-    with open(sys.argv[4], 'r') as f:
-        lines = f.readlines()
-
-    for idx, line in enumerate(lines):
-        line = line.strip()
-        if line == "":
-            continue
-        try:
-            val = float(line)
-            normalized_val = val / Emax_opt  # simple normalization, or extend with same logic as above
-            pol_sens = compute_pol_sensitivity(normalized_val, Khalf_opt, n_opt)
-            if pol_sens > 1:
-                pol_sens = 1
-            print(f"{pol_sens:.3f}")
-        except ValueError:
-            print(f"Line {idx+1}: Invalid value '{line}'")
-except FileNotFoundError:
-    print(f"Error: File '{txt_file_path}' not found.")
+# output the spectral sensitivities
+for i, sensitivity in enumerate(spec_sensitivities):
+    print(f"mV value: {mV_values[i]}, spec sensitivity: {sensitivity}")

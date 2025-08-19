@@ -30,7 +30,12 @@ parser.add_argument(
     required=True,
     help="Set sun visibility: 'true' or 'false' (required)"
 )
-
+parser.add_argument(
+    "-n_avg", "--n_average",
+    type=int,
+    required=True,
+    help="Number of images used for averaging (required)"
+)
 args = parser.parse_args()
 
 @dataclass
@@ -42,7 +47,7 @@ class ColorConversionCode:
 """
 ## Input params
 """
-fileformat = '.tiff'
+fileformat = '.npy'
 expos_type = 'name'#exposure is '--######us'
 edge_lim = 1.56#% bottom and top 1.56% replaced
 # gamma_corr = 1.0#gamma correction for final image#N.B. sigmoid scaling now used
@@ -59,7 +64,7 @@ imfile = askopenfilename()
 #find all files in that folder
 imdir = os.listdir(os.path.dirname(imfile))
 #find just the tiffs
-tiffs = np.take(imdir, np.where( [ff.endswith(fileformat) for ff in imdir] ) )
+npy_files = np.take(imdir, np.where( [ff.endswith(fileformat) for ff in imdir] ) )
 #WIP, this indexing was a nightmare!
 # Bilinear interpolation
 COLOR_PolarRGB = ColorConversionCode(is_color=True, suffix="")
@@ -76,7 +81,7 @@ COLOR_PolarMono_EA = ColorConversionCode(is_color=False, suffix="_EA")
 """
 def Extract_exposures(label):
     extrExp = {
-        'name': [np.float64(ff.split('--')[1].split('us')[0])/1000 for ff in tiffs[0]],
+        'name': [np.float64(ff.split('--')[1].split('us')[0])/1000 for ff in npy_files[0]],
         'exif': warnings.warn('not implemented')
         }
     return(extrExp.get(label, 'Exposure type not implemented'))
@@ -171,17 +176,18 @@ def __demosaicing_color(img_cpfa: np.ndarray, suffix: str = "") -> List[np.ndarr
 ## Read in files as list
 """
 
-imgs_raw  = [cv2.imread(os.path.dirname(imfile)+'/'+imfl,0) for imfl in tiffs[0]]#0 means greyscale
+npy_files = npy_files[0].tolist()  # Convert ndarray to a list
+imgs_raw = [np.load(imfl) for imfl in npy_files]
 
 """
 ## Check for over/underexposed pixels in middle exposure
 """
 img_mid = imgs_raw[np.where(exposures == np.median(exposures))[0][0]]
 #print(img_mid.max()) # this is 255
-img_mid_over = np.where(img_mid > np.round(256*(1-edge_lim/100))-1)
+img_mid_over = np.where(img_mid > np.round(256*int(args.n_average)*(1-edge_lim/100))-1)
+img_mid_under = np.where(img_mid < np.round(256*int(args.n_average)*(edge_lim/100))-1)
 hist_mid = plt.hist(img_mid.ravel(), 256, [0,256])
 #print(np.shape(img_mid_over))
-img_mid_under = np.where(img_mid < np.round(256*(edge_lim/100))-1)
 """
 ## Convert to units of intensity/second
 """
@@ -189,14 +195,14 @@ def transform_intensity(image):
     transformed = image.astype(np.float64)  # float for calculations
 
     # transform pixels in range [0, 249] (linear)
-    mask1 = (image >= 0) & (image <= 249)
-    transformed[mask1] = np.where(transformed[mask1] == 0, 26.05, ((transformed[mask1] + 0.3129)/ 0.0156))
+    mask1 = (image >= 0) & (image <= 249*int(args.n_average))
+    transformed[mask1] = np.where(transformed[mask1] == 0, 11.63, (((transformed[mask1]/int(args.n_average)) + 0.3129)/ 0.0156))
     # we replace 0s with 26.05 because this is the average intensity that corresponds to px value 0f 0 (after solving np.round(0.0156x - 0.3129) =< 0, for x>0)
     # y = 0.0156x - 0.3129 ## original function
     
     # transform pixels in range [249, 255] (sigmoid)
-    mask2 = (image >= 250) & (image <= 255)
-    transformed[mask2] = np.where(transformed[mask2] == 255, 18500.330137806803, (1.12663079e+04 - (1 / 8.24e-04) * np.log((255 / (transformed[mask2] - 0.155638819)) - 1)))
+    mask2 = (image >= 250*int(args.n_average)) & (image <= 255*int(args.n_average))
+    transformed[mask2] = np.where(transformed[mask2] == 255*int(args.n_average), 19911.93897, (1.12663079e+04 - (1 / 8.24e-04) * np.log((255 / ((transformed[mask2]/int(args.n_average)) - 0.155638819)) - 1)))
     # the intensity prediction for px value equal to 254.5 is 18500.330137806803, so we use that as maximum intensity
     # y = 255 / (1 + np.exp(-8.24e-04 * (x - 1.12663079e+04))) + 0.155638819   ## original function
     return transformed
