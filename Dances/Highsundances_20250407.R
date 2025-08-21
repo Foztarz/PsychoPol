@@ -2,7 +2,7 @@
 graphics.off()
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2025 04 07
-#     MODIFIED:	James Foster              DATE: 2025 08 19
+#     MODIFIED:	James Foster              DATE: 2025 08 21
 #
 #  DESCRIPTION: Inspect and summarise individual dances.
 #               Adapted from GUV_inspectdata.R
@@ -595,7 +595,7 @@ dd = within(dd,
             }
 )
 
-#add sun azimuth
+#add sun elevation
 dd = within(dd, 
             {
               sun_el = mapply(
@@ -603,6 +603,14 @@ dd = within(dd,
                 tm = sast_time,
                 lon = 31.181389,
                 lat = -25.571944)
+            }
+)
+
+
+#add sun azimuth
+dd = within(dd, 
+            {
+              rel_angle = angle - sun_az
             }
 )
 
@@ -848,6 +856,7 @@ plot(x = NULL,
 )
 lines(x = 1*sin(xc), y = 1*cos(xc), lty = 3)
 abline(h = 0, v = 0)
+#TODO fix video with two vectors
 for(vv in unique(mean_vectors$Video))
        {
   with(subset(mean_vectors, Video %in% vv),
@@ -873,7 +882,7 @@ legend(x = 'bottomright',
 
 # Just W28 ----------------------------------------------------------------
 mv28 = subset(mean_vectors, ID %in% 'W28')
-
+#TODO check this, these look different from the raw data
 par(mfrow = c(1, 1), mar = c(0,0,0,0))
 par(pty = 's')
 plot(x = NULL,
