@@ -132,6 +132,323 @@ NormCirc = function(x,
   return(mod_circular(x - mn) + mn)
 }
 
+## Circular plotting functions -------------------------------------------
+
+#plot circular data
+PCfun = function(angles,
+                 col = 'darkblue',
+                 shrink = 1.5,
+                 title = '',
+                 lw = 3
+                 )
+{
+  ca = circular(x = angles,
+                units = 'degrees',
+                rotation = 'clock')
+  plot.circular(x = ca,
+                col = col,
+                stack = TRUE,
+                sep = 0.1,
+                bins = 355/5,
+                units = 'degrees',
+                rotation = 'clock',
+                zero = pi/2,
+                shrink = shrink)
+  mtext(text = title,
+        side = 1,
+        line = -2)
+  lines(x = c(0,0),
+        y = c(-1,1),
+        col = 'gray')
+  arrows.circular(x = mean.circular(ca),
+                  y = rho.circular(ca),
+                  zero = pi/2,
+                  rotation = 'clock',
+                  col = col,
+                  length =0.1,
+                  lwd = lw)
+}
+
+
+#generic mean angle simulator
+MeanRvm = function(n, #representative sample size
+                   mu = circular(0), #mean (defaults to 0rad)
+                   kappa, #kappa required
+                   au = 'degrees', #units
+                   ar = 'clock') #rotation direction
+{
+  mean.circular(rvonmises(n = n, 
+                          mu = circular(mu, units = au, rotation = ar), 
+                          kappa = kappa,
+                          control.circular = list(units = au, rotation = ar)))
+}
+
+
+#Simulate confidence intervals for a unimodal or bimodal distribution
+#fitted to a vector of "angles"
+#Simulate confidence intervals for a unimodal or bimodal distribution
+#fitted to a vector of "angles"
+CI_vM = function(angles, #vector of angles fitted (used for sample size)
+                 m1, #primary mean
+                 k1, #primary concentration
+                 m2 = NA, #secondary mean (ignored if NULL or NA)
+                 k2 = NA, #secondary kappa
+                 w1 = 1, #weighting of primary mean
+                 force_mu = FALSE, #force median at true mu?
+                 n = 1e4, #number of simulations
+                 au = 'degrees', 
+                 ar = 'clock',
+                 calc_q = TRUE,
+                 alternative = 'one.sided', #two.sided less conservative
+                 interval = 0.95, #confidence interval to calculate
+                 speedup_parallel = TRUE
+)
+{
+  if(speedup_parallel) #3x faster
+  {
+    cl = parallel::makePSOCKcluster(parallel::detectCores()-1)
+    parallel::clusterExport(cl = cl, 
+                            varlist = c('mean.circular',
+                                        'circular',
+                                        'rvonmises'),
+                            envir = .GlobalEnv
+    )
+    parallel::clusterExport(cl = cl, 
+                            varlist = c('MeanRvm',
+                                        'angles',
+                                        'm1',
+                                        'k1',
+                                        'm2',
+                                        'k2',
+                                        'w1',
+                                        'n',
+                                        'au',
+                                        'ar'),
+                            envir = environment()
+    )
+    #simulate primary mean
+    m1_est = 
+      parallel::parSapply(cl = cl,
+                          X = 1:n,
+                          FUN = function(i)
+                          {
+                            eval.parent(
+                              {
+                                MeanRvm(n = round(length(angles)*w1), #estimate number of observations at primary mean
+                                        mu = m1, 
+                                        kappa = k1,
+                                        au = au,
+                                        ar = ar)
+                              }
+                            )
+                          },
+                          simplify = 'array' #return an array of simulated angles
+      )
+    if(!is.na(m2)) #if there is a valid secondary mean
+    {
+      m2_est = 
+        parallel::parSapply(cl = cl,
+                            X = 1:n,
+                            FUN = function(i)
+                            {
+                              eval.parent(
+                                {
+                                  MeanRvm(n = round(length(angles)*(1-w1)), #estimate number of observations at secondary mean
+                                          mu = m2, 
+                                          kappa = k2,
+                                          au = au,
+                                          ar = ar)
+                                }
+                              )
+                            },
+                            simplify = 'array' #return an array of simulated angles
+        )
+    }
+    parallel::stopCluster(cl)
+  }else
+  { #if not using parallel, use the slower version via replicate()
+    m1_est = replicate(n = n, 
+                       MeanRvm(n = round(length(angles)*w1), 
+                               mu = m1, 
+                               kappa = k1,
+                               au = au,
+                               ar = ar)
+    )
+    if(!is.na(m2))
+    {
+      m2_est = replicate(n = n, 
+                         MeanRvm(n = round(length(angles)*(1-w1)), 
+                                 mu = m2, 
+                                 kappa = k2,
+                                 au = au,
+                                 ar = ar)
+      )
+    }
+  }
+  return(
+    if(calc_q) #calculate quantiles only if requested
+    {
+      #either two-sided, symmetrical around mean change
+      #or one-sided, from zero change towards mean change
+      probs1 = switch(alternative,
+                      two.sided = sort(c(c(0,1)+c(1,-1)*(1-interval)/2, 0.5)),
+                      one.sided = sort(c(c(0,1)+
+                                           (if(Mod360.180(m1)>0) #N.B. quantile.circular counts anticlockwise
+                                           {c(1,0)}else
+                                           {c(0,-1)}
+                                           )*(1-interval), 0.5)),
+                      sort(c(c(0,1)+ #default to one-sided
+                               (if(Mod360.180(m1)>0)
+                               {c(1,0)}else
+                               {c(0,-1)}
+                               )*(1-interval), 0.5))
+      )
+      if(is.na(m2))
+      {
+        if(force_mu)
+        {
+          Mod360.180(
+            quantile( Mod360.180(as.numeric(m1_est) - m1),
+                      probs = probs1) + m1
+          )
+        }else
+        {
+          Mod360.180(
+            quantile.circular(x = circular(x = m1_est,
+                                           units = au,
+                                           rotation = ar),
+                              probs = probs1)
+          )
+        }
+      }else
+      {
+        probs2 = switch(alternative,
+                        two.sided = sort(c(c(0,1)+c(1,-1)*(1-interval)/2, 0.5)),
+                        one.sided = sort(c(c(0,1)+
+                                             (if(Mod360.180(m2)>0)
+                                             {c(1,0)}else
+                                             {c(0,-1)}
+                                             )*(1-interval), 0.5)),
+                        sort(c(c(0,1)+ #default to one-sided
+                                 (if(Mod360.180(m2)<0)
+                                 {c(1,0)}else
+                                 {c(0,-1)}
+                                 )*(1-interval), 0.5))
+        )
+        list(m1 = if(force_mu)
+        {
+          Mod360.180(
+            quantile( Mod360.180(as.numeric(m1_est) - m1),
+                      probs = probs1) + m1
+          )
+        }else
+        {
+          Mod360.180(
+            quantile.circular(x = circular(x = m1_est,
+                                           units = au,
+                                           rotation = ar),
+                              probs = probs1)
+          )
+        },
+        m2 = if(force_mu)
+        {
+          Mod360.180(
+            quantile( Mod360.180(as.numeric(m2_est) - m2),
+                      probs = probs2) + m2
+          )
+        }else
+        {
+          Mod360.180(
+            quantile.circular(x = circular(x = m2_est,
+                                           units = au,
+                                           rotation = ar),
+                              probs = probs2)
+          )
+        }
+        )
+      }
+    }else
+    { #if quantiles not requested, return the simulations (mainly for troubleshooting)
+      if(is.na(m2))
+      {
+        m1_est = 
+          sapply(X = m1_est, FUN = Mod360.180)
+      }else
+      {
+        list(
+          m1_est = 
+            sapply(X = m1_est, FUN = Mod360.180),     
+          m2_est = 
+            sapply(X = m2_est, FUN = Mod360.180),
+        )
+      }
+    }
+  )
+}
+
+
+PlotCI_vM = function(ci_vec,
+                     col = 'salmon',
+                     lwd = 2,
+                     radius = 0.95,
+                     ...)#passed to lines()
+{
+  ci_vec = as.numeric(ci_vec)#remove circular formatting!
+  #changed on 20250815, plotting issues near median
+  angle_seq1.1 = 
+    seq(from = ci_vec[1], #lower
+        to = ci_vec[1] +
+          Mod360.180(ci_vec[2]-ci_vec[1]), #median
+        length.out =1e2/2)
+  angle_seq1.2 = 
+    seq(from = ci_vec[2], #median
+        to = ci_vec[2] +
+          Mod360.180(ci_vec[3]-ci_vec[2]) , #upper
+        length.out =1e2/2)
+  lines(x = radius*sin( rad(angle_seq1.1) ),
+        y = radius*cos( rad(angle_seq1.1) ),
+        col = col,
+        lwd = lwd,
+        lend = 'butt',
+        ...
+  )
+  lines(x = radius*sin( rad(angle_seq1.2) ),
+        y = radius*cos( rad(angle_seq1.2) ),
+        col = col,
+        lwd = lwd,
+        lend = 'butt',
+        ...
+  )
+  if(!is.na(ci_vec[4]))
+  {
+    #changed on 20250815
+    angle_seq2.1 = 
+      seq(from = ci_vec[1+3],
+          to = ci_vec[1+3] +
+            Mod360.180(ci_vec[2+3]-ci_vec[1+3]),
+          length.out =1e2/2)
+    
+    angle_seq2.2 = 
+      seq(from = ci_vec[2+3],
+          to = ci_vec[2+3] +
+            Mod360.180(ci_vec[3+3]-ci_vec[2+3]) ,
+          length.out =1e2/2)
+    lines(x = radius*sin( rad(angle_seq2.1) ),
+          y = radius*cos( rad(angle_seq2.1) ),
+          col = col,
+          lwd = lwd,
+          lend = 'butt',
+          ....)
+    lines(x = radius*sin( rad(angle_seq2.1) ),
+          y = radius*cos( rad(angle_seq2.1) ),
+          col = col,
+          lwd = lwd,
+          lend = 'butt',
+          ...)
+  }
+}
+
+
 ## Add sun azimuth ---------------------------------------------------------
 # Directions to Pullen
 # GPS Coordinates
@@ -602,36 +919,6 @@ legend(x = 'bottomleft',
 
 # circular version
 
-PCfun = function(angles,
-                 col,
-                 shrink = 1.5,
-                 title = '')
-{
-  ca = circular(x = angles,
-                units = 'degrees',
-                rotation = 'clock')
-  plot.circular(x = ca,
-                col = col,
-                stack = TRUE,
-                sep = 0.1,
-                bins = 355/5,
-                units = 'degrees',
-                rotation = 'clock',
-                zero = pi/2,
-                shrink = shrink)
-  mtext(text = title,
-        side = 1,
-        line = -2)
-  lines(x = c(0,0),
-        y = c(-1,1),
-        col = 'gray')
-  arrows.circular(x = mean.circular(ca),
-                  y = rho.circular(ca),
-                  zero = pi/2,
-                  rotation = 'clock',
-                  col = col,
-                  length =0.1)
-}
 
 par(mfrow = c(1,2), mar = c(0,0,0,0))
 par(pty = 's')
@@ -702,37 +989,6 @@ legend(x = 'bottomright',
 
 # circular version
 
-PCfun = function(angles,
-                 col,
-                 shrink = 1.5,
-                 title = '')
-{
-  ca = circular(x = angles,
-                units = 'degrees',
-                rotation = 'clock')
-  plot.circular(x = ca,
-                col = col,
-                stack = TRUE,
-                sep = 0.1,
-                bins = 355/5,
-                units = 'degrees',
-                rotation = 'clock',
-                zero = pi/2,
-                shrink = shrink)
-  mtext(text = title,
-        side = 1,
-        line = -2)
-  lines(x = c(0,0),
-        y = c(-1,1),
-        col = 'gray')
-  arrows.circular(x = mean.circular(ca),
-                  y = rho.circular(ca),
-                  zero = pi/2,
-                  rotation = 'clock',
-                  col = col,
-                  length =0.1)
-}
-
 par(mfrow = c(1,2), mar = c(0,0,0,0))
 par(pty = 's')
 PCfun(angles = with(data = subset(dd, Stimulus %in% 'Antisolar' & ID %in% 'W28'),
@@ -791,3 +1047,70 @@ legend(x = 'center',
        pch = 15,
        cex = 1.0,
        bty = 'n')
+
+
+# Load selected data from 20250128 ----------------------------------------
+here_path = tryCatch(expr = #look in the folder containing this file: sys.frame(1)$ofile
+                       {file.path(dirname(sys.frame(1)$ofile))},
+                     error = function(e)
+                     {#if that fails, try to find the "Documents" folder
+                       file.path(ltp,'Documents/GitHub/PsychoPol/Dances')
+                     }
+                    )
+
+fiji_angles = list.files(path = file.path(here_path),
+                         pattern = '*.csv',
+                         recursive = TRUE,
+                         full.names = TRUE)
+
+B66 = lapply(X = fiji_angles,
+             FUN = read.table,
+             header = TRUE, 
+             sep = ',')
+B66 = mapply(FUN = cbind,
+             B66, 
+             filename = basename(fiji_angles),
+             SIMPLIFY = FALSE
+             )
+B66data = do.call(what = rbind,
+                     args = B66)
+B66data = within(B66data,
+                 {bearing = 90-Angle}
+                 )
+
+par(mfrow = c(2,2), mar = c(0,0,0,0))
+for(fl in unique(B66data$filename))
+{
+  b66d = subset(B66data,
+                filename %in% fl
+                )
+  with(b66d,
+       {
+        PCfun(angles = bearing,
+              col = 'green4',
+              title = fl,
+              # title = '',
+              lw = 2.0)
+        mlvm = mle.vonmises(x = circular(bearing, units = 'degrees'),
+                            bias = TRUE) 
+        #50% CI
+        PlotCI_vM(ci_vec = CI_vM(angles = bearing,
+                                 m1 = mlvm$mu,
+                                 k1 = mlvm$kappa,
+                                 interval = 0.5,
+                                 alternative = 'two.sided'),
+                  radius = 1.25,
+                  col = 'green4',
+                  lwd = 3)
+        #95% CI
+        PlotCI_vM(ci_vec = CI_vM(angles = bearing,
+                                 m1 = mlvm$mu,
+                                 k1 = mlvm$kappa,
+                                 interval = 0.95,
+                                 alternative = 'two.sided'),
+                  radius = 1.25,
+                  col = 'green4',
+                  lwd = 0.25)
+       }
+  )
+}
