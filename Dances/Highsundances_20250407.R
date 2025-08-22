@@ -580,7 +580,7 @@ dd = within(dd,
               time_code = sapply(X = Video, FUN = IDtocode)
               sast_time =  as.POSIXct(time_code, tz = "Africa/Johannesburg", format = "%Y-%m-%d %H:%M:%OS")#South Africa Standard Time
               utc_time =  as.POSIXct(sast_time, tz = "UTC")#UTC time
-              rm(time_code)
+              # rm(time_code)
             }
 )
 
@@ -1086,6 +1086,70 @@ B66data = do.call(what = rbind,
 B66data = within(B66data,
                  {bearing = 90-Angle}
                  )
+## Add sun position --------------------------------------------------------
+
+Vidtocode = function(x)
+{
+  tp = strsplit(x = as.character(x),
+                split = '')[[1]]
+  tcode = sapply(X = c(tp[1:4],   '-',
+                       tp[5:6],   '-', 
+                       tp[7:8],   ' ',
+                       tp[10:11],  ':',
+                       tp[13:14], ':00'),
+                 FUN = paste0,
+                 collapse = '')
+  return(paste0(tcode, collapse = ''))
+}
+
+#add time
+B66data = within(B66data,
+            {
+              timedate = sub(pattern = '_B66.csv$',
+                             x = filename,
+                             replacement = '')
+                             
+              time = sub(pattern = '^.........',
+                         x = timedate,
+                         replacement = '')
+                         
+              time_code = sapply(X = timedate, FUN = Vidtocode)
+              sast_time =  as.POSIXct(time_code, tz = "Africa/Johannesburg", format = "%Y-%m-%d %H:%M:%OS")#South Africa Standard Time
+              utc_time =  as.POSIXct(sast_time, tz = "UTC")#UTC time
+              # rm(time_code)
+            }
+)
+
+#add sun azimuth
+B66data = within(B66data, 
+            {
+              sun_az = mapply(
+                FUN = GetSaz,
+                tm = sast_time,
+                lon = 31.181389,
+                lat = -25.571944)
+            }
+)
+
+#add sun elevation
+B66data = within(B66data, 
+            {
+              sun_el = mapply(
+                FUN = GetSel,
+                tm = sast_time,
+                lon = 31.181389,
+                lat = -25.571944)
+            }
+)
+
+
+#add sun azimuth
+B66data = within(B66data, 
+            {
+              rel_angle = Angle - sun_az
+            }
+)
+
 
 par(mfrow = c(2,2), mar = c(0,0,0,0))
 for(fl in unique(B66data$filename))
@@ -1100,6 +1164,9 @@ for(fl in unique(B66data$filename))
               title = fl,
               # title = '',
               lw = 2.0)
+        arrows.circular(x  = b66d$sun_az,
+                        col = 'orange',
+                        length = 0)
         mlvm = mle.vonmises(x = circular(bearing, units = 'degrees'),
                             bias = TRUE) 
         #50% CI
