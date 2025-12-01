@@ -16,7 +16,7 @@ import scipy
 from scipy import stats
 from astropy.units import Quantity
 from scipy.interpolate import make_interp_spline
-from scipy.stats import circstd
+from scipy.stats import circstd, circmean
 from multiprocessing import Pool
 import statistics
 import csv
@@ -73,8 +73,7 @@ def _angle(data, p=1, phi=0.0, axis=None, weights=None):
 
     return theta
 
-def circmean(data, axis=None, weights=None):
-    return _angle(data, 1, 0.0, axis, weights)
+
 
 azimuth_deg_list = []
 elevation_deg_list = []
@@ -383,9 +382,6 @@ for rotation_angle in range(0, 360, 5):
     #os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
 
-    circmeans.append(circmean(np.array(aolp_circmeans), weights=np.array(dolp)))
-    circmeans_2.append(circmean(np.array(aolp_2_circmeans), weights=np.array(dolp_2)))
-    circmeans_botheyes.append(circmean(np.array(aolp_both_eyes), weights=np.array(dolp_both_eyes)))
 
     first_eye_abs_error = min_angle_difference(-float(float(args.solarazimuth)+float(rotation_angle)), np.degrees(float(first_eye_angle)))
     second_eye_abs_error = min_angle_difference(-float(float(args.solarazimuth)+float(rotation_angle)), np.degrees(float(second_eye_angle)))
@@ -394,8 +390,7 @@ for rotation_angle in range(0, 360, 5):
 
     second_eye_all_ommatidia_abs_error = [min_angle_difference(-float(float(args.solarazimuth)+float(rotation_angle)), np.degrees(float(angle))) for angle in second_eye_ommatidia_angles_list]
     
-    print(sum(S0), first_eye_abs_error)
-    print(sum(S0_2), second_eye_abs_error)
+
     
     
     with open('first_eye_ommatidia_intensity_errors.tsv', 'a', newline='') as tsvfile:
@@ -492,100 +487,6 @@ with open('predicted_error_per_azimuth.tsv', 'w', newline='') as tsvfile:
     # Write data
     for az, err in zip(rotation_angles_mid, predicted_error):
         writer.writerow([az, err])
-
-# Calculate the polar histogram for circmeans list
-N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-aop_hist = np.histogram(circmeans, bins=N, range=[-np.pi, np.pi])
-
-bottom = 0
-max_height = 1102
-
-theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-radii = aop_hist[0]
-width = 0.1 * (2 * np.pi) / N
-
-# Plot the polar histogram
-fig = plt.figure()
-ax = fig.add_subplot(111, polar=True)
-bars = ax.bar(theta, radii, width=width, bottom=bottom)
-ax.set_rlabel_position(270)
-
-# Use custom colors and opacity
-for r, bar in zip(radii, bars):
-    bar.set_facecolor('red')
-    
-# Set title with rotation angle
-ax.set_title('aolp_left_eye_ommatidial_circular_means'.format(rotation_angle))
-
-ax.set_xlabel("Angle of Polarization")
-
-# Save the polar histogram
-output_path = 'polar_histogram_1steye_circmeans.png'
-fig.savefig(output_path)
-plt.close(fig)
-
-# Calculate the polar histogram for circmeans_2 list
-N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-aop_hist = np.histogram(circmeans_2, bins=N, range=[-np.pi, np.pi])
-
-bottom = 0
-max_height = 1102
-
-theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-radii = aop_hist[0]
-width = 0.1 * (2 * np.pi) / N
-
-# Plot the polar histogram
-fig = plt.figure()
-ax = fig.add_subplot(111, polar=True)
-bars = ax.bar(theta, radii, width=width, bottom=bottom)
-ax.set_rlabel_position(270)
-
-# Use custom colors and opacity
-for r, bar in zip(radii, bars):
-    bar.set_facecolor('red')
-    
-# Set title with rotation angle
-ax.set_title('aolp_right_eye_ommatidial_circular_means'.format(rotation_angle))
-
-ax.set_xlabel("Angle of Polarization")
-
-# Save the polar histogram
-output_path = 'polar_histogram_2ndeye_circmeans.png'
-fig.savefig(output_path)
-plt.close(fig)
-
-
-# Calculate the polar histogram for circmeans both eyes
-N = 60 # change this to 60 (from 59) to have a bin for every 5deg
-aop_hist = np.histogram(circmeans_botheyes, bins=N, range=[-np.pi, np.pi])
-
-bottom = 0
-max_height = 1102
-
-theta = np.linspace(-np.pi, np.pi, N, endpoint=False)
-radii = aop_hist[0]
-width = 0.1 * (2 * np.pi) / N
-
-# Plot the polar histogram
-fig = plt.figure()
-ax = fig.add_subplot(111, polar=True)
-bars = ax.bar(theta, radii, width=width, bottom=bottom)
-ax.set_rlabel_position(270)
-
-# Use custom colors and opacity
-for r, bar in zip(radii, bars):
-    bar.set_facecolor('red')
-    
-# Set title with rotation angle
-ax.set_title('aolp_both_eyes_ommatidial_circular_means')
-
-ax.set_xlabel("Angle of Polarization")
-
-# Save the polar histogram
-output_path = 'polar_histogram_both_eyes_circmeans.png'
-fig.savefig(output_path)
-plt.close(fig)
 
 # Flatten the lists of PRC and PRC_2 values (make list out of list of lists)
 flat_PRC_values = [item for sublist in all_PRC_values for item in sublist]
