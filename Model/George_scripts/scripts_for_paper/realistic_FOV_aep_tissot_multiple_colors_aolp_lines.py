@@ -49,15 +49,15 @@ def main(image_path, output_path, azimuth_list, elevation_list, aolp_list, dolp_
 
             # draw lines or circles (DoP close to 0)
             if dolp_value < 0.01: # this is for the unlikely case of dolp_value < 0.01, draws dot
-                cv2.circle(canvas, (proj_x, proj_y), radius=3, color=(0, 0, 0), thickness=-1)
+                cv2.circle(canvas, (proj_x, proj_y), radius=3, color=(255, 0, 0), thickness=-1)
             # Draw the line on the canvas
             else:
                 line_width = int(math.ceil(dolp_value * 15))
                 if line_width == 0: # this is when dolp > 0.1 but line width still 0
                     line_width = 1 # minimum line width
-                    cv2.line(canvas, (x1, y1), (x2, y2), color=(0, 0, 0), thickness=line_width)
+                    cv2.line(canvas, (x1, y1), (x2, y2), color=(255, 0, 0), thickness=line_width)
                 else:
-                    cv2.line(canvas, (x1, y1), (x2, y2), color=(0, 0, 0), thickness=line_width)
+                    cv2.line(canvas, (x1, y1), (x2, y2), color=(255, 0, 0), thickness=line_width)
             
         canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
         # Save the resulting image

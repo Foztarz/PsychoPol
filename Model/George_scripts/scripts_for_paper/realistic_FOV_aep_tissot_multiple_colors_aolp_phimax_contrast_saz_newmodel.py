@@ -39,7 +39,8 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         total_vector_x = 0
         total_vector_y = 0
         projection_radius = min(center_x, center_y)
-                
+        vectors_x = list() # per facet vectors
+        vectors_y = list()
         for azimuth_deg, elevation_deg, PRC_value, PRC_color in zip(azimuth_list, elevation_list, PRC_list, PRC_colors_list):
             # Calculate the pixel coordinates for the projection
             
@@ -96,6 +97,9 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
             total_vector_x += vector_x
             total_vector_y += vector_y
             
+            vectors_x.append(vector_x)
+            vectors_y.append(vector_y)
+            
             # Draw the rotated ellipse on the canvas, filling the ellipse with red color
             thickness = -1  # -1 thickness fills the ellipse, thickness = 2 for transparent ellipses
             angle = azimuth_deg  # Rotation angle in degrees (for the ellipses, not the image)
@@ -103,15 +107,16 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
 
         # Calculate the end point of the total vector (normalized to the image size)
         total_vector_angle = float(math.atan2(float(total_vector_x), float(total_vector_y))) # atan2(x, y) because we're using sky coordinates (x axis is vertical) and not mathematical/geometrical (x axis is horizontal)
+        total_vector_angle_ommatidia = [math.atan2(x, y) for x, y in zip(vectors_x, vectors_y)] # angle estimates for each ommatidium
         end_x = int(center_x + center_x * np.sin(total_vector_angle))
         end_y = int(center_x - center_x * np.cos(total_vector_angle)) # minus for the y coordinate because the center of the image is not 0,0
-        print(total_vector_x, total_vector_y) # sending the components to the second eye
+        print(total_vector_x, total_vector_y, total_vector_angle, total_vector_angle_ommatidia) # sending the components to the second eye
         # Draw the line on the canvas
         cv2.line(canvas, (center_x, center_y), (end_x, end_y), color=(0, 0, 255), thickness=2)
         
         canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
         # Save the resulting image
-        cv2.imwrite(output_path, canvas)
+        cv2.imwrite(output_path, canvas) # ACTIVATE TO SAVE IMAGE
         #print(f"Projection image saved to {output_path}")
 
     except Exception as e:

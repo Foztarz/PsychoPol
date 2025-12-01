@@ -117,7 +117,7 @@ def main(image_path, output_path, azimuth_list, elevation_list, PRC_list, minor_
         else:
             distortion_aperture = float(((np.pi/2) - np.pi * elevation_deg_aperture/180) / np.cos(np.pi * elevation_deg_aperture/180)) # formula for distortion calculation in azimuthal equidistant projections
         
-        minor_axis_aperture = int((img_width/(2*90))*10) # ~10 degrees diameter
+        minor_axis_aperture = int((img_width/(2*90))*10) # 10 degrees radius, cv2 ellipse expects integers
         major_axis_aperture = int(distortion_aperture * minor_axis_aperture)
         proj_x_aperture, proj_y_aperture = spherical_to_cartesian(projection_radius, azimuth_deg_aperture, elevation_deg_aperture)
         proj_x_aperture += center_x

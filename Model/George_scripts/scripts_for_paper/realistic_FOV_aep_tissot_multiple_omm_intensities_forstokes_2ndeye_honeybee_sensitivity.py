@@ -7,7 +7,6 @@ import scipy.stats
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 from multiprocessing import Pool
-from joblib import Parallel, delayed
 
 def spherical_to_cartesian(radius, azimuth_deg, elevation_deg): # turns spherical coordinates to cartesian, assuming azimuthal equidistant projection
     s = radius * elevation_deg / 90  # distance from image edge
@@ -62,13 +61,14 @@ def process_line(args): # this function processes each line in the text file wit
     distance_matrix = np.where(distance_matrix > 50, 50, distance_matrix) # replace values greater than 50 with 50; do this for consistency with ephys data
     spline_array = spl(distance_matrix) # apply the spline function to the distance matrix
     spline_array = np.where(spline_array > 1, 1, spline_array) # make sensitivities greater than 1 equal to 1
+    spline_array /= np.max(spline_array) # divides every element in the spline_array by the maximum value / normalization
     spline_array = np.where(spline_array < 0.0025, 0, spline_array) # round down any value that might be above below 0.0025 (50deg of the ephys data sensitivity)
     spline_array[(x)**2 + (y)**2 > center_x**2] = 0 # set values outside the circular region to 0
-    spline_array /= np.max(spline_array) # divides every element in the spline_array by the maximum value / normalization
+    
     result = np.multiply(img, spline_array) # multiply the original img with the spline array
     return np.sum(result) # get the intensity of all pixels covered by the ommatidium
 
-def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle):
+def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle, threads):
     try:
         data = np.loadtxt(spline_data, delimiter='\t') # data to be used for the spline function (x/angles, y/sensitivity; tab-separated)
         x = data[:, 0]
@@ -78,7 +78,7 @@ def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle):
         y_sorted = y[sorted_indices]
         k = 3 # knots of the spline
         spl = UnivariateSpline(x_sorted, y_sorted, s=0.015, k=k) # s is the smoothing parameter
-        img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE) # input image (has to be square, its center should be the center of the circular sky image)  
+        img = np.load(image_path) # input image (has to be square, its center should be the center of the circular sky image)  
         img_height, img_width = img.shape
         center_x = img_width // 2
         center_y = img_height // 2
@@ -88,7 +88,7 @@ def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle):
         with open(coordinates_file, 'r') as file:
             lines = file.readlines()
             args_list = [(line, img, spl, img_width, img_height, center_x, center_y, minor_axis) for line in lines] # parallel processing the process_line function for each ommatidium
-            with Pool() as pool: # parallel processing the process_line function for each ommatidium
+            with Pool(processes=threads) as pool: # parallel processing the process_line function for each ommatidium
                 results = pool.map(process_line, args_list)
                
             for intensity in results:
@@ -98,12 +98,13 @@ def main(spline_data, image_path, coordinates_file, minor_axis, rotation_angle):
         print(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
-    if len(sys.argv) != 6:
-        print("Usage: python script.py <spline_data> <input_image> <coordinates_file> <minor_axis> <rotation_angle>")
+    if len(sys.argv) != 7:
+        print("Usage: python script.py <spline_data> <input_image> <coordinates_file> <minor_axis> <rotation_angle> <threads>")
         sys.exit(1)
     spline_data = sys.argv[1]
     input_image = sys.argv[2]
     coordinates_file = sys.argv[3]
     minor_axis = sys.argv[4]
     rotation_angle = float(sys.argv[5])
-    main(spline_data, input_image, coordinates_file, minor_axis, rotation_angle)
+    threads = int(sys.argv[6])
+    main(spline_data, input_image, coordinates_file, minor_axis, rotation_angle, threads)
