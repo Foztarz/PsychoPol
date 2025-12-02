@@ -282,16 +282,11 @@ for rotation_angle in range(0, 360, 5):
         
         # this to cacluate fanshape_match
         diff = np.radians( ((270 - np.degrees(aolp_value)) % 180 - (phimax_value % 180)) )
-        a_diff = np.arctan2(np.sin(diff), np.abs(np.cos(diff)))
-        a_diff_deg = np.rad2deg(a_diff)
-        abs_a_diff = np.abs(a_diff_deg)
-
-        angle4 = abs_a_diff * 4
-        angles4_1.append(np.radians(angle4))
-        minimum_fanshape_mismatches.append(np.abs(abs_a_diff))
-          
-    mean_match_1 = circmean(np.array(angles4_1)) / 4
-    print(mean_match_1)
+        abs_diff = abs(diff)
+        min_abs_diff = min(abs_diff, np.pi - abs_diff)
+        angles4_1.append(min_abs_diff)
+        #print((270 - np.degrees(aolp_value)) % 180, phimax_value % 180, abs_a_diff)
+    mean_match_1 = np.mean(np.array(angles4_1))
         
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_value / S_2_value)))
@@ -309,15 +304,10 @@ for rotation_angle in range(0, 360, 5):
 
         # this to cacluate fanshape_match
         diff = np.radians( ((270 - np.degrees(aolp_value)) % 180 - (-phimax_value % 180)) )
-        a_diff = np.arctan2(np.sin(diff), np.abs(np.cos(diff)))
-        a_diff_deg = np.rad2deg(a_diff)
-        abs_a_diff = np.abs(a_diff_deg)
-
-        angle4 = abs_a_diff * 4
-        angles4_2.append(np.radians(angle4))
-        minimum_fanshape_mismatches.append(np.abs(abs_a_diff))
-        
-    mean_match_2 = circmean(np.array(angles4_2)) / 4
+        abs_diff = abs(diff)
+        min_abs_diff = min(abs_diff, np.pi - abs_diff)
+        angles4_2.append(min_abs_diff)
+    mean_match_2 = np.mean(np.array(angles4_2))
     
         
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
@@ -408,12 +398,12 @@ for rotation_angle in range(0, 360, 5):
         for row in zip(S0_2, second_eye_all_ommatidia_abs_error):
             writer.writerow(list(row) + [second_eye_abs_error])
 
-    mean_match  = circmean(np.array([mean_match_1*4, mean_match_2*4]))/4
+    mean_match  = (mean_match_1 + mean_match_2)/2
     writer1.writerow([mean_match_1, first_eye_abs_error, float(args.solarazimuth)+float(rotation_angle)])
     writer2.writerow([mean_match_2, second_eye_abs_error, float(args.solarazimuth)+float(rotation_angle)])
     writer3.writerow([mean_match, absolute_error, float(args.solarazimuth)+float(rotation_angle)])
-    writer4.writerow([min(minimum_fanshape_mismatches), absolute_error, float(args.solarazimuth)+float(rotation_angle)])
-    
+    print(mean_match)
+
     with open("all_aolp_botheyes.txt", "a") as f:
         # stack both lists
         all_angles = np.array(aolp_og + aolp_2_og)
@@ -462,7 +452,6 @@ for rotation_angle in range(0, 360, 5):
 f1.close()
 f2.close()
 f3.close()
-f4.close()
 
 ## for Fisher info
 delta_phi = np.radians(5)  # since your rotation step is 5 degrees

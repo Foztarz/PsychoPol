@@ -288,10 +288,7 @@ for rotation_angle in range(0, 360, 5):
                 np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
             S2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
                 np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
-        angle4 = abs_a_diff * 4
-        angles4_1.append(np.radians(angle4))
 
-    mean_match_1 = circmean(np.array(angles4_1)) / 4
         
     for S_value, S_2_value in zip(S_list, S2_list):
         PRC.append(float(np.log(S_value / S_2_value)))
@@ -318,10 +315,7 @@ for rotation_angle in range(0, 360, 5):
                 np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
             S2_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
                 np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
-        angle4 = abs_a_diff * 4
-        angles4_2.append(np.radians(angle4))
 
-    mean_match_2 = circmean(np.array(angles4_2)) / 4
     
         
     for S_value, S_2_value in zip(S_2_list, S2_2_list):
@@ -410,11 +404,7 @@ for rotation_angle in range(0, 360, 5):
         for row in zip(S0_2, second_eye_all_ommatidia_abs_error):
             writer.writerow(list(row) + [second_eye_abs_error])
 
-    mean_match  = circmean(np.array([mean_match_1*4, mean_match_2*4]))/4
-    writer1.writerow([mean_match_1, first_eye_abs_error, float(args.solarazimuth)+float(rotation_angle)])
-    writer2.writerow([mean_match_2, second_eye_abs_error, float(args.solarazimuth)+float(rotation_angle)])
 
-    writer3.writerow([mean_match, absolute_error, float(args.solarazimuth)+float(rotation_angle)])
 
     with open("all_aolp_botheyes.txt", "a") as f:
         # stack both lists
@@ -458,10 +448,7 @@ for rotation_angle in range(0, 360, 5):
 
     PRC_both = np.concatenate((np.array(PRC), np.array(PRC_2)))
     all_PRC_both_values.append(PRC_both)
-    
-f1.close()
-f2.close()
-f3.close()
+
 
 ## for Fisher info
 delta_phi = np.radians(5)  # since your rotation step is 5 degrees
