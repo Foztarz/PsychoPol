@@ -62,27 +62,6 @@ def Luminance(chi, z, a, b, c, d, e):
     phi = (1. + c * np.exp(d * chi) + e * np.square(np.cos(chi)))
     return f * phi
 
-def spherical_to_cartesian(radius, azimuth_deg, elevation_deg):
-    s = radius * elevation_deg / 90  # distance from circle's circumference
-    azimuth_rad = np.radians(azimuth_deg)
-    elevation_rad = np.radians(elevation_deg)
-    x = int((radius - s) * np.sin(azimuth_rad) + radius)
-    y = int(radius - (radius - s) * np.cos(azimuth_rad))
-    return x, y
-
-def cartesian_to_spherical(x, y, radius):
-    """
-    Inverse of spherical_to_cartesian().
-    Returns azimuth [deg 0-360] and elevation [deg 0-90] for pixel (x,y)
-    """
-    dx = x - radius
-    dy = radius - y
-    r = np.sqrt(dx**2 + dy**2)
-    if r > radius:
-        return None, None  # outside fisheye
-    el = 90 * (1 - r / radius)
-    az = (np.degrees(np.arctan2(dx, dy))) % 360
-    return az, el
 
 def generate_clear_sky_image(resolution, sun_az_deg, sun_el_deg, output_folder="sky_output"):
     import numpy as np
@@ -144,7 +123,7 @@ def generate_clear_sky_image(resolution, sun_az_deg, sun_el_deg, output_folder="
     # degree of polarization
     lp = np.square(np.sin(gamma)) / (1 + np.square(np.cos(gamma)))
     DOP = np.clip(2./np.pi * M_p() * lp * (theta * np.cos(theta) + (np.pi/2 - theta) * i_prez), 0., 1.)
-
+    DOP_img[mask] = DOP  # <-- this makes DOP_img ready for visualization
     # angle of polarization
     _, AoLP_masked = tilt(theta_s, phi_s + np.pi, theta, phi)
 
@@ -154,7 +133,7 @@ def generate_clear_sky_image(resolution, sun_az_deg, sun_el_deg, output_folder="
     # fill AoLP full image (and optionally AoLP_img for inspection)
     AoLP_img = np.full_like(Y_img, np.nan)
     AoLP_img[mask] = AoLP_masked
-
+    
     # Stokes parameters
     S0_masked = Y
     S1_masked = Y * DOP * np.cos(2*AoLP_masked)
@@ -206,18 +185,25 @@ if __name__ == "__main__":
         resolution, sun_azimuth, sun_elevation, output_folder=output_folder
     )
 
-##    # --- Visualization of AoP ---
-##    AoLP_deg = np.degrees(AoLP_img)  # convert radians to degrees
-##    mask = ~np.isnan(AoLP_deg)
-##    AoLP_plot = np.zeros_like(AoLP_deg)
-##    AoLP_plot[mask] = AoLP_deg[mask]
-##
-##    plt.figure(figsize=(6,6))
-##    plt.imshow(AoLP_plot, cmap='hsv', origin='upper')  # cyclic colormap
-##    plt.colorbar(label="Angle of Polarization (deg)")
-##    plt.title("Sky Angle of Polarization (AoP)")
-##    plt.axis('off')
-##    plt.show()
+    # --- Visualization of AoP ---
+    AoLP_deg = np.degrees(AoLP_img)  # convert radians to degrees
+    mask = ~np.isnan(AoLP_deg)
+    AoLP_plot = np.zeros_like(AoLP_deg)
+    AoLP_plot[mask] = AoLP_deg[mask]
+
+    plt.figure(figsize=(6,6))
+    plt.imshow(AoLP_plot, cmap='hsv', origin='upper')  # cyclic colormap
+    plt.colorbar(label="Angle of Polarization (deg)")
+    plt.title("Sky Angle of Polarization (AoP)")
+    plt.axis('off')
+    plt.show()
+    
+    plt.figure(figsize=(6,6))
+    plt.imshow(DOP_img, cmap='viridis', origin='upper', vmin=0, vmax=1)
+    plt.colorbar(label="Degree of Linear Polarization (DoLP)")
+    plt.title("Sky Degree of Linear Polarization (DoLP)")
+    plt.axis('off')
+    plt.show()
 
     print(f"Sky arrays saved in ./{output_folder}/")
 
