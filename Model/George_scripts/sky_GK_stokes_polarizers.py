@@ -107,7 +107,7 @@ class Sky(Environment):
         if uniform_polariser:
             p = np.ones_like(lp)
         else:
-            p = np.clip(2. / np.pi * self.M_p * lp * (theta * np.cos(theta) + (np.pi / 2 - theta) * i), 0., 1.)
+            p = np.clip(2. / np.pi * self.M_p * lp * (theta * np.cos(theta) + (np.pi / 2 - theta) * i_prez), 0., 1.)
 
         # Angle of polarisation
         if uniform_polariser:

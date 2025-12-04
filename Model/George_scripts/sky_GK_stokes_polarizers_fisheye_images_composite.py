@@ -719,35 +719,90 @@ def save_fisheye_sky(sky, resolution=512, folder='sky_outputs'):
 
 
 if __name__ == "__main__":
-    s = Sky(theta_s = np.radians(90-float(sys.argv[2])), phi_s=-np.radians(float(sys.argv[1]))) ## elevation, azimuth
+    import numpy as np
+    import os
+    import sys
+
     resolution = 1636
-    folder = "fisheye_output"
+    folder = "fisheye_output_composite"
+    os.makedirs(folder, exist_ok=True)
 
-    # Generate fisheye images
-    S0_img   = fisheye_sky_image(s, resolution, channel='S0')
-    DOP_img  = fisheye_sky_image(s, resolution, channel='DOP')
-    AoLP_img = fisheye_sky_image(s, resolution, channel='AoLP')
+    azimuth = 0.0  # FIXED azimuth in degrees
+    elevations = np.arange(30, 61, 1)  # 30° to 60°
 
-    # Polarizers
-    img0   = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=0)
-    img45  = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=45)
-    img90  = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=90)
-    img135 = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=135)
+    # -------------------------------------------------------
+    # 1. Initialize composite storage (pixel-wise winners)
+    # -------------------------------------------------------
+    shape = (resolution, resolution)
 
-    # Save all images with proper colormaps
-    save_fisheye_image(S0_img, folder, "S0", cmap='gray')            # black & white
-    save_fisheye_image(DOP_img, folder, "DOP", cmap='viridis')      # viridis
-    save_fisheye_image(AoLP_img, folder, "AoLP", cmap='hsv')        # hsv
-    save_fisheye_image(img0, folder, "img_000", cmap='gray')    # black & white
-    save_fisheye_image(img45, folder, "img_045", cmap='gray')  # black & white
-    save_fisheye_image(img90, folder, "img_090", cmap='gray')  # black & white
-    save_fisheye_image(img135, folder, "img_135", cmap='gray')# black & white
+    DOP_max  = np.full(shape, -np.inf)
+    S0_best  = np.zeros(shape)
+    AoLP_best = np.zeros(shape)
 
-    save_fisheye_image_with_colorbar(S0_img, folder, "S0", cmap='gray')
-    save_fisheye_image_with_colorbar(DOP_img, folder, "DOP", cmap='viridis')
-    save_fisheye_image_with_colorbar(AoLP_img, folder, "AoLP", cmap='hsv')
-##    save_fisheye_image_with_colorbar(img0, folder, "polarizer_0", cmap='gray')
-##    save_fisheye_image_with_colorbar(img45, folder, "polarizer_45", cmap='gray')
-##    save_fisheye_image_with_colorbar(img90, folder, "polarizer_90", cmap='gray')
-##    save_fisheye_image_with_colorbar(img135, folder, "polarizer_135", cmap='gray')
+    img0_best   = np.zeros(shape)
+    img45_best  = np.zeros(shape)
+    img90_best  = np.zeros(shape)
+    img135_best = np.zeros(shape)
+
+    elev_best = np.zeros(shape)  # store winning elevation per pixel
+
+    # -------------------------------------------------------
+    # 2. Elevation sweep
+    # -------------------------------------------------------
+    for elev in elevations:
+        print(f"Processing elevation: {elev}°")
+
+        s = Sky(
+            theta_s=np.radians(90 - elev),   # elevation → zenith angle
+            phi_s=-np.radians(azimuth)
+        )
+
+        # --- Generate fisheye channels ---
+        S0_img   = fisheye_sky_image(s, resolution, channel='S0')
+        DOP_img  = fisheye_sky_image(s, resolution, channel='DOP')
+        AoLP_img = fisheye_sky_image(s, resolution, channel='AoLP')
+
+        img0   = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=0)
+        img45  = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=45)
+        img90  = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=90)
+        img135 = fisheye_sky_image(s, resolution, channel='polarizer', polarizer_angle=135)
+
+        # -------------------------------------------------------
+        # 3. Pixel-wise DoLP comparison & update
+        # -------------------------------------------------------
+        mask = DOP_img > DOP_max   # True where this elevation wins
+
+        DOP_max[mask]   = DOP_img[mask]
+        S0_best[mask]   = S0_img[mask]
+        AoLP_best[mask] = AoLP_img[mask]
+
+        img0_best[mask]   = img0[mask]
+        img45_best[mask]  = img45[mask]
+        img90_best[mask]  = img90[mask]
+        img135_best[mask] = img135[mask]
+
+        elev_best[mask] = elev
+
+    # -------------------------------------------------------
+    # 4. Save composite results
+    # -------------------------------------------------------
+    save_fisheye_image(S0_best,   folder, "S0_COMPOSITE",   cmap='gray')
+    save_fisheye_image(DOP_max,   folder, "DOP_COMPOSITE",  cmap='viridis')
+    save_fisheye_image(AoLP_best, folder, "AoLP_COMPOSITE", cmap='hsv')
+
+    save_fisheye_image(img0_best,   folder, "img_000_COMPOSITE", cmap='gray')
+    save_fisheye_image(img45_best,  folder, "img_045_COMPOSITE", cmap='gray')
+    save_fisheye_image(img90_best,  folder, "img_090_COMPOSITE", cmap='gray')
+    save_fisheye_image(img135_best, folder, "img_135_COMPOSITE", cmap='gray')
+
+    # Optional but VERY useful
+    save_fisheye_image(elev_best, folder, "ELEVATION_WINNER", cmap='turbo')
+
+    # Also save with colorbars
+    save_fisheye_image_with_colorbar(DOP_max, folder, "DOP_COMPOSITE", cmap='viridis')
+    save_fisheye_image_with_colorbar(AoLP_best, folder, "AoLP_COMPOSITE", cmap='hsv')
+    save_fisheye_image_with_colorbar(elev_best, folder, "ELEVATION_WINNER", cmap='turbo')
+
+    print("✅ Composite sky generation complete.")
+
 
