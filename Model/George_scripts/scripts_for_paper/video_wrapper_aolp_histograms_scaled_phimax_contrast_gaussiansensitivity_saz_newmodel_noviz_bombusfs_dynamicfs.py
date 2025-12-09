@@ -271,23 +271,14 @@ for rotation_angle in range(0, 360, 5):
             
     # for  first eye
     angles4_1 = []
+    dynamicfs_1 = []
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
+        dynamicfs_1.append(float(np.radians(270) - aolp_value))
 
-        # this to cacluate fanshape_match
-        diff = np.radians( ((270 - np.degrees(aolp_value)) % 180 - (phimax_value % 180)) )
-        a_diff = np.arctan2(np.sin(diff), np.abs(np.cos(diff)))
-        a_diff_deg = np.rad2deg(a_diff)
-        abs_a_diff = np.abs(a_diff_deg)
-        if abs_a_diff > 45: # aolp is closer to phimax_2, make phimax_2=aolp, and phimax=aolp+90
-            S_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
-            S2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
-        else: # aolp is closer to phimax, make phimax=aolp and phimax_2=aolp+90
-            S_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
-            S2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
+        S_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
+        S2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
 
         
     for S_value, S_2_value in zip(S_list, S2_list):
@@ -299,22 +290,13 @@ for rotation_angle in range(0, 360, 5):
 
     # for the second eye
     angles4_2 = []
+    dynamicfs_2 = []
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        # this to cacluate fanshape_match
-        diff = np.radians( ((270 - np.degrees(aolp_value)) % 180 - (-phimax_value % 180)) )
-        a_diff = np.arctan2(np.sin(diff), np.abs(np.cos(diff)))
-        a_diff_deg = np.rad2deg(a_diff)
-        abs_a_diff = np.abs(a_diff_deg)
-        if abs_a_diff > 45: # aolp is closer to phimax_2, make phimax_2=aolp, and phimax=aolp+90
-            S_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
-            S2_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
-        else: # aolp is closer to phimax, make phimax=aolp and phimax_2=aolp+90
-            S_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
-            S2_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
+        dynamicfs_2.append(float(np.radians(270) - aolp_value))
+        S_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90))))) #=-1
+        S2_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value)))) # =1
 
     
         
@@ -324,7 +306,7 @@ for rotation_angle in range(0, 360, 5):
     PRC_2_scaled = PRC_2_scaled.tolist()
     all_PRC_2_values.append(PRC_2)
     
-    command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz_newmodel.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list_pitched) + '" "' + str(elevation_deg_list_pitched) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '"')
+    command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz_newmodel_dynamicfs.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '" "' + str(dynamicfs_1) + '"' )
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     before_list, _, list_part = output.partition('[')
@@ -356,7 +338,7 @@ for rotation_angle in range(0, 360, 5):
     #os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
     #os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
 
-    command = str('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz_newmodel.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list_pitched) + '" "' + str(elevation_deg_list_pitched) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '"')
+    command = str('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz_newmodel_dynamicfs.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '" "' + str(dynamicfs_2) + '"')
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     before_list, _, list_part = output.partition('[')

@@ -263,23 +263,14 @@ for rotation_angle in range(0, 360, 5):
             
     # for the first eye
     angles4_1 = []
+    dynamicfs_1 = []
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_lines, dolp, phimax_list, phimax_2_list):
+        dynamicfs_1.append(float(np.radians(270) - aolp_value))
 
-        # this to cacluate fanshape_match
-        diff = np.radians( ((270 - np.degrees(aolp_value)) % 180 - (phimax_value % 180)) )
-        a_diff = np.arctan2(np.sin(diff), np.abs(np.cos(diff)))
-        a_diff_deg = np.rad2deg(a_diff)
-        abs_a_diff = np.abs(a_diff_deg)
-        if abs_a_diff > 45: # aolp is closer to phimax_2, make phimax_2=aolp, and phimax=aolp+90
-            S_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
-            S2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
-        else: # aolp is closer to phimax, make phimax=aolp and phimax_2=aolp+90
-            S_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
-            S2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
+        S_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90)))))
+        S2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value))))
 
     
         
@@ -292,22 +283,13 @@ for rotation_angle in range(0, 360, 5):
 
     # for the second eye
     angles4_2 = []
+    dynamicfs_2 = []
     for aolp_value, dolp_value, phimax_value, phimax_2_value in zip(aolp_2_lines, dolp_2, phimax_list, phimax_2_list):
-        # this to cacluate fanshape_match
-        diff = np.radians( ((270 - np.degrees(aolp_value)) % 180 - (-phimax_value % 180)) )
-        a_diff = np.arctan2(np.sin(diff), np.abs(np.cos(diff)))
-        a_diff_deg = np.rad2deg(a_diff)
-        abs_a_diff = np.abs(a_diff_deg)
-        if abs_a_diff > 45: # aolp is closer to phimax_2, make phimax_2=aolp, and phimax=aolp+90
-            S_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90))))) #=-1
-            S2_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value)))) # =1
-        else: # aolp is closer to phimax, make phimax=aolp and phimax_2=aolp+90
-            S_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value)))) #=1
-            S2_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
-                np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90))))) #=-1
+        dynamicfs_2.append(float(np.radians(270) - aolp_value))
+        S_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value + np.radians(90))))) #=-1
+        S2_2_list.append(float(1 + ((dolp_value * (Sp - 1)) / (Sp + 1)) * 
+            np.cos(2 * (np.radians(270) - aolp_value) - 2 * (np.radians(270) - aolp_value)))) # =1
 
     
         
@@ -317,18 +299,18 @@ for rotation_angle in range(0, 360, 5):
     PRC_2_scaled = PRC_2_scaled.tolist()
     all_PRC_2_values.append(PRC_2)
     
-    command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz_newmodel.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '"')
+    command = str('python realistic_FOV_aep_tissot_multiple_colors_aolp_phimax_contrast_saz_newmodel_dynamicfs.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC) + '" 25 ' + str(rotation_angle) + ' "' + str(PRC_scaled) + '" "' + str(dynamicfs_1) + '"' )
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     before_list, _, list_part = output.partition('[')
     first_eye_saz_x, first_eye_saz_y, first_eye_angle = before_list.strip().split()
     first_eye_ommatidia_angles_list = ast.literal_eval('[' + list_part)
     
-    #os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
-    #os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
-    #os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '_lines.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
-    #os.system('rm aolp_1steye_' + str(rotation_angle) + '.png')
-    #os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines.png')
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_aolp_lines.py ' + args.input + ' aolp_1steye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_lines) + '" "' + str(dolp) + '"')
+    os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '.png aolp_1steye_' + str(rotation_angle) + '_transparent.png')
+    os.system('python make_mask_transparent.py aolp_1steye_' + str(rotation_angle) + '_lines.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines.png')
     
     # Open the circular image
     img = cv2.imread(args.input_viz)
@@ -341,15 +323,15 @@ for rotation_angle in range(0, 360, 5):
     # this is for rotating the image if necessary (bicubic interpolation). Note that it rotates counterclockwise for positive angles
     M = cv2.getRotationMatrix2D((center_y,center_x),rotation_angle,1) # the format is cv2.getRotationMatrix2D(center, angle, scale) 
     img = cv2.warpAffine(img,M,(img_width,img_height),flags=cv2.INTER_CUBIC)
-    #cv2.imwrite('1steye_' + str(rotation_angle) + '_background.png', img)
+    cv2.imwrite('1steye_' + str(rotation_angle) + '_background.png', img)
 
-    #os.system('python image_superimposing.py 1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
-    #os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
-    #os.system('rm 1steye_' + str(rotation_angle) + '_background.png')
-    #os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
-    #os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('python image_superimposing.py 1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
+    os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png aolp_1steye_' + str(rotation_angle) + '_background.png')
+    os.system('rm 1steye_' + str(rotation_angle) + '_background.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_transparent.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_lines_transparent.png')
 
-    command = str('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz_newmodel.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '"')
+    command = str('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_phimax_contrast_saz_newmodel_dynamicfs.py ' + args.input + ' aolp_2ndeye_' + str(rotation_angle) + '.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(PRC_2) + '" 25 ' + str(rotation_angle) + ' ' + str(first_eye_saz_x) + ' ' + str(first_eye_saz_y) + ' "' + str(PRC_2_scaled) + '" "' + str(dynamicfs_2) + '"')
     with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, text=True) as process:
         output = process.stdout.read().strip()
     before_list, _, list_part = output.partition('[')
@@ -361,20 +343,20 @@ for rotation_angle in range(0, 360, 5):
     absolute_error=min_angle_difference(-float(float(args.solarazimuth)+float(rotation_angle)), np.degrees(float(total_vector_angle)))
     absolute_errors.append(absolute_error) # this modification is due to the difference in points of reference in the two systems (vectors increase clockwise from right and saz increases counterclockwise from up)
 
-    #os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
-    #os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
-    #os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
-    #os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')
-    #os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines.png')
+    os.system('python realistic_FOV_aep_tissot_multiple_colors_2ndeye_aolp_lines.py ' +args.input + ' aolp_2ndeye_' + str(rotation_angle) + '_lines.png "' + str(azimuth_deg_list) + '" "' + str(elevation_deg_list) + '" "' + str(aolp_2_lines) + '" "' + str(dolp_2) + '"')
+    os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    os.system('python make_mask_transparent.py aolp_2ndeye_' + str(rotation_angle) + '_lines.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines.png')
 
-    #os.system('python image_superimposing.py aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    os.system('python image_superimposing.py aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
     
-    #os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_' + str(rotation_angle) + '_background.png')
-    #os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
-    #os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
-    #os.system('rm aolp_1steye_' + str(rotation_angle) + '_background.png')
-    #os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
-    #os.system('rm aolp_' + str(rotation_angle) + '_background.png')
+    os.system('python image_superimposing.py aolp_1steye_' + str(rotation_angle) + '_background.png aolp_2ndeye_' + str(rotation_angle) + '_transparent.png aolp_' + str(rotation_angle) + '_background.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_transparent.png')
+    os.system('rm aolp_2ndeye_' + str(rotation_angle) + '_lines_transparent.png')
+    os.system('rm aolp_1steye_' + str(rotation_angle) + '_background.png')
+    os.system('python circular_masking.py aolp_' + str(rotation_angle) + '_background.png aolp_' + str(rotation_angle) + '_background_transparent.png')
+    os.system('rm aolp_' + str(rotation_angle) + '_background.png')
     # frame to import is aolp_' + str(rotation_angle) + '_background_transparent.png
 
 
