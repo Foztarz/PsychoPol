@@ -656,3 +656,150 @@ lines(x = xx,
       col = 'red')
 
 
+# Just bimodal conditions -------------------------------------------------
+bim_dances = subset(mle_data, lb2>0)
+bim_data = rbind(
+            within(bim_dances, 
+                   {
+                     k12 = k1
+                     rm(k1)
+                     rm(k2)
+                     }),
+            within(bim_dances, 
+                   {
+                     k12 = k2
+                     rm(k1)
+                     rm(k2)
+                     })
+          )
+
+#fit models
+glm_101_k12 = glm(formula = A1(k12)~log10(DoLP), 
+                 data = subset(bim_data, Intensity == 101),
+                 family = quasibinomial())
+
+glm_11_k12 = glm(formula = A1(k12)~log10(DoLP), 
+                data = subset(bim_data, Intensity == 11),
+                family = quasibinomial())
+
+
+par(mfrow = c(1,2),
+    mar = c(4,4,2.7,2.7))
+with(subset(bim_data,
+            Intensity ==101),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k12),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Bimodal, High Int',
+            pch = 19,
+            col= adjustcolor(point_col, alpha.f = 0.5),
+            ylim = c(0,1),
+            xlim = c(0.02,0.4),
+            log = 'x',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(point_col, alpha.f = 0.5),)
+     }
+)
+
+lines(x = xx,
+      y = plogis(predict(glm_101_k12, newdata = data.frame( DoLP = xx )) ),
+      col = 'blue')
+
+with(subset(bim_data,
+            Intensity ==11),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k12),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Bimodal, Low Int',
+            pch = 19,
+            col= adjustcolor(2, alpha.f = 0.5),
+            ylim = c(0,1),
+            xlim = c(0.02,0.4),
+            log = 'x',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(2, alpha.f = 0.5),)
+     }
+)
+
+lines(x = xx,
+      y = plogis(predict(glm_11_k12, newdata = data.frame( DoLP = xx )) ),
+      col = 'red')
+
+
+# Nonlinear models --------------------------------------------------------
+
+Psyfun = function(prm, #starting parameters
+                  dt, #data
+                  pri = list(c(-1.0,0.25),#priors
+                             c(0,0.5),
+                             c(-2,1.0),
+                             c(-2,1.0))
+                )
+  {
+  thresh = prm[1]
+  lwidth = prm[2]
+  lbase = prm[3]
+  llapse = prm[4]
+  
+  ll= sum(
+    with(dt,
+       dlogis(x = qlogis(A1(k1+.Machine$double.eps)), #make sure kappa >0
+              location = qlogis(
+                plogis(lbase) + #baseline (logit scaled)
+                (1 - plogis(llapse) - plogis(lbase)) * #curve height (above baseline)
+                                   plogis( 2*log(2/(1- 0.8) -1)* # width scaling factor
+                                                (log10(DoLP) - thresh) / #effect of inflection point
+                                                exp(lwidth) ) #curve width (log scaled))
+                ),
+              scale = 1,
+              log = TRUE)
+          ),
+    na.rm = TRUE
+        )
+  ll = ll +
+      dnorm(thresh, mean =  pri[[1]][1],sd =  pri[[1]][2], log = TRUE) +
+      dnorm(lwidth, mean =  pri[[2]][1],sd =  pri[[2]][2], log = TRUE) +
+      dnorm(lbase, mean =  pri[[3]][1],sd =  pri[[3]][2], log = TRUE) +
+      dnorm(llapse, mean =  pri[[4]][1],sd =  pri[[4]][2], log = TRUE)
+  
+  return(-ll)
+}
+
+nlm_11 = data.frame(
+        t(
+          replicate(n = 1000,
+          optim(par = rnorm(4),
+           fn = Psyfun,
+           dt = subset(mle_data, Intensity == 11),
+           method = 'SANN',
+           control= list(maxit = 100))$par
+          )
+          )
+          )
+nlm_101 = data.frame(
+        t(
+          replicate(n = 1000,
+          optim(par = rnorm(4),
+           fn = Psyfun,
+           dt = subset(mle_data, Intensity == 101),
+           method = 'SANN',
+           control= list(maxit = 100))$par
+          )
+          )
+          )
+
+names(nlm_11) = c('thresh', 'lwdith', 'lbase', 'llapse')
+names(nlm_101) = c('thresh', 'lwdith', 'lbase', 'llapse')
+summary(nlm_11)
+summary(nlm_101)
+summary(nlm_11 - nlm_101)
