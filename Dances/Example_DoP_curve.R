@@ -307,15 +307,46 @@ pdf(file = savepath,
     useDingbats = FALSE,
     onefile = TRUE
 )
+# . Remove short dances ---------------------------------------------------
+dance_length = aggregate(`Waggle run`~date_time,
+                         data = adata,
+                         FUN = max)
+with(dance_length, hist(`Waggle run`, breaks = 100))
+with(dance_length, quantile(`Waggle run`, 0.05))
+#what we actually want are short condition combinations
+cond_length = aggregate(`Waggle run`~Intensity*DoLP*AoP*date_time,
+                         data = adata,
+                         FUN = length)
+with(cond_length, hist(`Waggle run`, breaks = 100))
+with(cond_length, quantile(`Waggle run`, 0.05))
+
+long_cond = with(subset(cond_length, `Waggle run` >5),
+                 paste(date_time,Intensity,DoLP,AoP))
+length(unique(long_cond))
+#43
+adata = within(adata,
+              { IDA = paste(date_time, Intensity,DoLP,AoP) }
+              )
+
+edata = subset(adata, 
+               IDA %in% long_cond)
 
 # . Set up plot parameters ------------------------------------------------
 #make a set of angles for each combination of stimulus, orientation, dance and bee
 df_lst = aggregate(x = angle~Intensity*DoLP*AoP*date_time,
-                   data = adata,
+                   data = edata,
                    FUN = list
 )
 dim(df_lst)
-#87 tests
+#43 tests longer than 5 runs
+#convert to data.frame list
+dt_lst = lapply(X = long_cond,
+                FUN = function(i)
+                {
+                  subset(edata, IDA %in% i)
+                }
+)
+names(dt_lst) = long_cond
 
 # . . Set up parallel processing ------------------------------------------
 
@@ -324,7 +355,7 @@ avail.cores = parallel::detectCores() - 1
 clt = makeCluster(avail.cores,# run as many as possible
                   type=if(sys_win){"SOCK"}else{"FORK"})
 clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
-              list('df_lst',
+              list('dt_lst',
                    'DA_MLpars',
                    'Cformat',
                    'circ_mle',
@@ -334,24 +365,98 @@ clusterExport(cl = clt,#the cluster needs some variables&functions outside parLa
               environment()#needs to be reminded to use function environment, NOT global environment
 )
 
-ml_par =   parApply(cl = clt,
-                    X = df_lst,
-                    MARGIN = 1,
-                    FUN = DA_MLpars)
+system.time({
+ml_par =   parLapply(cl = clt,
+                    X = dt_lst,
+                    fun = DA_MLpars)
+})
 stopCluster(clt)
+
+names(ml_par) = long_cond
+
+
+#TODO why calculate these twice? Takes nearly 15 minutes!
+DA_BimodPlot_example = function(dat, mlmod = NA)
+{
+  with(dat,
+       {
+         plot.circular(
+           x = Cformat(  angle ),
+           bins = 360/5-1,
+           stack = T,
+           sep = 0.07,
+           col = point_col,
+           pch = 19,
+           shrink = shrk
+         )
+         mtext(text = paste0(as.character(unique(date_time)),
+                             '\n',
+                             unique(Intensity),
+                             'µW ',
+                             unique(DoLP),
+                             ', ',
+                             unique(AoP),
+                             '°'),
+               line = -1.5,
+               cex = 1.5/sq_cond,#3/sq_cond,
+               col = switch (as.character(unique(AoP)),
+                             `0` = 'red',
+                             `90` = 'cyan3',
+                             'gray'
+               )
+         )
+       }
+      )
+         with(mlmod,
+              {
+               arrows(x0 = 0 ,
+                      y0 = 0,
+                      x1 = sin(rad(m1))*A1(k1),
+                      y1 = cos(rad(m1))*A1(k1),
+                      col = 2,
+                      lwd = lb1/0.3,
+                      length = 0.05
+               )
+               arrows(x0 = 0 ,
+                      y0 = 0,
+                      x1 = sin(rad(m2))*A1(k2),
+                      y1 = cos(rad(m2))*A1(k2),
+                      col = 2,
+                      lwd = lb2/0.3,
+                      length = 0.05
+               )
+              }
+         )
+}
 
 nms = names(df_lst)
 ucond = dim(df_lst)[1]#prod(lul)
 sq_cond = min( c( ceiling(sqrt(ucond)), 5) )
 shrk = 1+sqrt(dim(adata)[1])/ucond
+
+# Plot for each phase -----------------------------------------------------
+
+# . Set up plot file ------------------------------------------------------
+#file to save to in the same location as the original
+savepath = paste0(path_file, '-byBDSOD-corrected-MLE.pdf')
+#open the file
+pdf(file = savepath,
+    paper = 'a4r',
+    bg = 'white',
+    useDingbats = FALSE,
+    onefile = TRUE
+)
+
+# . Set up plot p
+
 par(mfrow = c(sq_cond, sq_cond),
     mar = c(0,0,0,0),
     pty = 's'
 )
 invisible(
-  apply(X = df_lst,
-        MARGIN = 1,
-        FUN = DA_BimodPlot
+  mapply(dat = dt_lst,
+         mlmod = ml_par,
+        FUN = DA_BimodPlot_example
   )
 )
 #save plot
@@ -377,14 +482,14 @@ shell.exec.OS(res_path)
 par_dt = do.call(what = rbind,
                  args = ml_par)
 
-mle_data = data.frame(cbind(df_lst, par_dt))
+mle_data = data.frame(cbind(df_lst[-5], par_dt))
 
 par(mfrow = c(2,2),
     mar = c(0,0,0,0),
     pty = 's')
 with(mle_data,
      {
-       plot.circular(x = Cformat(m1[stim_ori == 0]),
+       plot.circular(x = Cformat(m1[AoP == 0]),
                      stack = T,
                      sep = 0.1,
                      col = point_col,
@@ -395,7 +500,7 @@ with(mle_data,
        )
        text(x = 0, y = 0,
             labels = 'Primary mean\n Stimulus: 0°')
-       plot.circular(x = Cformat(m1[stim_ori == 90]),
+       plot.circular(x = Cformat(m1[AoP == 90]),
                      stack = T,
                      sep = 0.1,
                      col = 'darkred',
@@ -406,7 +511,7 @@ with(mle_data,
        ) 
        text(x = 0, y = 0,
             labels = 'Primary mean\n Stimulus: 90°')
-       plot.circular(x = Cformat(m2[stim_ori == 0]),
+       plot.circular(x = Cformat(m2[AoP == 0]),
                      stack = T,
                      sep = 0.1,
                      col = point_col,
@@ -417,7 +522,7 @@ with(mle_data,
        )
        text(x = 0, y = 0,
             labels = 'Secondary mean\n Stimulus: 0°')
-       plot.circular(x = Cformat(m2[stim_ori == 90]),
+       plot.circular(x = Cformat(m2[AoP == 90]),
                      stack = T,
                      sep = 0.1,
                      col = 'darkred',
@@ -431,101 +536,123 @@ with(mle_data,
      }
 )
 
-plot.circular(x = Cformat(m1[stim_ori == 0]),
-              stack = T,
-              sep = 0.1,
-              col = point_col,
-              pch = 19,
-              shrink = 2,
-              bins = 360/5-1,
-              axes = FALSE
+par(mfrow = c(1,2),
+    mar = c(4,4,2.7,2.7))
+with(subset(mle_data,
+            Intensity ==101),
+     {
+stripchart(x = A1(kappa = k1)~DoLP,
+           
+           xlab = 'stimulus',
+           ylab = 'MLE rho',
+           main = 'Primary mean, High Int',
+           vertical  = TRUE,
+           method = 'stack',
+           pch = 19,
+           col= adjustcolor(point_col, alpha.f = 0.5),
+           # cex.axis = 0.3,
+           las = 2)
+stripchart(x = A1(kappa = k1)~DoLP,
+          data = subset(mle_data, Intensity == 11),
+          xlab = 'stimulus',
+          ylab = 'MLE rho',
+          main = 'Primary mean, High Int',
+          vertical  = TRUE,
+          method = 'stack',
+          pch = 19,
+          col= adjustcolor(2, alpha.f = 0.5),
+          add = TRUE,
+          las = 2)       
+abline(h = c(0,1))
+stripchart(x = A1(kappa = k2)~DoLP,
+           xlab = 'stimulus',
+           ylab = 'MLE rho',
+           main = 'Secondary mean, High Int',
+           vertical  = TRUE,
+           method = 'stack',
+           pch = 19,
+           col= adjustcolor(point_col, alpha.f = 0.5),
+           # cex.axis = 0.3,
+           las = 2)
+stripchart(x = A1(kappa = k2)~DoLP,
+           data = subset(mle_data, Intensity == 11),
+           xlab = 'stimulus',
+           ylab = 'MLE rho',
+           main = 'Primary mean, High Int',
+           vertical  = TRUE,
+           method = 'stack',
+           pch = 19,
+           col= adjustcolor(2, alpha.f = 0.5),
+           add = TRUE,
+           las = 2)
+abline(h = c(0,1))
+     }
 )
-text(x = 0, y = 0,
-     labels = 'Primary mean\n Stimulus: 0°')
-plot.circular(x = Cformat(m1[stim_ori == 90]),
-              stack = T,
-              sep = 0.1,
-              col = 'darkred',
-              pch = 19,
-              shrink = 2,
-              bins = 360/5-1,
-              axes = FALSE
-)
-text(x = 0, y = 0,
-     labels = 'Primary mean\n Stimulus: 90°')
-plot.circular(x = Cformat(m2[stim_ori == 0]),
-              stack = T,
-              sep = 0.1,
-              col = point_col,
-              pch = 19,
-              shrink = 2,
-              bins = 360/5-1,
-              axes = FALSE
-)
-text(x = 0, y = 0,
-     labels = 'Secondary mean\n Stimulus: 0°')
-plot.circular(x = Cformat(m2[stim_ori == 90]),
-              stack = T,
-              sep = 0.1,
-              col = 'darkred',
-              pch = 19,
-              shrink = 2,
-              bins = 360/5-1,
-              axes = FALSE
-)
-text(x = 0, y = 0,
-     labels = 'Secondary mean\n Stimulus: 90°')
 
+baseline = summary(subset(mle_data,
+                          Intensity ==0))
+
+
+glm_101_k1 = glm(formula = A1(k1)~log10(DoLP), 
+                 data = subset(mle_data, Intensity == 101),
+                 family = quasibinomial())
+
+glm_11_k1 = glm(formula = A1(k1)~log10(DoLP), 
+                 data = subset(mle_data, Intensity == 11),
+                 family = quasibinomial())
 
 
 par(mfrow = c(1,2),
     mar = c(4,4,2.7,2.7))
-stripchart(x = A1(kappa = k1)~stimulus,
-           
-           data = mle_data,
-           xlab = 'stimulus',
-           ylab = 'MLE rho',
-           main = 'Primary mean',
-           vertical  = TRUE,
-           method = 'stack',
-           pch = 19,
-           col= adjustcolor(point_col, alpha.f = 0.5),
-           # cex.axis = 0.3,
-           las = 2)
-abline(h = c(0,1))
-stripchart(x = A1(kappa = k2)~stimulus,
-           data = mle_data,
-           xlab = 'stimulus',
-           ylab = 'MLE rho',
-           main = 'Secondary mean',
-           vertical  = TRUE,
-           method = 'stack',
-           pch = 19,
-           col= adjustcolor(point_col, alpha.f = 0.5),
-           # cex.axis = 0.3,
-           las = 2)
-abline(h = c(0,1))
+with(subset(mle_data,
+            Intensity ==101),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k1),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Primary mean, High Int',
+            pch = 19,
+            col= adjustcolor(point_col, alpha.f = 0.5),
+            ylim = c(0,1),
+            xlim = c(0.02,0.4),
+            log = 'x',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(point_col, alpha.f = 0.5),)
+     }
+)
 
-# data = mle_data,
-# xlab = 'stimulus',
-# ylab = 'MLE rho',
-# main = 'Primary mean',
-# vertical  = TRUE,
-# method = 'stack',
-# pch = 19,
-# col= adjustcolor(point_col, alpha.f = 0.5),
-# # cex.axis = 0.3,
-# las = 2)
-abline(h = c(0,1))
-stripchart(x = A1(kappa = k2)~stimulus,
-           data = mle_data,
-           xlab = 'stimulus',
-           ylab = 'MLE rho',
-           main = 'Secondary mean',
-           vertical  = TRUE,
-           method = 'stack',
-           pch = 19,
-           col= adjustcolor(point_col, alpha.f = 0.5),
-           # cex.axis = 0.3,
-           las = 2)
-abline(h = c(0,1))
+xx = seq(from = 0.02, to  = 0.4, length.out = 1e3)
+lines(x = xx,
+      y = plogis(predict(glm_101_k1, newdata = data.frame( DoLP = xx )) ),
+      col = 'blue')
+
+with(subset(mle_data,
+            Intensity ==11),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k1),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Primary mean, Low Int',
+            pch = 19,
+            col= adjustcolor(2, alpha.f = 0.5),
+            ylim = c(0,1),
+            xlim = c(0.02,0.4),
+            log = 'x',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(2, alpha.f = 0.5),)
+     }
+)
+
+lines(x = xx,
+      y = plogis(predict(glm_11_k1, newdata = data.frame( DoLP = xx )) ),
+      col = 'red')
+
+
