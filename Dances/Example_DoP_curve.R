@@ -990,7 +990,7 @@ with(subset(mle_data,
             col= adjustcolor(2, alpha.f = 0.5),
             ylim = c(1, 130),
             xlim = c(0.02,0.4),
-            log = 'x',
+            log = 'xy',
             las = 2)
      }
 )
