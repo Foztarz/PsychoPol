@@ -740,8 +740,8 @@ lines(x = xx,
 
 Psyfun = function(prm, #starting parameters
                   dt, #data
-                  pri = list(c(-1.0,0.25),#priors
-                             c(0,0.5),
+                  pri = list(c(-1.0,0.3),#priors
+                             c(0,1.0),
                              c(-2,1.0),
                              c(-2,1.0))
                 )
@@ -774,7 +774,7 @@ Psyfun = function(prm, #starting parameters
   
   return(-ll)
 }
-
+#repeated short runs with SANN to get CI
 nlm_11 = data.frame(
         t(
           replicate(n = 1000,
@@ -798,8 +798,209 @@ nlm_101 = data.frame(
           )
           )
 
-names(nlm_11) = c('thresh', 'lwdith', 'lbase', 'llapse')
-names(nlm_101) = c('thresh', 'lwdith', 'lbase', 'llapse')
+names(nlm_11) = c('thresh', 'lwidth', 'lbase', 'llapse')
+names(nlm_101) = c('thresh', 'lwidth', 'lbase', 'llapse')
+#check params
 summary(nlm_11)
 summary(nlm_101)
+#check contrast
 summary(nlm_11 - nlm_101)
+
+prm_nlm_11 = apply(nlm_11, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
+prm_nlm_101 = apply(nlm_101, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
+
+PredPsych = function(x, thresh, lwidth, lbase, llapse)
+{
+    plogis(lbase) + #baseline (logit scaled)
+      (1 - plogis(llapse) - plogis(lbase)) * #curve height (above baseline)
+      plogis( 2*log(2/(1- 0.8) -1)* # width scaling factor
+                (log10(x) - thresh) / #effect of inflection point
+                exp(lwidth) ) #curve width (log scaled))
+}
+
+
+par(mfrow = c(1,2),
+    mar = c(4,4,2.7,2.7))
+with(subset(mle_data,
+            Intensity ==101),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k1),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Primary mean, High Int',
+            pch = 19,
+            col= adjustcolor(point_col, alpha.f = 0.5),
+            ylim = c(0,1),
+            xlim = c(0.02,0.4),
+            log = 'x',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(point_col, alpha.f = 0.5),)
+     }
+)
+
+with(data.frame(prm_nlm_101),
+     {
+lines(x = xx,
+      y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+      col = 'blue',
+      lwd = 3)
+ abline(v = 10^thresh, lty = c(3,1,3), col = 'blue')
+    }
+)
+with(subset(mle_data,
+            Intensity ==11),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k1),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Primary mean, Low Int',
+            pch = 19,
+            col= adjustcolor(2, alpha.f = 0.5),
+            ylim = c(0,1),
+            xlim = c(0.02,0.4),
+            log = 'x',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(2, alpha.f = 0.5),)
+     }
+)
+
+with(data.frame(prm_nlm_11),
+     {
+       lines(x = xx,
+             y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+             col = 'red',
+             lwd = 3)
+       abline(v = 10^thresh, lty = c(3,1,3), col = 'red')
+     }
+)
+
+#logscale
+par(mfrow = c(1,2),
+    mar = c(4,4,2.7,2.7))
+with(subset(mle_data,
+            Intensity ==101),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k1),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Primary mean, High Int',
+            pch = 19,
+            col= adjustcolor(point_col, alpha.f = 0.5),
+            ylim = c(0.5,1),
+            xlim = c(0.02,0.4),
+            log = 'xy',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(point_col, alpha.f = 0.5),)
+     }
+)
+
+with(data.frame(prm_nlm_101),
+     {
+lines(x = xx,
+      y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+      col = 'blue',
+      lwd = 3)
+abline(v = 10^thresh, lty = c(3,1,3), col = 'blue')
+    }
+)
+
+with(subset(mle_data,
+            Intensity ==11),
+     {
+       plot(x = DoLP,
+            y = A1(kappa = k1),
+            xlab = 'DoLP',
+            ylab = 'MLE rho',
+            main = 'Primary mean, Low Int',
+            pch = 19,
+            col= adjustcolor(2, alpha.f = 0.5),
+            ylim = c(0.7,1),
+            xlim = c(0.02,0.4),
+            log = 'xy',
+            las = 2)
+       points(x = DoLP[lb2>0],
+              y = A1(kappa = k2[lb2>0]),
+              pch = 19,
+              col= adjustcolor(2, alpha.f = 0.5),)
+     }
+)
+
+with(data.frame(prm_nlm_11),
+     {
+       lines(x = xx,
+             y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+             col = 'red',
+             lwd = 3)
+       abline(v = 10^thresh, lty = c(3,1,3), col = 'red')
+     }
+)
+
+
+# Kappa version -----------------------------------------------------------
+
+
+par(mfrow = c(1,2),
+    mar = c(4,4,2.7,2.7))
+with(subset(mle_data,
+            Intensity ==101),
+     {
+       plot(x = DoLP,
+            y = k1,
+            xlab = 'DoLP',
+            ylab = 'accuracy (kappa)',
+            main = 'Primary mean, High Int',
+            pch = 19,
+            col= adjustcolor(point_col, alpha.f = 0.5),
+            ylim = c(1, 250),
+            xlim = c(0.02,0.4),
+            log = 'xy',
+            las = 2)
+     }
+)
+
+with(data.frame(prm_nlm_101),
+     {
+       lines(x = xx,
+             y = A1inv(PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]) ),
+             col = 'blue',
+             lwd = 3)
+     }
+)
+with(subset(mle_data,
+            Intensity ==11),
+     {
+       plot(x = DoLP,
+            y = k1,
+            xlab = 'DoLP',
+            ylab = 'accuracy (kappa)',
+            main = 'Primary mean, Low Int',
+            pch = 19,
+            col= adjustcolor(2, alpha.f = 0.5),
+            ylim = c(1, 130),
+            xlim = c(0.02,0.4),
+            log = 'x',
+            las = 2)
+     }
+)
+
+with(data.frame(prm_nlm_11),
+     {
+       lines(x = xx,
+             y = A1inv(PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]) ),
+             col = 'red',
+             lwd = 3)
+     }
+)
+
