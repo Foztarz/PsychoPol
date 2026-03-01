@@ -439,53 +439,6 @@ with(mle_data,
      }
 )
 
-     plot.circular(x = Cformat(m1[stim_ori == 0]),
-                                      stack = T,
-                                      sep = 0.1,
-                                      col = point_col,
-                                      pch = 19,
-                                      shrink = 2,
-                                      bins = 360/5-1,
-                                      axes = FALSE
-     )
-    text(x = 0, y = 0,
-         labels = 'Primary mean\n Stimulus: 0°')
-     plot.circular(x = Cformat(m1[stim_ori == 90]),
-                                      stack = T,
-                                      sep = 0.1,
-                                      col = 'darkred',
-                                      pch = 19,
-                                      shrink = 2,
-                                      bins = 360/5-1,
-                                      axes = FALSE
-     )
-     text(x = 0, y = 0,
-          labels = 'Primary mean\n Stimulus: 90°')
-     plot.circular(x = Cformat(m2[stim_ori == 0]),
-                                      stack = T,
-                                      sep = 0.1,
-                                      col = point_col,
-                                      pch = 19,
-                                      shrink = 2,
-                                      bins = 360/5-1,
-                                      axes = FALSE
-     )
-     text(x = 0, y = 0,
-          labels = 'Secondary mean\n Stimulus: 0°')
-     plot.circular(x = Cformat(m2[stim_ori == 90]),
-                                      stack = T,
-                                      sep = 0.1,
-                                      col = 'darkred',
-                                      pch = 19,
-                                      shrink = 2,
-                                      bins = 360/5-1,
-                                      axes = FALSE
-     )
-     text(x = 0, y = 0,
-          labels = 'Secondary mean\n Stimulus: 90°')
-     }
-     )
-
 
 
 par(mfrow = c(1,2),
@@ -516,26 +469,3 @@ stripchart(x = A1(kappa = k2)~stimulus,
            las = 2)
 abline(h = c(0,1))
 
-          data = mle_data,
-          xlab = 'stimulus',
-          ylab = 'MLE rho',
-          main = 'Primary mean',
-          vertical  = TRUE,
-          method = 'stack',
-          pch = 19,
-          col= adjustcolor(point_col, alpha.f = 0.5),
-          # cex.axis = 0.3,
-          las = 2)
-abline(h = c(0,1))
-stripchart(x = A1(kappa = k2)~stimulus,
-          data = mle_data,
-          xlab = 'stimulus',
-          ylab = 'MLE rho',
-          main = 'Secondary mean',
-          vertical  = TRUE,
-          method = 'stack',
-          pch = 19,
-          col= adjustcolor(point_col, alpha.f = 0.5),
-          # cex.axis = 0.3,
-          las = 2)
-abline(h = c(0,1))
