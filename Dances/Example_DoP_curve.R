@@ -295,16 +295,6 @@ legend(x = 'topright',
 
 # Plot for each phase -----------------------------------------------------
 
-# . Set up plot file ------------------------------------------------------
-#file to save to in the same location as the original
-savepath = paste0(path_file, '-byBDSOD-corrected-MLE.pdf')
-#open the file
-pdf(file = savepath,
-    paper = 'a4r',
-    bg = 'white',
-    useDingbats = FALSE,
-    onefile = TRUE
-)
 # . Remove short dances ---------------------------------------------------
 dance_length = aggregate(`Waggle run`~date_time,
                          data = adata,
@@ -438,6 +428,7 @@ sq_cond = min( c( ceiling(sqrt(ucond)), 5) )
 shrk = 1+sqrt(dim(adata)[1])/ucond
 
 # Plot for each phase -----------------------------------------------------
+
 
 # . Set up plot file ------------------------------------------------------
 #file to save to in the same location as the original
