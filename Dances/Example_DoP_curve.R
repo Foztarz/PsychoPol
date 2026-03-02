@@ -761,15 +761,20 @@ k12_data = rbind(
 
 #anomalous trials for intensity 11, DoLP <0.05
 model_data = subset(k12_data, 
-                    !(Intensity == 11 & DoLP <0.05))
+                    !(Intensity == 11 & DoLP <0.05) &
+                      k12>0.1 #these might as well be 0
+                    )
 
 
 Psyfun = function(prm, #starting parameters
                   dt, #data
                   pri = list(c(-1.0,0.3),#priors
                              c(-1,1.0),#the range of log10 DoLP is log(1.3) = 0.26 wide, max plausible
-                             c(-1.5,1.0),
-                             c(-3,1.0)),
+                             c(-1,1.0), #relatively high baseline
+                             c(-3,1.0), #max close to 1.0
+                             c(0,0.2), #expect only small effect on threshold
+                             c(0,1.0)
+                             ),
                   kname = 'k1'
                 )
   {
@@ -777,6 +782,8 @@ Psyfun = function(prm, #starting parameters
   lwidth = prm[2]
   lbase = prm[3]
   llapse = prm[4]
+  threshb = prm[5]
+  lwidthb = prm[6]
   
   ll= sum(
     with(dt,
@@ -785,20 +792,22 @@ Psyfun = function(prm, #starting parameters
                 plogis(lbase) + #baseline (logit scaled)
                 (1 - plogis(llapse) - plogis(lbase)) * #curve height (above baseline)
                                    plogis( 2*log(2/(1- 0.8) -1)* # width scaling factor
-                                                (log10(DoLP) - thresh) / #effect of inflection point
-                                                exp(lwidth) ) #curve width (log scaled))
+                                                (log10(DoLP) - (thresh + (threshb * as.integer(Intensity == 11)))) / #effect of inflection point
+                                                exp(lwidth + (lwidthb * as.integer(Intensity == 11)) ) ) #curve width (log scaled))
                 ),
               scale = 1,
               log = TRUE)
           ),
     na.rm = TRUE
         )
+  
   ll = ll +
       dnorm(thresh, mean =  pri[[1]][1],sd =  pri[[1]][2], log = TRUE) +
       dnorm(lwidth, mean =  pri[[2]][1],sd =  pri[[2]][2], log = TRUE) +
       dnorm(lbase, mean =  pri[[3]][1],sd =  pri[[3]][2], log = TRUE) +
-      dnorm(llapse, mean =  pri[[4]][1],sd =  pri[[4]][2], log = TRUE)
-  
+      dnorm(llapse, mean =  pri[[4]][1],sd =  pri[[4]][2], log = TRUE) +
+      dnorm(threshb, mean =  pri[[5]][1],sd =  pri[[5]][2], log = TRUE) +
+      dnorm(lwidthb, mean =  pri[[6]][1],sd =  pri[[6]][2], log = TRUE)
   return(-ll)
 }
 #repeated runs with SANN to get CI
@@ -812,22 +821,59 @@ clusterExport(cl = clt,#the cluster needs some variables&functions outside parLa
               environment()#needs to be reminded to use function environment, NOT global environment
 )
 
+# system.time({
+# nlm_11 = data.frame(
+#         t(
+#           parSapply(cl = clt,
+#                     X = 1:1000,
+#                     FUN = function(i)
+#                       {
+#                       optim(
+#                        par = rnorm(4),
+#                        fn = Psyfun,
+#                        dt = subset(model_data, Intensity == 11),
+#                        kname = 'k12',           
+#                        # pri = list(c(-1,0.2),#informative prior for higher threshold
+#                        #            c(-2,1.0),
+#                        #            c(-3,1.0),
+#                        #            c(-3,1.0)),
+#                        method = 'SANN',
+#                        control= list(maxit = 1000)
+#                        )$par
+#                     }
+#                     )
+#           )
+#           )
+# nlm_101 = data.frame(
+#         t(
+#           parSapply(cl = clt,
+#                     X = 1:1000,
+#                     FUN = function(i)
+#                     {
+#           optim(par = rnorm(4),
+#            fn = Psyfun,
+#            dt = subset(model_data, Intensity == 101),
+#                        kname = 'k12',
+# 
+#            method = 'SANN',
+#            control= list(maxit = 1000))$par
+#                     }
+#           )
+#           )
+#           )
+# })
 system.time({
-nlm_11 = data.frame(
+nlm_joint = data.frame(
         t(
           parSapply(cl = clt,
                     X = 1:1000,
                     FUN = function(i)
                       {
                       optim(
-                       par = rnorm(4),
+                       par = rnorm(6),
                        fn = Psyfun,
-                       dt = subset(model_data, Intensity == 11),
+                       dt = model_data,
                        kname = 'k12',           
-                       pri = list(c(-1,0.1),#informative prior for higher threshold
-                                  c(-2,1.0),
-                                  c(-1.5,1.0),
-                                  c(-3,1.0)),
                        method = 'SANN',
                        control= list(maxit = 1000)
                        )$par
@@ -835,38 +881,29 @@ nlm_11 = data.frame(
                     )
           )
           )
-nlm_101 = data.frame(
-        t(
-          parSapply(cl = clt,
-                    X = 1:1000,
-                    FUN = function(i)
-                    {
-          optim(par = rnorm(4),
-           fn = Psyfun,
-           dt = subset(model_data, Intensity == 101),
-                       kname = 'k12',
-
-           method = 'SANN',
-           control= list(maxit = 1000))$par
-                    }
-          )
-          )
-          )
 })
 stopCluster(clt)
 
-names(nlm_11) = c('thresh', 'lwidth', 'lbase', 'llapse')
-names(nlm_101) = c('thresh', 'lwidth', 'lbase', 'llapse')
+names(nlm_joint) = c('thresh', 'lwidth', 'lbase', 'llapse', 'threshb', 'lwidthb')
+# names(nlm_11) = c('thresh', 'lwidth', 'lbase', 'llapse')
+# names(nlm_101) = c('thresh', 'lwidth', 'lbase', 'llapse')
 #check params
-summary(nlm_11)
-summary(nlm_101)
-#check contrast
-summary(nlm_11 - nlm_101)
+# summary(nlm_11)
+# summary(nlm_101)
+summary(nlm_joint)
+# #check contrast
+# summary(nlm_11 - nlm_101)
 
-par(mfrow = c(1,1)); hist(100*(10**nlm_11$thresh - 10**nlm_101$thresh), breaks = 100)
+par(mfrow = c(1,1))
+with(nlm_joint,
+     {
+      hist(100*(10**(thresh + threshb)  - 10**thresh), breaks = 100)
+     }
+)
 
-prm_nlm_11 = apply(nlm_11, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
-prm_nlm_101 = apply(nlm_101, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
+prm_nlm_joint = apply(nlm_joint, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
+# prm_nlm_11 = apply(nlm_11, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
+# prm_nlm_101 = apply(nlm_101, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
 
 PredPsych = function(x, thresh, lwidth, lbase, llapse)
 {
@@ -897,7 +934,7 @@ with(subset(model_data,
      }
 )
 
-with(data.frame(prm_nlm_101),
+with(data.frame(prm_nlm_joint),
      {
 lines(x = xx,
       y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
@@ -923,10 +960,10 @@ with(subset(model_data,
      }
 )
 
-with(data.frame(prm_nlm_11),
+with(data.frame(prm_nlm_joint),
      {
        lines(x = xx,
-             y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+             y = PredPsych(xx, thresh[2]+threshb[2], lwidth[2]+lwidthb[2], lbase[2], llapse[2]),
              col = 'red',
              lwd = 3)
        abline(v = 10^thresh, lty = c(3,1,3), col = 'red')
@@ -940,7 +977,8 @@ with(data.frame(prm_nlm_11),
 
 
 par(mfrow = c(1,1),
-    mar = c(4,4,2.7,2.7))
+    mar = c(5,5,5,0),
+    pty = 'm')
 with(subset(model_data,
             Intensity ==101),
      {
@@ -951,7 +989,7 @@ with(subset(model_data,
             main = 'Both means',
             pch = 19,
             col= adjustcolor(point_col, alpha.f = 0.5),
-            ylim = c(0,1),
+            ylim = c(0.4,1),
             xlim = c(0.02,0.4),
             log = 'x',
             las = 2)
@@ -968,7 +1006,7 @@ with(subset(model_data,
      }
 )
 
-with(data.frame(prm_nlm_101),
+with(data.frame(prm_nlm_joint),
      {
        lines(x = xx,
              y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
@@ -977,13 +1015,13 @@ with(data.frame(prm_nlm_101),
        abline(v = 10^thresh, lty = c(3,1,3), col = 'blue')
      }
 )
-with(data.frame(prm_nlm_11),
+with(data.frame(prm_nlm_joint),
      {
        lines(x = xx,
-             y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+             y = PredPsych(xx, thresh[2]+threshb[2], lwidth[2]+lwidthb[2], lbase[2], llapse[2]),
              col = 'red',
              lwd = 3)
-       abline(v = 10^thresh, lty = c(3,1,3), col = 'red')
+       abline(v = 10^(thresh+threshb), lty = c(3,1,3), col = 'red')
      }
 )
 
