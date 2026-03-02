@@ -824,8 +824,8 @@ nlm_11 = data.frame(
                        fn = Psyfun,
                        dt = subset(model_data, Intensity == 11),
                        kname = 'k12',           
-                       pri = list(c(-0.7,0.2),#informative prior for higher threshold
-                                  c(-1,1.0),
+                       pri = list(c(-1,0.1),#informative prior for higher threshold
+                                  c(-2,1.0),
                                   c(-1.5,1.0),
                                   c(-3,1.0)),
                        method = 'SANN',
@@ -964,8 +964,7 @@ with(subset(model_data,
        points(x = DoLP,
             y = A1(kappa = k12),
             pch = 19,
-            col= adjustcolor(2, alpha.f = 0.5),
-            log = 'x')
+            col= adjustcolor(2, alpha.f = 0.5))
      }
 )
 
