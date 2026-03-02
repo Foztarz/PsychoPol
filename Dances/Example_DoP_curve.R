@@ -1,6 +1,6 @@
 # Details ---------------------------------------------------------------
 #       AUTHOR:	James Foster              DATE: 2026 03 01
-#     MODIFIED:	James Foster              DATE: 2026 03 01
+#     MODIFIED:	James Foster              DATE: 2026 03 02
 #
 #  DESCRIPTION: A plotter for example dances.
 #               Loads a text file and plots dance angles for each stimulus phase.
@@ -22,13 +22,12 @@
 # 
 #TODO   ---------------------------------------------
 #TODO   
-#- Read in data   
-#- Plot angles    
-#- Neat plot  
-#- Save results 
-#- Perspective correction 
-#- Bimodal mean vector 
-#- Speedup parallel
+#- Read in data   +
+#- Plot angles    +
+#- Neat plot  +
+#- Save results + 
+#- Perspective correction +
+#- Bimodal mean vector +
 #- Separate weird dances
 
 
@@ -83,7 +82,6 @@ speedup_data.table = TRUE #data.table handles Excel's CSV export issues better
 suppressMessages(#these are disturbing users unnecessarily
   {
     require(circular)#package for handling cirular data
-    require(CircStats)#package for circular hypothesis tests
     require(CircMLE)#package for circular hypothesis tests
     require(parallel)#package for parallel processing
   }
@@ -351,6 +349,7 @@ names(dt_lst) = long_cond
 # . . Set up parallel processing ------------------------------------------
 
 #circ_mle is painfully slow
+#parallel takes <40s
 avail.cores = parallel::detectCores() - 1
 clt = makeCluster(avail.cores,# run as many as possible
                   type=if(sys_win){"SOCK"}else{"FORK"})
@@ -368,14 +367,18 @@ clusterExport(cl = clt,#the cluster needs some variables&functions outside parLa
 system.time({
 ml_par =   parLapply(cl = clt,
                     X = dt_lst,
-                    fun = DA_MLpars)
+                    fun = DA_MLpars,
+                    exclude = c('M1', # uniform
+                                'M2B', #k2 uniform
+                                'M2C' #k2 uniform
+                                ) #attempt non-uniform for kappa comparison
+                    )
 })
 stopCluster(clt)
 
 names(ml_par) = long_cond
 
 
-#TODO why calculate these twice? Takes nearly 15 minutes!
 DA_BimodPlot_example = function(dat, mlmod = NA)
 {
   with(dat,
@@ -484,6 +487,15 @@ par_dt = do.call(what = rbind,
 
 mle_data = data.frame(cbind(df_lst[-5], par_dt))
 
+#for unimodal, set k2 to 0
+mle_data = within(mle_data,
+                  {
+                    k2 = ifelse(test = lb2 >0, 
+                                yes = k2,
+                                no = NA )
+                  }
+                  )
+
 par(mfrow = c(2,2),
     mar = c(0,0,0,0),
     pty = 's')
@@ -545,7 +557,8 @@ stripchart(x = A1(kappa = k1)~DoLP,
            
            xlab = 'stimulus',
            ylab = 'MLE rho',
-           main = 'Primary mean, High Int',
+           ylim = c(0,1),
+           main = 'Primary mean',
            vertical  = TRUE,
            method = 'stack',
            pch = 19,
@@ -556,6 +569,7 @@ stripchart(x = A1(kappa = k1)~DoLP,
           data = subset(mle_data, Intensity == 11),
           xlab = 'stimulus',
           ylab = 'MLE rho',
+           ylim = c(0,1),
           main = 'Primary mean, High Int',
           vertical  = TRUE,
           method = 'stack',
@@ -567,7 +581,7 @@ abline(h = c(0,1))
 stripchart(x = A1(kappa = k2)~DoLP,
            xlab = 'stimulus',
            ylab = 'MLE rho',
-           main = 'Secondary mean, High Int',
+           main = 'Secondary mean',
            vertical  = TRUE,
            method = 'stack',
            pch = 19,
@@ -699,10 +713,6 @@ with(subset(bim_data,
             xlim = c(0.02,0.4),
             log = 'x',
             las = 2)
-       points(x = DoLP[lb2>0],
-              y = A1(kappa = k2[lb2>0]),
-              pch = 19,
-              col= adjustcolor(point_col, alpha.f = 0.5),)
      }
 )
 
@@ -724,10 +734,6 @@ with(subset(bim_data,
             xlim = c(0.02,0.4),
             log = 'x',
             las = 2)
-       points(x = DoLP[lb2>0],
-              y = A1(kappa = k2[lb2>0]),
-              pch = 19,
-              col= adjustcolor(2, alpha.f = 0.5),)
      }
 )
 
@@ -737,13 +743,34 @@ lines(x = xx,
 
 
 # Nonlinear models --------------------------------------------------------
+#primary and secondary mean (not used)
+k12_data = rbind(
+  within(mle_data, 
+         {
+           k12 = k1
+           rm(k1)
+           rm(k2)
+         }),
+  within(bim_dances, 
+         {
+           k12 = k2
+           rm(k1)
+           rm(k2)
+         })
+)
+
+#anomalous trials for intensity 11, DoLP <0.05
+model_data = subset(k12_data, 
+                    !(Intensity == 11 & DoLP <0.05))
+
 
 Psyfun = function(prm, #starting parameters
                   dt, #data
                   pri = list(c(-1.0,0.3),#priors
-                             c(0,1.0),
-                             c(-2,1.0),
-                             c(-2,1.0))
+                             c(-1,1.0),#the range of log10 DoLP is log(1.3) = 0.26 wide, max plausible
+                             c(-1.5,1.0),
+                             c(-3,1.0)),
+                  kname = 'k1'
                 )
   {
   thresh = prm[1]
@@ -753,7 +780,7 @@ Psyfun = function(prm, #starting parameters
   
   ll= sum(
     with(dt,
-       dlogis(x = qlogis(A1(k1+.Machine$double.eps)), #make sure kappa >0
+       dlogis(x = qlogis(A1(get(kname)+.Machine$double.eps)), #make sure kappa >0
               location = qlogis(
                 plogis(lbase) + #baseline (logit scaled)
                 (1 - plogis(llapse) - plogis(lbase)) * #curve height (above baseline)
@@ -774,29 +801,59 @@ Psyfun = function(prm, #starting parameters
   
   return(-ll)
 }
-#repeated short runs with SANN to get CI
+#repeated runs with SANN to get CI
+avail.cores = parallel::detectCores() - 1
+clt = makeCluster(avail.cores,# run as many as possible
+                  type=if(sys_win){"SOCK"}else{"FORK"})
+clusterExport(cl = clt,#the cluster needs some variables&functions outside parLapply
+              list('model_data',
+                   'Psyfun',
+                   'A1'),
+              environment()#needs to be reminded to use function environment, NOT global environment
+)
+
+system.time({
 nlm_11 = data.frame(
         t(
-          replicate(n = 1000,
-          optim(par = rnorm(4),
-           fn = Psyfun,
-           dt = subset(mle_data, Intensity == 11),
-           method = 'SANN',
-           control= list(maxit = 100))$par
-          )
+          parSapply(cl = clt,
+                    X = 1:1000,
+                    FUN = function(i)
+                      {
+                      optim(
+                       par = rnorm(4),
+                       fn = Psyfun,
+                       dt = subset(model_data, Intensity == 11),
+                       kname = 'k12',           
+                       pri = list(c(-0.7,0.2),#informative prior for higher threshold
+                                  c(-1,1.0),
+                                  c(-1.5,1.0),
+                                  c(-3,1.0)),
+                       method = 'SANN',
+                       control= list(maxit = 1000)
+                       )$par
+                    }
+                    )
           )
           )
 nlm_101 = data.frame(
         t(
-          replicate(n = 1000,
+          parSapply(cl = clt,
+                    X = 1:1000,
+                    FUN = function(i)
+                    {
           optim(par = rnorm(4),
            fn = Psyfun,
-           dt = subset(mle_data, Intensity == 101),
+           dt = subset(model_data, Intensity == 101),
+                       kname = 'k12',
+
            method = 'SANN',
-           control= list(maxit = 100))$par
+           control= list(maxit = 1000))$par
+                    }
           )
           )
           )
+})
+stopCluster(clt)
 
 names(nlm_11) = c('thresh', 'lwidth', 'lbase', 'llapse')
 names(nlm_101) = c('thresh', 'lwidth', 'lbase', 'llapse')
@@ -805,6 +862,8 @@ summary(nlm_11)
 summary(nlm_101)
 #check contrast
 summary(nlm_11 - nlm_101)
+
+par(mfrow = c(1,1)); hist(100*(10**nlm_11$thresh - 10**nlm_101$thresh), breaks = 100)
 
 prm_nlm_11 = apply(nlm_11, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
 prm_nlm_101 = apply(nlm_101, MARGIN = 2, FUN = quantile, probs = c(0.025, 0.5, 0.975))
@@ -821,24 +880,20 @@ PredPsych = function(x, thresh, lwidth, lbase, llapse)
 
 par(mfrow = c(1,2),
     mar = c(4,4,2.7,2.7))
-with(subset(mle_data,
+with(subset(model_data,
             Intensity ==101),
      {
        plot(x = DoLP,
-            y = A1(kappa = k1),
+            y = A1(kappa = k12),
             xlab = 'DoLP',
             ylab = 'MLE rho',
-            main = 'Primary mean, High Int',
+            main = 'Both mean, High Int',
             pch = 19,
             col= adjustcolor(point_col, alpha.f = 0.5),
             ylim = c(0,1),
             xlim = c(0.02,0.4),
             log = 'x',
             las = 2)
-       points(x = DoLP[lb2>0],
-              y = A1(kappa = k2[lb2>0]),
-              pch = 19,
-              col= adjustcolor(point_col, alpha.f = 0.5),)
      }
 )
 
@@ -851,24 +906,20 @@ lines(x = xx,
  abline(v = 10^thresh, lty = c(3,1,3), col = 'blue')
     }
 )
-with(subset(mle_data,
+with(subset(model_data,
             Intensity ==11),
      {
        plot(x = DoLP,
-            y = A1(kappa = k1),
+            y = A1(kappa = k12),
             xlab = 'DoLP',
             ylab = 'MLE rho',
-            main = 'Primary mean, Low Int',
+            main = 'Both mean, Low Int',
             pch = 19,
             col= adjustcolor(2, alpha.f = 0.5),
             ylim = c(0,1),
             xlim = c(0.02,0.4),
             log = 'x',
             las = 2)
-       points(x = DoLP[lb2>0],
-              y = A1(kappa = k2[lb2>0]),
-              pch = 19,
-              col= adjustcolor(2, alpha.f = 0.5),)
      }
 )
 
@@ -882,125 +933,177 @@ with(data.frame(prm_nlm_11),
      }
 )
 
-#logscale
-par(mfrow = c(1,2),
+
+
+# Final plot --------------------------------------------------------------
+
+
+
+par(mfrow = c(1,1),
     mar = c(4,4,2.7,2.7))
-with(subset(mle_data,
+with(subset(model_data,
             Intensity ==101),
      {
        plot(x = DoLP,
-            y = A1(kappa = k1),
+            y = A1(kappa = k12),
             xlab = 'DoLP',
             ylab = 'MLE rho',
-            main = 'Primary mean, High Int',
+            main = 'Both means',
             pch = 19,
             col= adjustcolor(point_col, alpha.f = 0.5),
-            ylim = c(0.5,1),
+            ylim = c(0,1),
             xlim = c(0.02,0.4),
-            log = 'xy',
+            log = 'x',
             las = 2)
-       points(x = DoLP[lb2>0],
-              y = A1(kappa = k2[lb2>0]),
-              pch = 19,
-              col= adjustcolor(point_col, alpha.f = 0.5),)
      }
 )
 
-with(data.frame(prm_nlm_101),
-     {
-lines(x = xx,
-      y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
-      col = 'blue',
-      lwd = 3)
-abline(v = 10^thresh, lty = c(3,1,3), col = 'blue')
-    }
-)
-
-with(subset(mle_data,
+with(subset(model_data,
             Intensity ==11),
      {
-       plot(x = DoLP,
-            y = A1(kappa = k1),
-            xlab = 'DoLP',
-            ylab = 'MLE rho',
-            main = 'Primary mean, Low Int',
+       points(x = DoLP,
+            y = A1(kappa = k12),
             pch = 19,
             col= adjustcolor(2, alpha.f = 0.5),
-            ylim = c(0.7,1),
-            xlim = c(0.02,0.4),
-            log = 'xy',
-            las = 2)
-       points(x = DoLP[lb2>0],
-              y = A1(kappa = k2[lb2>0]),
-              pch = 19,
-              col= adjustcolor(2, alpha.f = 0.5),)
-     }
-)
-
-with(data.frame(prm_nlm_11),
-     {
-       lines(x = xx,
-             y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
-             col = 'red',
-             lwd = 3)
-       abline(v = 10^thresh, lty = c(3,1,3), col = 'red')
-     }
-)
-
-
-# Kappa version -----------------------------------------------------------
-
-
-par(mfrow = c(1,2),
-    mar = c(4,4,2.7,2.7))
-with(subset(mle_data,
-            Intensity ==101),
-     {
-       plot(x = DoLP,
-            y = k1,
-            xlab = 'DoLP',
-            ylab = 'accuracy (kappa)',
-            main = 'Primary mean, High Int',
-            pch = 19,
-            col= adjustcolor(point_col, alpha.f = 0.5),
-            ylim = c(1, 250),
-            xlim = c(0.02,0.4),
-            log = 'xy',
-            las = 2)
+            log = 'x')
      }
 )
 
 with(data.frame(prm_nlm_101),
      {
        lines(x = xx,
-             y = A1inv(PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]) ),
+             y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
              col = 'blue',
              lwd = 3)
+       abline(v = 10^thresh, lty = c(3,1,3), col = 'blue')
      }
 )
-with(subset(mle_data,
-            Intensity ==11),
-     {
-       plot(x = DoLP,
-            y = k1,
-            xlab = 'DoLP',
-            ylab = 'accuracy (kappa)',
-            main = 'Primary mean, Low Int',
-            pch = 19,
-            col= adjustcolor(2, alpha.f = 0.5),
-            ylim = c(1, 130),
-            xlim = c(0.02,0.4),
-            log = 'xy',
-            las = 2)
-     }
-)
-
 with(data.frame(prm_nlm_11),
      {
        lines(x = xx,
-             y = A1inv(PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]) ),
+             y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
              col = 'red',
              lwd = 3)
+       abline(v = 10^thresh, lty = c(3,1,3), col = 'red')
      }
 )
 
+# 
+# #logscale
+# par(mfrow = c(1,2),
+#     mar = c(4,4,2.7,2.7))
+# with(subset(mle_data,
+#             Intensity ==101),
+#      {
+#        plot(x = DoLP,
+#             y = A1(kappa = k1),
+#             xlab = 'DoLP',
+#             ylab = 'MLE rho',
+#             main = 'Both means, High Int',
+#             pch = 19,
+#             col= adjustcolor(point_col, alpha.f = 0.5),
+#             ylim = c(0.5,1),
+#             xlim = c(0.02,0.4),
+#             log = 'xy',
+#             las = 2)
+#        points(x = DoLP[lb2>0],
+#               y = A1(kappa = k2[lb2>0]),
+#               pch = 19,
+#               col= adjustcolor(point_col, alpha.f = 0.5),)
+#      }
+# )
+# 
+# with(data.frame(prm_nlm_101),
+#      {
+# lines(x = xx,
+#       y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+#       col = 'blue',
+#       lwd = 3)
+# abline(v = 10^thresh, lty = c(3,1,3), col = 'blue')
+#     }
+# )
+# 
+# with(subset(mle_data,
+#             Intensity ==11),
+#      {
+#        plot(x = DoLP,
+#             y = A1(kappa = k1),
+#             xlab = 'DoLP',
+#             ylab = 'MLE rho',
+#             main = 'Both means, Low Int',
+#             pch = 19,
+#             col= adjustcolor(2, alpha.f = 0.5),
+#             ylim = c(0.7,1),
+#             xlim = c(0.02,0.4),
+#             log = 'xy',
+#             las = 2)
+#      }
+# )
+# 
+# with(data.frame(prm_nlm_11),
+#      {
+#        lines(x = xx,
+#              y = PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]),
+#              col = 'red',
+#              lwd = 3)
+#        abline(v = 10^thresh, lty = c(3,1,3), col = 'red')
+#      }
+# )
+# 
+# 
+# # Kappa version --
+# 
+# 
+# par(mfrow = c(1,2),
+#     mar = c(4,4,2.7,2.7))
+# with(subset(mle_data,
+#             Intensity ==101),
+#      {
+#        plot(x = DoLP,
+#             y = k1,
+#             xlab = 'DoLP',
+#             ylab = 'accuracy (kappa)',
+#             main = 'Primary mean, High Int',
+#             pch = 19,
+#             col= adjustcolor(point_col, alpha.f = 0.5),
+#             ylim = c(1, 250),
+#             xlim = c(0.02,0.4),
+#             log = 'xy',
+#             las = 2)
+#      }
+# )
+# 
+# with(data.frame(prm_nlm_101),
+#      {
+#        lines(x = xx,
+#              y = A1inv(PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]) ),
+#              col = 'blue',
+#              lwd = 3)
+#      }
+# )
+# with(subset(mle_data,
+#             Intensity ==11),
+#      {
+#        plot(x = DoLP,
+#             y = k1,
+#             xlab = 'DoLP',
+#             ylab = 'accuracy (kappa)',
+#             main = 'Primary mean, Low Int',
+#             pch = 19,
+#             col= adjustcolor(2, alpha.f = 0.5),
+#             ylim = c(1, 130),
+#             xlim = c(0.02,0.4),
+#             log = 'xy',
+#             las = 2)
+#      }
+# )
+# 
+# with(data.frame(prm_nlm_11),
+#      {
+#        lines(x = xx,
+#              y = A1inv(PredPsych(xx, thresh[2], lwidth[2], lbase[2], llapse[2]) ),
+#              col = 'red',
+#              lwd = 3)
+#      }
+# )
+# 
