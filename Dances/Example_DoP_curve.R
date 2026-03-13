@@ -759,12 +759,12 @@ model_data = subset(k12_data,
 
 Psyfun = function(prm, #starting parameters
                   dt, #data
-                  pri = list(c(-1.0,0.3),#priors
-                             c(-1,1.0),#the range of log10 DoLP is log(1.3) = 0.26 wide, max plausible
-                             c(-1,1.0), #relatively high baseline
-                             c(-3,1.0), #max close to 1.0
-                             c(0,0.2), #expect only small effect on threshold
-                             c(0,1.0)
+                  pri = list(thresh = c(-1.0,0.3),#priors thresh 10^(-1 + c(-1,1)*0.3) = 0.05–0.20
+                             lwidth = c(-1,0.3),#the range of log10 DoLP is log(1.3) = 0.26 wide; 10^(-1 + c(-1,1) %*% (0.5*exp(-1 + t(c(-1,1))*0.3)))
+                             lbase = c(-1,1.0), #relatively high baseline
+                             llapse = c(-3,1.0), #max close to 1.0
+                             threshb = c(0,0.2), #expect only small effect on threshold
+                             lwidth = c(0,1.0)
                              ),
                   kname = 'k1'
                 )
