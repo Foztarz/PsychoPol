@@ -1135,3 +1135,43 @@ with(data.frame(prm_nlm_joint),
 #      }
 # )
 # 
+
+# Barplot p(below threshold) ----------------------------------------------
+n_checked = 21
+n_lower = 8
+
+pb = pbinom(q = n_lower,
+            size = n_checked,
+            prob = 0.5,
+            lower.tail = TRUE)
+
+bt = binom.test(x = n_lower,
+                n = n_checked,
+                p = 0.5,
+                alternative = 'less')
+
+blm = glm( cbind(n_lower, n_checked - n_lower) ~ 1, family = binomial())
+
+q50 = qbinom(p = c(0.25, 0.75),size = n_checked, prob = n_lower/n_checked)/n_checked
+
+barplot(height = n_lower/n_checked,
+        xlim = c(-2, 2)+0.7,
+        ylim = c(0,1),
+        main = 'DoP threshold < 0.06',
+        ylab = 'Proportion of Individuals')
+arrows(x0 = 0.7, x1 = 0.7,
+       y0 = bt$conf.int[1],
+       y1 = bt$conf.int[2],
+       code = 3,
+       angle = 90,
+       length = 0.1,
+       lwd = 0.5
+       )
+segments(x0 = 0.7, x1 = 0.7,
+       y0 = q50[1],
+       y1 = q50[2],
+       lwd = 5,
+       lend = 'butt'
+       )
+abline(h = 0.5,
+       lty = 3)
