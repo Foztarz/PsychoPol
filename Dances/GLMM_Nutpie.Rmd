@@ -153,8 +153,8 @@ slope_mean = 3.00#population slope
 slope_sd = 1.03#population slope standard deviation
 type_mean = 2.50# effect of stimulus type 2 on average response
 type_slope = 3.5# effect of type 2 on response to stimulus intensity
-type_animal_sd = 0.55#0.15# # sd of effect of animal on effect of type 2
-extra_error_sd = 0.10#small source of unnaccounted error
+type_animal_sd = 0.55# sd of effect of animal on effect of type 2
+extra_error_sd = 0.10#small source of unaccounted error
 
 
 # . Set up experimental design --------------------------------------------
@@ -340,6 +340,7 @@ plot(mod_rstan,
      nvar = 4,
      ask = FALSE)
 ```
+Rhat <1.01 suggests all converged well.
 
 # Run BRMS with cmdstanr
 Takes around 5 minutes including compilation.
@@ -422,6 +423,8 @@ aplot = az$plot_trace(mod_nutpie_stan,
 plt$show()
 ```
 
+Everything fits well, but coefficient names (default Stan names) are not very easy to interpret.
+
 # Run Bambi with Nutpie
 
 ```{r Set up Bambi}
@@ -441,7 +444,7 @@ py$bambi_priors <- bambi_priors
 
 ```
 
-Takes around 60 seconds!
+Takes around 120 seconds!
 ```{r Run the Bambi model}
 system.time({
   
@@ -451,7 +454,8 @@ bmb_model = bmb.Model(
     formula = 'correct_incorrect ~ stimulus * type + (1 + stimulus * type | animal)',
     data = py_data,
     family = 'bernoulli',
-    priors = bambi_priors
+    priors = bambi_priors,
+    center_predictors = False
 )
 ")
 
@@ -463,7 +467,11 @@ mod_nutpie_bambi = py$bmb_model$fit(
 )
 })
 ```
-
+In `Bambi` coefficients have intuitive names linked to the predictor variable names.
+But some divergences appear that were not present for the `Stan` model. 
+It is possible that the default parametrisation in `Bambi` is less stable. 
+This could easily be addressed by using `target_adapt = 0.95` for smaller sampling steps.
+(possibly also `center_predictors = False` in `bmb.Model`)
 
 ```{r Check Bambi model heuristics}
 az$summary(mod_nutpie_bambi,
@@ -483,5 +491,5 @@ plt$show()
 
 # Summary
 Ultimately it looks like the fastest and easiest way to sample a GLMM is to use `Nutpie` via `Bambi`. 
-But beware of awkward `reticulate` issues! It is not straightforward to get `R` and
-`Python` environments aligned and talking to each other.
+But beware of awkward `reticulate` issues! 
+It is not straightforward to get `R` and `Python` environments aligned and talking to each other.
