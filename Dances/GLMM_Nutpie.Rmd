@@ -1,0 +1,487 @@
+---
+title: "Example Nutpie GLMM"
+author: "James Foster"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+    fig_caption: true
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Details
+
+**DESCRIPTION**
+
+Simulate population of individual-level data and fit Bayesian GLMMs 
+using different software.
+
+**INPUTS**
+
+(None)
+
+**OUTPUTS**
+
+Model estimates.
+
+**REFERENCES**
+
+- Stan Development Team (2025). 
+  `RStan`: the `R` interface to `Stan`. R package version 2.32.7.
+  https://mc-stan.org/.
+  
+- Gabry J, Češnovar R, Johnson A, Bronder S (2025). 
+  `cmdstanr`: R Interface to `CmdStan`. R package version 0.9.0.9000,
+  commit 9fcbbd0695480500a879a8d0e226f7e8ec564d36, <https://github.com/stan-dev/cmdstanr>.
+  
+- Bürkner P-C (2021).
+  Bayesian Item Response Modeling in `R` with `brms` and Stan.
+  _Journal of Statistical Software_, 100(5), 1-54. doi:10.18637/jss.v100.i05
+
+
+- Abril-Pla, O., Andreani, V., Carroll, C., Dong, L., Fonnesbeck, C. J., Kochurov, M., Kumar, R., Lao, J., Luhmann, C. C., Martin, O. A., et al. (2023).
+  `PyMC`: a modern, and comprehensive probabilistic programming framework in Python.
+  *PeerJ Computer Science* 9, e1516.
+
+- Capretto, T., Piho, C., Kumar, R., Westfall, J., Yarkoni, T., & Martin, O.
+
+  (2022) `Bambi`: A simple interface for fitting Bayesian linear models in Python. *Journal of Statistical Software* 103(15), 1-29. <doi:10.18637/jss.v103.i15>
+
+- Seyboldt, A., Carlson, E. L., & Carpenter, B.
+  (2026).
+  Preconditioning Hamiltonian Monte Carlo by minimizing Fisher Divergence.
+  *arXiv* preprint arXiv:2603.18845.
+
+
+# Motivation
+
+Bayesian modelling represents a flexible and robust aproach to statistical modelling. 
+Multiple software interfaces make it possible for the user to define models at a 
+high level of abstraction, that can then be converted to more explicit code that 
+runs efficiently within a Hamiltonian Markov-chain Monte-Carlo (MCMC) procedure 
+using a No U-Turns Sampler (NUTS) on various operating systems.
+
+In `R` the `brms` package allows users to define models that can then be run as 
+`C++` executables by `rstan` (default) or `cmdstanr` (faster). In `Python` the 
+`Bambi` package performs the same role for generating `PyMC` models, which rely 
+on `numpyro` and `JAX` for sampling. `Nutpie` executes sampling via the extremely 
+efficient `Rust` programming language, and can be used to sample (most) models 
+written in `PyMC` or `Stan`. It also uses a very stable Hamiltonian MCMC algorithm 
+(Seyboldt _et al_.), which seems to improve chain convergence and reduce the rate 
+of divergent transitions; both of which reduce the reliability of model estimates.
+
+
+
+# Set up workspace
+
+To make use of `Python` via `R`, make sure that `reticulate`, `posterior` and `bayesplot`, 
+are installed, and (on Windows) that you have installed the latest version of [Rtools](https://cran.r-project.org/bin/windows/Rtools/).
+Here we first set up a `reticulate` Python environment with the appropriate versions of each package, 
+then load reticulate to ensure that those packages are available.
+We then load the packages required for `brms` models: `brms`, `rstan` and `cmdstanr`.
+
+```{r Load functions and packages}
+p312=reticulate::install_python(version = '3.12')
+reticulate::virtualenv_create(
+  envname = "GLMM-env",
+  python = p312)
+reticulate::py_install(
+  envname = "GLMM-env",
+  packages = 
+            c("numpy>=1.26.4,<2.0.0",
+              "pandas==2.2.2",
+              "scipy==1.13.1",
+              "arviz==0.19.0",
+              "bambi==0.14.0",
+              "pymc==5.16.2",
+              "matplotlib==3.8.4",
+              "formulae==0.5.4",
+              "numba>=0.59.1,<=0.60.0",
+              "nutpie",
+              "bridgestan>=2.4.0,<3.0.0",
+              "netcdf4>=1.6.5,<1.7.0",
+              "h5py>=3.10.0,<4.0.0")
+            )
+require(reticulate) #run python from R
+use_virtualenv("GLMM-env",
+               required = TRUE)
+reticulate::py_config()
+#process and plot MCMC data
+require(posterior)
+require(bayesplot)
+options(posterior.num_args = list(sigfig = 3))#for ease of reading
+# packages for Bayesian regression in R
+require(rstan)
+require(cmdstanr)
+require(brms)
+## Import the nutpie and arviz pacakges into R
+nutpie = import("nutpie")
+az = import("arviz")
+```
+
+
+# Simuluate some data
+
+
+## Simulate data from a random binomial
+
+```{r Simulate binomial data}
+set.seed(17070523)#seed the random number generator with Linnaeus' birthday
+
+
+# . Set up simulation parameters ------------------------------------------
+
+#Experimental variables
+n_animals = 10# number of individuals
+n_levels = 7# number of stimulus levels per individual
+n_types = 2# number of stimulus types
+replicates = 20#number of replicates of each condition
+
+#starting parameters
+pop_mean = 5.00#population mean
+pop_sd = 1.00#population standard deviation
+slope_mean = 3.00#population slope
+slope_sd = 1.03#population slope standard deviation
+type_mean = 2.50# effect of stimulus type 2 on average response
+type_slope = 3.5# effect of type 2 on response to stimulus intensity
+type_animal_sd = 0.55#0.15# # sd of effect of animal on effect of type 2
+extra_error_sd = 0.10#small source of unnaccounted error
+
+
+# . Set up experimental design --------------------------------------------
+
+#Experiment design
+animal = rep(x = 1:n_animals, # each animal has a number and experiences each level
+             times = n_levels)
+animal = sort(animal)# vector of animal numbers organised in order
+animal = rep(x = animal, # each animal and level also includes each type
+             times = n_types)
+stimulus = rep(x = 1:n_levels - 1,# each stimulus has a number and repeats for each animal
+               times = n_animals)
+stimulus = rep(x = stimulus, # repeat stimulus for each type
+               times = n_types)
+stype = rep(x = 1:n_types, # each stimulus type for each animal and number
+            times = n_animals * n_levels)
+stype = sort(stype) # arrange in order
+
+#replicate each observation
+animal = rep(x = animal,
+             times = replicates)
+stimulus = rep(x = stimulus,
+               times = replicates)
+stype = rep(x = stype,
+            times = replicates)
+
+#baseline bias (response when stimulus = 0 and type = 1)
+base_bias_animal = rnorm(n = n_animals,
+                         mean  = pop_mean,
+                         sd = pop_sd)
+#response increase with each stimulus level
+slope_animal = rnorm(n = n_animals,
+                     mean = slope_mean,
+                     sd = slope_sd)
+#response to type 2
+type_animal = rnorm(n = n_animals,
+                    mean = 1.0, # on average, no random effect
+                    sd = type_animal_sd)
+
+# . Generate simulated data -----------------------------------------------
+
+#Make an empty vector
+response_y = rep(x = NA,
+                 length = n_animals * n_levels * n_types * replicates)
+#Loop through experiment design and generate theoretical response
+for (ii in 1:length(response_y))
+{
+  #each data point is generated from the animal's intercept
+  #plus the effect of stimulus type
+  #plus the animal's response (slope) to changing stimulus level
+  #scaled by the effect of different stimlus types
+  #plus a small additional source or error
+  response_y[ii] = base_bias_animal[animal[ii]] +
+    (stype[ii] - 1) * type_mean +
+    (slope_animal[animal[ii]] +
+       (stype[ii] - 1) * type_slope * type_animal[animal[ii]]) * stimulus[ii] +
+    rnorm(n = 1,
+          mean = 0,
+          sd = extra_error_sd)
+}
+#convert to binomial
+correct_incorrect = rbinom(n = length(response_y),
+                           size = 1,
+                           prob = plogis(q = response_y - mean(response_y)) )
+
+
+# Combine this into a single data.frame format object,
+# with the experimental design and the measured response data
+sim_data = data.frame(
+  correct_incorrect = correct_incorrect,
+  animal = LETTERS[animal],
+  #animal names will now be capital letters
+  stimulus = stimulus + 0.001,
+  type = factor(stype,
+                labels = c('alpha',
+                           'beta'))
+)
+#Inspect data
+head(sim_data)
+```
+
+
+## Plot aggregates from the simulated data
+
+```{r Plot the data}
+dta = sim_data
+#Set up plot colours
+#on Rstudio these are distinct
+clz = sapply(length(unique(dta$animal)),
+             colorRampPalette(c(
+               'red', 'blue', 'cyan4', 'magenta4', 'orange'
+             )))
+clz = sample(clz)#Randomise order?
+
+#general overview
+#aggragate the proportion correct for each animal
+agg = aggregate(correct_incorrect~
+                   stimulus * type * animal,
+                 data = dta,
+                FUN = mean)
+#inspect the aggregate values
+head(agg)
+
+# open an empty plot
+plot(
+  NULL,
+  xlab = 'Stimulus intensity',
+  ylab = 'Proportion correct',
+  xlim = range(stimulus) * c(0.7, 1.3),
+  ylim = c(0,1),
+)
+abline(h = c(0,1))
+for (aa in agg$animal)
+  with(subset(agg, animal == aa),
+       #find the subset of the data with this animal
+       {
+         #Run code using this data as an environment
+         points(
+           x = stimulus,
+           y = correct_incorrect,
+           col = clz[which(LETTERS %in% aa)],
+           #colour for this animal
+           pch = c(20, 21)[1 + type %in% levels(type)[2]]
+           # a dot, filled or open
+         )
+       })
+legend(
+  x = 'topright',
+  legend = unique(agg$animal),
+  col = clz,
+  pch = 20
+)
+legend(x = 'bottomright',
+       legend = unique(agg$type),
+       pch = c(20, 21))
+```
+
+
+# Set up BRMS model
+
+In this model, the correct choices can be predicted from the stimulus intensity,
+stimulus types and their interaction, as well as individual differences between 
+each animal and their responses to each condition.
+
+```{r Model formula in statistical notation}
+frm_brms = bf(correct_incorrect ~
+                  stimulus * type +
+                  (1 + stimulus * type | animal)
+              )
+```
+
+We set some default priors with moderate information. On the `logit` scale a change in 
+log-odds of 1.0 corresponds to a large change in the probability of an event.
+
+```{r Set up model priors}
+pr_brms = prior("normal(0,1.0)", class = 'b') +
+            prior("student_t(3,0,1.0)", class = 'sd')
+```
+
+
+# Run BRMS with rstan
+Takes nearly 10 minutes.
+
+```{r rstan version}
+system.time({
+  mod_rstan = brm(formula = frm_brms,
+                  data = dta,
+                  prior = pr_brms,
+                  family = bernoulli(link = 'logit'),
+                  silent = 2,#print only critical messages
+                  refresh = 0,
+                  chains = 4,
+                  cores = 4,#run each chain on a separate CPU
+                  iter = 2000,#2000 iterations
+                  warmup = 1000,#use the first 1000 to tune the sampler
+                  backend = 'rstan'
+                  )
+})
+```
+```{r check rstan heuristics}
+summary(mod_rstan)
+plot(mod_rstan,
+     nvar = 4,
+     ask = FALSE)
+```
+
+# Run BRMS with cmdstanr
+Takes around 5 minutes including compilation.
+```{r cmdstanr version}
+system.time({
+  mod_cmdstanr = brm(formula = frm_brms,
+                  data = dta,
+                  prior = pr_brms,
+                  family = bernoulli(link = 'logit'),
+                  silent = 2,#print only critical messages
+                  refresh = 0,
+                  chains = 4,
+                  cores = 4,#run each chain on a separate CPU
+                  iter = 2000,#2000 iterations
+                  warmup = 1000,#use the first 1000 to tune the sampler
+                  backend = 'cmdstanr'
+                  )
+})
+```
+
+```{r check cmdstanr heuristics}
+summary(mod_rstan)
+plot(mod_rstan,
+     nvar = 4,
+     ask = FALSE)
+```
+
+# Compile BRMS to Stan and run with Nutpie
+
+```{r make Stan model}
+mod_stan =   make_stancode(formula = frm_brms,
+                  data = dta,
+                  prior = pr_brms,
+                  family = bernoulli(link = 'logit')
+                  )
+stan_dta = make_standata(formula = frm_brms,
+                  data = dta,
+                  prior = pr_brms
+                  )
+# Assign integers the class "integer"
+Integerise = function(x) {
+  # If it's a numeric vector/scalar and has no decimal parts, make it an integer
+  if (is.numeric(x) && all(x == floor(x))) {
+    return(as.integer(x))
+  }
+  return(x)
+}
+
+stan_dta  =  lapply(X = stan_dta,
+                    FUN = Integerise)
+
+print(mod_stan)
+```
+
+Takes around 3 minutes.
+```{r run Stan with Nutpie}
+system.time({
+# Compile Stan code
+compiled_nutstan = nutpie$compile_stan_model(code = mod_stan)
+
+# Use do.call to unpack the R list into arguments for the Python method
+compiled_nutstan = do.call(what = compiled_nutstan$with_data,
+                           args =  stan_dta)
+
+mod_nutpie_stan = nutpie$sample(compiled_nutstan,
+                                draws = 1000L,       # 1000L forces R to pass it as a long count integer
+                                tune = 1000L)   #use the first 1000 to tune the sampler
+})
+```
+
+```{r check nutpie Stan heuristics}
+plt = import("matplotlib.pyplot")
+az$summary(mod_nutpie_stan,
+           var_names = c('Intercept',
+                         'b')
+          )[, c(1, 3, 4, 7, 9)]
+aplot = az$plot_trace(mod_nutpie_stan,
+              var_names = c('Intercept',
+                         'b'))
+plt$show()
+```
+
+# Run Bambi with Nutpie
+
+```{r Set up Bambi}
+# Import the necessary Python modules
+bmb = import("bambi")
+
+
+# Set up the priors using R lists parsed into Bambi Priors
+bambi_priors = list(
+  "common" = bmb$Prior("Normal", mu = 0, sigma = 1.0),
+  "group"  = bmb$Prior("HalfStudentT", mu = 0, sigma = 1.0, nu = 3)
+)
+
+# Pull the R objects cleanly into the Python environment
+py$py_data <- dta
+py$bambi_priors <- bambi_priors
+
+```
+
+Takes around 60 seconds!
+```{r Run the Bambi model}
+system.time({
+  
+py_run_string("
+import bambi as bmb
+bmb_model = bmb.Model(
+    formula = 'correct_incorrect ~ stimulus * type + (1 + stimulus * type | animal)',
+    data = py_data,
+    family = 'bernoulli',
+    priors = bambi_priors
+)
+")
+
+# Fit using the nutpie engine
+mod_nutpie_bambi = py$bmb_model$fit(
+    draws=1000L,
+    tune=1000L,
+    nuts_sampler="nutpie"
+)
+})
+```
+
+
+```{r Check Bambi model heuristics}
+az$summary(mod_nutpie_bambi,
+           var_names = c('Intercept',
+                          'stimulus',
+                         'type',
+                         '1|animal_sigma')
+          )[, c(1, 3, 4, 7, 9)]
+aplot = az$plot_trace(mod_nutpie_bambi,
+              var_names = c('Intercept',
+                          'stimulus',
+                         'type',
+                         '1|animal_sigma')
+              )
+plt$show()
+```
+
+# Summary
+Ultimately it looks like the fastest and easiest way to sample a GLMM is to use `Nutpie` via `Bambi`. 
+But beware of awkward `reticulate` issues! It is not straightforward to get `R` and
+`Python` environments aligned and talking to each other.
