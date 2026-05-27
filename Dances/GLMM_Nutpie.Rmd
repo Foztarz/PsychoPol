@@ -420,6 +420,7 @@ az$summary(mod_nutpie_stan,
 aplot = az$plot_trace(mod_nutpie_stan,
               var_names = c('Intercept',
                          'b'))
+plt$switch_backend('agg')
 plt$show()
 ```
 
@@ -486,6 +487,7 @@ aplot = az$plot_trace(mod_nutpie_bambi,
                          'type',
                          '1|animal_sigma')
               )
+plt$switch_backend('agg')
 plt$show()
 ```
 
