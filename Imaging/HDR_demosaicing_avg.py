@@ -281,12 +281,12 @@ demosaiced_img = demosaicing(img_HDR)
 # Display the final HDR image using cv2.imshow()
 #cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
 
-np.save('Final_HDR.npy', img_HDR.astype(np.float64)/img_HDR.max())
+np.save('Final_HDR.npy', img_HDR.astype(np.float64))
 
-np.save("img_000.npy", img_000.astype(np.float64)/img_000.max()) 
-np.save("img_045.npy", img_045.astype(np.float64)/img_045.max())
-np.save("img_090.npy", img_090.astype(np.float64)/img_090.max())
-np.save("img_135.npy", img_135.astype(np.float64)/img_135.max())
+np.save("img_000.npy", img_000.astype(np.float64)) 
+np.save("img_045.npy", img_045.astype(np.float64))
+np.save("img_090.npy", img_090.astype(np.float64))
+np.save("img_135.npy", img_135.astype(np.float64))
 # Wait for a key press and then close the window
 cv2.waitKey(0)
 cv2.destroyAllWindows()
