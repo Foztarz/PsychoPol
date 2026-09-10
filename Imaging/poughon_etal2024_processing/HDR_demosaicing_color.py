@@ -270,52 +270,14 @@ fig.savefig( os.path.dirname(imfile)+ '/img_mid_histogram.pdf')
 #img_000, img_045, img_090, img_135 = demosaicing(img_HDR)
 img_000, img_045, img_090, img_135 = demosaicing(img_HDR, COLOR_PolarRGB) 
 
-##cv2.imshow("img_000.png", img_000[:,:,0].astype(np.float64)/img_000.max())
-##cv2.imshow("img_045.png", img_045[:,:,0].astype(np.float64)/img_045.max())
-##cv2.imshow("img_090.png", img_090[:,:,0].astype(np.float64)/img_090.max())
-##cv2.imshow("img_135.png", img_135[:,:,0].astype(np.float64)/img_135.max())
-
-##img45_hist = img_045[:,:,0].ravel()
-##fig = plt.figure()
-##ax = fig.add_subplot(111)
-##img45_histogram = np.histogram(img45_hist, bins = np.uint32(1e3), 
-##                             range = [0, 
-##                                      np.nanmax(img45_hist)])
-##brs = ax.bar(x =  img45_histogram[1][1:], 
-##             height = img45_histogram[0],
-##             ec="k", align="edge")
-##fig.savefig( os.path.dirname(imfile)+ '/img45_red_histogram.pdf')
-##
-##img45_hist = img_045[:,:,1].ravel()
-##fig = plt.figure()
-##ax = fig.add_subplot(111)
-##img45_histogram = np.histogram(img45_hist, bins = np.uint32(1e3), 
-##                             range = [0, 
-##                                      np.nanmax(img45_hist)])
-##brs = ax.bar(x =  img45_histogram[1][1:], 
-##             height = img45_histogram[0],
-##             ec="k", align="edge")
-##fig.savefig( os.path.dirname(imfile)+ '/img45_green_histogram.pdf')
-##
-##img45_hist = img_045[:,:,2].ravel()
-##fig = plt.figure()
-##ax = fig.add_subplot(111)
-##img45_histogram = np.histogram(img45_hist, bins = np.uint32(1e3), 
-##                             range = [0, 
-##                                      np.nanmax(img45_hist)])
-##brs = ax.bar(x =  img45_histogram[1][1:], 
-##             height = img45_histogram[0],
-##             ec="k", align="edge")
-##fig.savefig( os.path.dirname(imfile)+ '/img45_blue_histogram.pdf')
-
 # Display the final HDR image using cv2.imshow()
 #cv2.imshow('Final HDR Image', img_HDR.astype(np.float64)/img_HDR.max()) # save this image when it prompts, the cv2.imwrite() doesn't work properly.
-np.save('Final_HDR.npy', img_HDR.astype(np.float64)/img_HDR.max())
+np.save('Final_HDR.npy', img_HDR.astype(np.float64))
 
-np.save("img_000.npy", img_000[:,:,2].astype(np.float64)/img_000.max()) ## img_000[:,:,2] is the blue channel
-np.save("img_045.npy", img_045[:,:,2].astype(np.float64)/img_045.max())
-np.save("img_090.npy", img_090[:,:,2].astype(np.float64)/img_090.max())
-np.save("img_135.npy", img_135[:,:,2].astype(np.float64)/img_135.max())
+np.save("img_000.npy", img_000[:,:,0].astype(np.float64)) ## img_000[:,:,0] is the blue channel
+np.save("img_045.npy", img_045[:,:,0].astype(np.float64))
+np.save("img_090.npy", img_090[:,:,0].astype(np.float64))
+np.save("img_135.npy", img_135[:,:,0].astype(np.float64))
 
 demosaiced_img = img_000[:,:,2], img_045[:,:,2], img_090[:,:,2], img_135[:,:,2]
 
